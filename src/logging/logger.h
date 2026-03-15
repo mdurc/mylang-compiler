@@ -2,24 +2,26 @@
 #define LOGGING_LOGGER_H
 
 #include <vector>
+#include <sstream>
 
 #include "diagnostic.h"
 
 class Logger {
 public:
   Logger() = default;
-  void report(Diagnostic err) {
-    switch (err.get_type()) {
-      case DiagType::FATAL_ERROR: m_fatals.push_back(std::move(err)); break;
-      case DiagType::ERROR: m_errors.push_back(std::move(err)); break;
-      case DiagType::WARNING:
-      case DiagType::HINT: m_warnings.push_back(std::move(err)); break;
+
+  void report(Diagnostic diag) {
+    switch (diag.type) {
+      case DiagType::FATAL_ERROR: m_fatals.push_back(std::move(diag)); break;
+      case DiagType::ERROR: m_errors.push_back(std::move(diag)); break;
+      case DiagType::WARNING: m_warnings.push_back(std::move(diag)); break;
     }
   }
 
   const std::vector<Diagnostic>& get_errors() const { return m_errors; }
   const std::vector<Diagnostic>& get_warnings() const { return m_warnings; }
   const std::vector<Diagnostic>& get_fatals() const { return m_fatals; }
+
   size_t num_errors() const { return m_errors.size(); }
   size_t num_warnings() const { return m_warnings.size(); }
   size_t num_fatals() const { return m_fatals.size(); }
@@ -33,29 +35,17 @@ public:
   void clear_warnings() { m_warnings.clear(); }
 
   std::string get_diagnostic_str() const {
-    std::string out;
-    for (const Diagnostic& d : m_warnings) {
-      out += d.what();
-      out += "\n";
-    }
-
-    for (const Diagnostic& d : m_errors) {
-      out += d.what();
-      out += "\n";
-    }
-
-    for (const Diagnostic& d : m_fatals) {
-      out += d.what();
-      out += "\n";
-    }
-
-    return out;
+    std::stringstream ss;
+    for (const auto& d : m_warnings) ss << d.to_string() << "\n";
+    for (const auto& d : m_errors)   ss << d.to_string() << "\n";
+    for (const auto& d : m_fatals)   ss << d.to_string() << "\n";
+    return ss.str();
   }
 
 private:
-  std::vector<Diagnostic> m_errors; // errors
-  std::vector<Diagnostic> m_fatals; // fatal errors (assertions, often internal)
-  std::vector<Diagnostic> m_warnings; // warnings and hints
+  std::vector<Diagnostic> m_errors;
+  std::vector<Diagnostic> m_fatals;
+  std::vector<Diagnostic> m_warnings;
 };
 
 #endif // LOGGING_LOGGER_H
