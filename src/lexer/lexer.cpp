@@ -1,11 +1,11 @@
 #include "lexer.h"
 
-#define _report_error(msg)                                           \
-  do {                                                               \
-    m_logger->report(Error(Span(m_row, m_start_col, m_col), (msg))); \
+#define _report_error(msg)                                                            \
+  do {                                                                                \
+    m_logger->report(Diag::Error(Span(m_file_id, m_row, m_start_col, m_col), (msg))); \
   } while (0);
 
-const std::unordered_map<std::string, TokenType> Lexer::s_keyword_map = {
+const std::unordered_map<std::string_view, TokenType> Lexer::s_keyword_map = {
     {"func", TokenType::FUNC},     {"if", TokenType::IF},
     {"else", TokenType::ELSE},     {"for", TokenType::FOR},
     {"while", TokenType::WHILE},   {"read", TokenType::READ},
@@ -28,41 +28,31 @@ const std::unordered_map<std::string, TokenType> Lexer::s_keyword_map = {
     {"i64", TokenType::I64},       {"f64", TokenType::F64},
     {"bool", TokenType::BOOL},     {"string", TokenType::STRING}};
 
-void Lexer::setup(const std::string& source) {
-  m_source = source;
-  m_lex_start = 0;
-  m_lex_pos = 0;
+std::vector<Token> Lexer::tokenize(std::string_view source) {
+  m_start = source.data();
+  m_pos = source.data();
+  m_end = source.data() + source.size();
 
   m_tokens.clear();
   m_row = 1;
   m_col = 1;
   m_start_col = 1;
-}
 
-std::vector<Token> Lexer::tokenize_file(const std::string& filename) {
-  PreprocessedFile preprocessed = m_preprocessor.preprocess_file(filename);
-  setup(preprocessed.content);
-  return tokenize();
-}
-
-std::vector<Token> Lexer::tokenize() {
   while (!is_at_end()) {
     skip_whitespace_and_comments();
     if (is_at_end()) break;
     m_start_col = m_col;
-    m_lex_start = m_lex_pos;
+    m_start = m_pos;
     scan_token();
   }
-
-  // any lexer diagnostics will be reported later, assume they are non-fatal now
   return m_tokens;
 }
 
-bool Lexer::is_at_end() const { return m_lex_pos >= m_source.size(); }
+bool Lexer::is_at_end() const { return m_pos >= m_end; }
 
 char Lexer::advance() {
   if (is_at_end()) return '\0';
-  char current_char = m_source[m_lex_pos++];
+  char current_char = *m_pos++;
   if (current_char == '\n') {
     ++m_row;
     m_col = 1;
@@ -74,16 +64,16 @@ char Lexer::advance() {
 
 char Lexer::peek() const {
   if (is_at_end()) return '\0';
-  return m_source[m_lex_pos];
+  return *m_pos;
 }
 
 char Lexer::peek_next() const {
-  if (m_lex_pos + 1 >= m_source.size()) return '\0';
-  return m_source[m_lex_pos + 1];
+  if (m_pos + 1 >= m_end) return '\0';
+  return *(m_pos + 1);
 }
 
 bool Lexer::match(char expected) {
-  if (is_at_end() || m_source[m_lex_pos] != expected) {
+  if (is_at_end() || *m_pos != expected) {
     return false;
   }
   advance(); // consume the character
@@ -92,9 +82,8 @@ bool Lexer::match(char expected) {
 
 // optional literal value
 void Lexer::add_token(TokenType type, Token::Lit literal_value) {
-  m_tokens.push_back(
-      Token(type, m_source.substr(m_lex_start, m_lex_pos - m_lex_start),
-            Span(m_row, m_start_col, m_col), std::move(literal_value)));
+  std::string_view lexeme(m_start, m_pos - m_start);
+  m_tokens.emplace_back(type, lexeme, Span(m_file_id, m_row, m_start_col, m_col), std::move(literal_value));
 }
 
 void Lexer::skip_whitespace() {
@@ -138,8 +127,7 @@ void Lexer::skip_whitespace_and_comments() {
 
 char Lexer::handle_escape_sequence() {
   if (is_at_end()) {
-    m_logger->report(Error(Span(m_row, m_col, m_col),
-                           "Unterminated escape sequence at end of file"));
+    _report_error("Unterminated escape sequence at end of file");
     return '\0';
   }
 
@@ -151,9 +139,7 @@ char Lexer::handle_escape_sequence() {
     case '\'': return '\'';
     case '\\': return '\\';
     default:
-      m_logger->report(
-          Warning(Span(m_row, m_col, m_col),
-                  "Unknown escape sequence: \\" + std::string(1, esc)));
+      _report_error("Unknown escape sequence: \\" + std::string(1, esc));
       return esc;
   }
 }
@@ -162,7 +148,7 @@ void Lexer::lex_string() {
   // Opening '"' was consumed by scan_token calling advance()
   int starting_row = m_row;
   int starting_col = m_col;
-  std::string value;
+  std::string value; // escape codes require real allocation, not view
   while (peek() != '"' && peek() != '\n' && !is_at_end()) {
     if (peek() == '\\') {
       advance();
@@ -173,8 +159,7 @@ void Lexer::lex_string() {
   }
 
   if (is_at_end() || peek() != '"') {
-    m_logger->report(Error(Span(starting_row, m_start_col, starting_col),
-                           "Unterminated string."));
+    _report_error("Unterminated string.");
     add_token(TokenType::UNKNOWN);
     return;
   }
@@ -190,8 +175,7 @@ void Lexer::lex_char() {
   // check if it is an empty char literal, which is not allowed
   char c = peek();
   if (c == '\'') {
-    m_logger->report(Error(Span(starting_row, m_start_col, starting_col),
-                           "Empty char literal"));
+    _report_error("Empty char literal");
     advance(); // Consume closing '
     add_token(TokenType::UNKNOWN);
     return;
@@ -206,8 +190,7 @@ void Lexer::lex_char() {
   }
 
   if (peek() != '\'') {
-    m_logger->report(Error(Span(starting_row, m_start_col, starting_col),
-                           "Improperly terminated char literal"));
+    _report_error("Improperly terminated char literal");
     add_token(TokenType::UNKNOWN);
     return;
   }
@@ -217,49 +200,49 @@ void Lexer::lex_char() {
 }
 
 void Lexer::lex_number() {
-  std::string num_str;
   bool is_float = false;
 
   while (isdigit(peek())) {
-    num_str += advance();
+    advance();
   }
 
   if (peek() == '.' && isdigit(peek_next())) {
     is_float = true;
-    num_str += advance();
+    advance();
     while (isdigit(peek())) {
-      num_str += advance();
+      advance();
     }
   }
 
+  std::string_view num_str(m_start, m_pos - m_start);
+
   if (is_float) {
     try {
-      add_token(TokenType::FLOAT_LITERAL, std::stod(num_str));
+      add_token(TokenType::FLOAT_LITERAL, std::stod(std::string(num_str)));
     } catch (const std::out_of_range&) {
-      _report_error("Float literal out of range: " + num_str);
+      _report_error("Float literal out of range: " + std::string(num_str));
       add_token(TokenType::UNKNOWN);
     }
   } else {
     try {
-      add_token(TokenType::INT_LITERAL, std::stoull(num_str));
+      add_token(TokenType::INT_LITERAL, std::stoull(std::string(num_str)));
     } catch (const std::out_of_range&) {
-      _report_error("Integer literal out of range: " + num_str);
+      _report_error("Integer literal out of range: " + std::string(num_str));
       add_token(TokenType::UNKNOWN);
     }
   }
 }
 
-std::string Lexer::read_identifier() {
-  std::string identifier;
+std::string_view Lexer::read_identifier() {
   while (!is_at_end() && (isalnum(peek()) || peek() == '_')) {
-    identifier += advance();
+    advance();
   }
-  return identifier;
+  return std::string_view(m_start, m_pos - m_start);
 }
 
 void Lexer::lex_identifier_or_keyword() {
   // first char is already checked to be isalpha or '_', but not consumed
-  std::string text = read_identifier();
+  std::string_view text = read_identifier();
 
   // regular keyword or identifier
   auto i = s_keyword_map.find(text);
@@ -295,6 +278,7 @@ void Lexer::scan_token() {
     case ']': add_token(TokenType::RBRACK); break;
     case ',': add_token(TokenType::COMMA); break;
     case '.': add_token(TokenType::DOT); break;
+    case '#': add_token(TokenType::HASH); break;
     case ';': add_token(TokenType::SEMICOLON); break;
     case '+': add_token(TokenType::PLUS); break;
     case '*': add_token(TokenType::STAR); break;

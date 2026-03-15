@@ -1,193 +1,111 @@
 #include "preprocessor.h"
-
+#include "../lexer/lexer.h"
 #include <filesystem>
-#include <fstream>
-#include <sstream>
 
-namespace fs = std::filesystem;
+std::vector<Token> Preprocessor::process(const std::vector<Token>& raw_tokens) {
+  std::vector<Token> output;
+  output.reserve(raw_tokens.size());
 
-PreprocessedFile Preprocessor::preprocess_file(const std::string& filename) {
-  m_processing_files.clear();
-  m_macros.clear();
-
-  m_include_paths = {"."};
-
-  PreprocessedFile result;
-
-  std::string content = read_file_content(filename);
-  if (m_logger->num_fatals() > 0) {
-    return result;
-  }
-  result.content = process_file_content(filename, content);
-  result.filename = filename;
-
-  // if errors/warnings were logged, return empty result
-  if (m_logger->num_fatals() > 0) {
-    return PreprocessedFile{};
-  }
-
-  return result;
-}
-
-std::string Preprocessor::process_file_content(const std::string& filename,
-                                               const std::string& content) {
-  if (m_processing_files.find(filename) != m_processing_files.end()) {
-    m_logger->report(Error("Circular include detected: " + filename));
-    return "";
-  }
-
-  m_processing_files.insert(filename);
-
-  std::vector<std::string> lines = split_lines(content);
-  std::stringstream output;
-
-  for (size_t i = 0; i < lines.size(); ++i) {
-    const std::string& line = lines[i];
-    std::string trimmed = trim_whitespace(line);
-    if (trimmed.empty()) {
-      output << "\n";
-      continue;
-    }
-
-    if (trimmed[0] != '#') {
-      output << expand_macros(line) << "\n";
-      continue;
-    }
-
-    // else it is a directive that should be processed
-    if (trimmed.substr(0, 7) == "#define") {
-      output << "\n"; // output a newline as a line placeholder for lexer
-      handle_define_directive(trimmed);
-    } else if (trimmed.substr(0, 8) == "#include") {
-      handle_include_directive(trimmed, output);
-    } else {
-      // skip other preprocessor directives for now
-      m_logger->report(
-          Warning("Unsupported preprocessor directive: " + trimmed));
-    }
-  }
-
-  m_processing_files.erase(filename);
-  return output.str();
-}
-
-void Preprocessor::handle_define_directive(const std::string& line) {
-  // #define macro_name value
-  std::istringstream iss(line.substr(8)); // skip '#define '
-  std::string macro_name, value;
-
-  iss >> macro_name;
-  if (macro_name.empty()) {
-    m_logger->report(Error("Expected macro name after #define"));
-    return;
-  }
-
-  // get the rest of the line as the value
-  std::getline(iss, value);
-  value = trim_whitespace(value);
-
-  m_macros[macro_name] = value;
-}
-
-void Preprocessor::handle_include_directive(const std::string& line,
-                                            std::stringstream& output) {
-  // #include "filename"
-  size_t start = line.find('"');
-  if (start == std::string::npos) {
-    m_logger->report(
-        Error("Invalid include directive (missing opening quote): " + line));
-    return;
-  }
-
-  size_t end = line.find('"', start + 1);
-  if (end == std::string::npos) {
-    m_logger->report(
-        Error("Invalid include directive (missing closing quote): " + line));
-    return;
-  }
-
-  std::string include_name = line.substr(start + 1, end - start - 1);
-  if (include_name.empty()) {
-    m_logger->report(Error("Empty include path in directive: " + line));
-    return;
-  }
-
-  std::string include_file = find_include_file(include_name);
-  if (include_file.empty()) {
-    m_logger->report(Error("Could not find include file: " + include_name));
-    return;
-  }
-
-  // recursively process the included file
-  std::string included_content = read_file_content(include_file);
-  output << process_file_content(include_file, included_content);
-}
-
-std::string Preprocessor::expand_macros(const std::string& content) {
-  std::string result = content;
-
-  // replace macro_name with associated value
-  for (const auto& [macro_name, macro_value] : m_macros) {
-    size_t len = macro_name.size();
-    size_t pos = 0;
-    while ((pos = result.find(macro_name, pos)) != std::string::npos) {
-      bool is_word_start = (pos == 0) || !isalnum(result[pos - 1]);
-      bool is_word_end =
-          (pos + len >= result.size()) || !isalnum(result[pos + len]);
-
-      if (is_word_start && is_word_end) {
-        result.replace(pos, len, macro_value);
+  for (size_t i = 0; i < raw_tokens.size(); ++i) {
+    const Token& token = raw_tokens[i];
+    // directives
+    if (token.get_type() == TokenType::HASH) {
+      if (i + 1 < raw_tokens.size() && raw_tokens[i + 1].get_type() == TokenType::IDENTIFIER) {
+        std::string_view directive = raw_tokens[i + 1].get_lexeme();
+        if (directive == "define") {
+          handle_define(raw_tokens, i);
+          continue;
+        } else if (directive == "include") {
+          handle_include(raw_tokens, i, output);
+          continue;
+        }
       }
-      pos += len;
+      m_logger->report(Diag::Error(token.get_span(), "Unknown preprocessor directive"));
+      continue;
     }
+
+    // macro expansions
+    if (token.get_type() == TokenType::IDENTIFIER) {
+      auto it = m_macros.find(token.get_lexeme());
+      if (it != m_macros.end()) {
+        const std::vector<Token>& replacement = it->second;
+        output.insert(output.end(), replacement.begin(), replacement.end());
+        continue;
+      }
+    }
+    // normal token, pass it through
+    output.push_back(token);
   }
 
-  return result;
+  return output;
 }
 
-std::string Preprocessor::find_include_file(const std::string& include_name) {
-  // search in include paths
-  for (const std::string& path : m_include_paths) {
-    fs::path full_path = fs::path(path) / include_name;
-    if (fs::exists(full_path) && fs::is_regular_file(full_path)) {
+void Preprocessor::handle_define(const std::vector<Token>& tokens, size_t& i) {
+  std::uint32_t directive_row = tokens[i].get_span().row;
+  i += 2;
+  if (i >= tokens.size() || tokens[i].get_type() != TokenType::IDENTIFIER) {
+    m_logger->report(Diag::Error(tokens[i-1].get_span(), "Expected macro name after #define"));
+    return;
+  }
+
+  std::string_view macro_name = tokens[i].get_lexeme();
+  i++;
+
+  // collect all tokens that are on the exact same row
+  std::vector<Token> replacement_tokens;
+  while (i < tokens.size() && tokens[i].get_span().row == directive_row) {
+    replacement_tokens.push_back(tokens[i]);
+    i++;
+  }
+  m_macros[macro_name] = replacement_tokens;
+  i--;
+}
+
+void Preprocessor::handle_include(const std::vector<Token>& tokens, size_t& i, std::vector<Token>& output) {
+  std::uint32_t directive_row = tokens[i].get_span().row;
+  i += 2;
+  if (i >= tokens.size() || tokens[i].get_type() != TokenType::STRING_LITERAL) {
+    m_logger->report(Diag::Error(tokens[i-1].get_span(), "Expected string literal after #include"));
+    return;
+  }
+
+  std::string include_name = tokens[i].get_string_val();
+  std::string full_path = find_include_file(include_name);
+  if (full_path.empty()) {
+    m_logger->report(Diag::Error(tokens[i].get_span(), "Could not resolve include file: " + include_name));
+    return;
+  }
+
+  std::uint32_t file_id = m_loader->load_file(full_path);
+  if (file_id == -1) return;
+
+  if (m_processing_files.find(file_id) != m_processing_files.end()) {
+    m_logger->report(Diag::Error(tokens[i].get_span(), "Circular include detected for file: " + include_name));
+    return;
+  }
+
+  // recursively lex and preprocess the included file
+  m_processing_files.insert(file_id);
+
+  Lexer lexer(m_logger, file_id);
+  std::vector<Token> raw_included_tokens = lexer.tokenize(m_loader->get_source(file_id));
+  std::vector<Token> processed_included_tokens = process(raw_included_tokens);
+  output.insert(output.end(), processed_included_tokens.begin(), processed_included_tokens.end());
+  m_processing_files.erase(file_id);
+
+  // consume any remaining tokens on the #include line
+  while (i < tokens.size() && tokens[i].get_span().row == directive_row) {
+    i++;
+  }
+  i--;
+}
+
+std::string Preprocessor::find_include_file(std::string_view include_name) {
+  for (const std::string& path : m_include_path) {
+    std::filesystem::path full_path = std::filesystem::path(path) / include_name;
+    if (std::filesystem::exists(full_path) && std::filesystem::is_regular_file(full_path)) {
       return full_path.string();
     }
   }
-
   return "";
-}
-
-std::string Preprocessor::read_file_content(const std::string& filename) {
-  std::ifstream file(filename);
-  if (!file.is_open()) {
-    m_logger->report(Error("Could not open file: " + filename));
-    return "";
-  }
-
-  std::stringstream buffer;
-  buffer << file.rdbuf();
-  return buffer.str();
-}
-
-std::vector<std::string> Preprocessor::split_lines(const std::string& content) {
-  std::vector<std::string> lines;
-  std::istringstream iss(content);
-  std::string line;
-
-  while (std::getline(iss, line)) {
-    lines.push_back(line);
-  }
-
-  return lines;
-}
-
-std::string Preprocessor::trim_whitespace(const std::string& str) {
-  int start = -1, end = -1;
-  for (size_t i = 0; i < str.size(); ++i) {
-    if (!isspace(str[i])) {
-      if (start == -1) start = i;
-      end = i;
-    }
-  }
-  return start == -1 ? "" : str.substr(start, end - start + 1);
 }

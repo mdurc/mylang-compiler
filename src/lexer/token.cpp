@@ -21,37 +21,17 @@ bool is_basic_type(TokenType type) {
   }
 }
 
-void print_tokens(const std::vector<Token>& toks, std::ostream& out) {
-  out << "Tokens (" << toks.size() << "):" << std::endl;
+void Token::print_tokens(const std::vector<Token>& toks, std::ostream& out) {
+  out << "Tokens (" << toks.size() << "):\n";
   for (const Token& t : toks) {
-    out << t << std::endl;
+    out << t << "\n";
   }
 }
 
-Token::Token(TokenType type, const std::string& lexeme, Span span, Lit value)
-    : m_type(type),
-      m_lexeme(lexeme),
-      m_span(std::move(span)),
-      m_literal_value(std::move(value)) {}
-
-bool Token::is_literal() const {
-  return !std::holds_alternative<std::monostate>(m_literal_value);
-}
-
-std::uint64_t Token::get_int_val() const {
-  return std::get<std::uint64_t>(m_literal_value);
-}
-const std::string& Token::get_string_val() const {
-  return std::get<std::string>(m_literal_value);
-}
-double Token::get_float_val() const {
-  return std::get<double>(m_literal_value);
-}
-
 std::ostream& operator<<(std::ostream& out, const Token& token) {
-  constexpr int type_width = 14;
-  constexpr int lexeme_width = 14;
-  constexpr int literal_width = 14;
+  constexpr int type_width = 16;
+  constexpr int lexeme_width = 16;
+  constexpr int literal_width = 16;
 
   out << "[" << std::left << std::setw(type_width)
       << token_type_to_string(token.m_type) << "] ";
@@ -63,10 +43,7 @@ std::ostream& operator<<(std::ostream& out, const Token& token) {
     std::visit(
         [&literal_stream](auto&& arg) {
           using T = std::decay_t<decltype(arg)>;
-          if constexpr (std::is_same_v<T, std::monostate>) {
-            // this should never be reached due to checking is_literal
-            literal_stream << "monostate_error";
-          } else {
+          if constexpr (!std::is_same_v<T, std::monostate>) {
             literal_stream << arg;
           }
         },
@@ -77,7 +54,6 @@ std::ostream& operator<<(std::ostream& out, const Token& token) {
   }
 
   out << "at " << token.m_span;
-
   return out;
 }
 
@@ -153,6 +129,7 @@ std::string token_type_to_string(TokenType type) {
     case TokenType::DOT: return "DOT";
     case TokenType::COLON: return "COLON";
     case TokenType::SEMICOLON: return "SEMICOLON";
+    case TokenType::HASH: return "HASH";
 
     // operators
     case TokenType::BANG: return "BANG";

@@ -4,21 +4,24 @@
 #include <cstddef>
 #include <ostream>
 
-class Span {
-public:
-  size_t row;
-  size_t start_col;
-  size_t end_col; // the span is exclusive of the end col
-  Span() : row(0), start_col(0), end_col(0) {}
-  Span(size_t row, size_t start_col, size_t end_col)
-      : row(row), start_col(start_col), end_col(end_col) {}
+/* stored within each token as the location within the raw text */
+struct Span {
+  std::uint32_t file_id;
+  std::uint32_t row;
+  std::uint16_t start_col;
+  std::uint16_t end_col; // exclusive
 
-  inline size_t len() const { return end_col - start_col; }
+  Span() : file_id(-1), row(0), start_col(0), end_col(0) {}
+  Span(std::uint32_t file_id, std::uint32_t row, std::uint16_t start_col, std::uint16_t end_col)
+      : file_id(file_id), row(row), start_col(start_col), end_col(end_col) {}
+
+  inline std::uint32_t len() const { return end_col - start_col; }
 
   inline std::string to_string() const {
-    return "(row=" + std::to_string(row) +
-           ", col=" + std::to_string(start_col) + "-" +
-           std::to_string(end_col) + ")";
+    return "(file=" + std::to_string(file_id) +
+      ", row=" + std::to_string(row) +
+      ", col=" + std::to_string(start_col) + "-" +
+      std::to_string(end_col) + ")";
   }
 
   inline friend std::ostream& operator<<(std::ostream& out, const Span& span) {
@@ -27,6 +30,7 @@ public:
   }
 
   inline bool operator>(const Span& other) const {
+    if (file_id != other.file_id) return file_id > other.file_id;
     if (row != other.row) return row > other.row;
     if (start_col != other.start_col) return start_col > other.start_col;
     return end_col > other.end_col;

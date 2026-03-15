@@ -78,6 +78,7 @@ enum class TokenType {
   COLON,     // :
   SEMICOLON, // ;
   DOT,       // .
+  HASH,      // #
 
   // Operators
   BANG,      // !
@@ -100,30 +101,28 @@ enum class TokenType {
   UNKNOWN,
 };
 
-bool is_basic_type(TokenType type);
-
 std::string token_type_to_string(TokenType type);
+bool is_basic_type(TokenType type);
 
 class Token {
 public:
   // default constructable variant
   using Lit = std::variant<std::monostate, std::uint64_t, std::string, double>;
 
-  // Span and Value are both going to be passed as literals thus
-  // we are going to use std::move
-  Token(TokenType type, const std::string& lexeme, Span span,
-        Lit value = std::monostate{});
+  Token(TokenType type, std::string_view lexeme, Span span, Lit value = std::monostate{})
+      : m_type(type), m_lexeme(lexeme), m_span(span), m_literal_value(std::move(value)) {}
 
   TokenType get_type() const { return m_type; }
   const Span& get_span() const { return m_span; }
-  const std::string& get_lexeme() const { return m_lexeme; }
 
-  std::uint64_t get_int_val() const;
-  const std::string& get_string_val() const;
-  double get_float_val() const;
+  std::string_view get_lexeme() const { return m_lexeme; }
 
-  bool is_literal() const;
+  bool is_literal() const { return !std::holds_alternative<std::monostate>(m_literal_value); }
+  std::uint64_t get_int_val() const { return std::get<std::uint64_t>(m_literal_value); }
+  const std::string& get_string_val() const { return std::get<std::string>(m_literal_value); }
+  double get_float_val() const { return std::get<double>(m_literal_value); }
 
+  static void print_tokens(const std::vector<Token>& toks, std::ostream& out);
   friend std::ostream& operator<<(std::ostream& out, const Token& token);
 
 private:
@@ -133,6 +132,5 @@ private:
   Lit m_literal_value;
 };
 
-void print_tokens(const std::vector<Token>& toks, std::ostream& out);
 
 #endif // LEXER_TOKEN_H
