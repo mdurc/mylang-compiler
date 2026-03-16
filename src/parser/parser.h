@@ -1,26 +1,36 @@
 #ifndef PARSER_PARSER_H
 #define PARSER_PARSER_H
 
+#include <string_view>
+#include <vector>
+#include <utility>
+
 #include "../lexer/token.h"
 #include "../logging/logger.h"
+#include "../memory/arena.h"
 #include "ast.h"
 #include "symtab.h"
 
 class Parser {
 public:
-  Parser(Logger* logger) : m_logger(logger) {}
+  Parser(Logger* logger, ArenaAllocator* arena)
+    : m_logger(logger), m_arena(arena) {}
 
-  std::vector<AstPtr> parse_program(SymTab* symtab, std::vector<Token> tokens);
+  /* TODO: returns a ... */
+  std::vector<AstPtr> parse_program(SymTab* symtab, const std::vector<Token>& tokens);
 
 private:
   Logger* m_logger;
-
+  ArenaAllocator* m_arena;
   SymTab* m_symtab;
 
   std::vector<Token> m_tokens;
   size_t m_pos;
 
   std::vector<AstPtr> m_root;
+
+  /* allocate generated strings into arena so they outlive the parser */
+  std::string_view intern_string(const std::string& str);
 
   const Token* current();
   const Token* advance();
@@ -41,7 +51,7 @@ private:
   FuncDeclPtr parse_function_decl();
   BorrowState parse_function_param_prefix();
   ParamPtr parse_function_param();
-  std::pair<IdentPtr, std::shared_ptr<Type>> parse_function_return_type();
+  std::pair<IdentPtr, Type*> parse_function_return_type();
 
   // Statements
   StmtPtr parse_statement();
@@ -74,7 +84,7 @@ private:
   ExprPtr parse_postfix();
 
   std::vector<ArgPtr> parse_args();
-  std::shared_ptr<Type> parse_type();
+  Type* parse_type();
 
   // Primary Expressions
   ExprPtr parse_primary();

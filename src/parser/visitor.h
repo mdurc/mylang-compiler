@@ -11,6 +11,9 @@ class Visitor {
 public:
   virtual ~Visitor() = default;
 
+  virtual void visit(PoisonExprNode& node) = 0;
+  virtual void visit(PoisonStmtNode& node) = 0;
+
   // Expression Nodes
   virtual void visit(IntegerLiteralNode& node) = 0;
   virtual void visit(FloatLiteralNode& node) = 0;
@@ -73,6 +76,16 @@ public:
   static std::string bin_op_to_string(BinOperator op);
   static std::string unary_op_to_string(UnaryOperator op);
   static std::string borrow_state_to_string(BorrowState bs);
+
+  void visit(PoisonExprNode& node) override {
+    print_indent();
+    out << "PoisonExpr()";
+  }
+
+  void visit(PoisonStmtNode& node) override {
+    print_indent();
+    out << "PoisonStmt()";
+  }
 
   void visit(IntegerLiteralNode& node) override {
     print_indent();

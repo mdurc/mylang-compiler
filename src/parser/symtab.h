@@ -1,48 +1,29 @@
 #ifndef PARSER_SYMTAB_H
 #define PARSER_SYMTAB_H
 
-#include <memory>
+#include <string_view>
 #include <unordered_map>
+#include <variant>
 #include <vector>
 
 #include "ast.h"
+#include "../memory/arena.h"
 #include "types.h"
 
-#define DEFINE_ADD_DECL(TypeName, FuncName, MemberMap)        \
-  TypeName FuncName(const std::string& name, TypeName decl) { \
-    auto itr = MemberMap.insert({name, decl});                \
-    return itr.second ? decl : nullptr;                       \
-  }
-
-#define DEFINE_DECLARE_DECL(TypeName, FuncName, AddFuncName)                \
-  TypeName FuncName(const std::string& name, TypeName decl, size_t scope) { \
-    return m_scopes[scope].AddFuncName(name, decl);                         \
-  }
-
-#define DEFINE_LOOKUP(TypeName, FuncName, MemberLookupFunc)              \
-  TypeName FuncName(const std::string& name, size_t start_scope) const { \
-    if (start_scope >= m_scopes.size()) {                                \
-      return nullptr;                                                    \
-    }                                                                    \
-    for (size_t scope_id = start_scope;;                                 \
-         scope_id = m_scopes[scope_id].get_parent_scope()) {             \
-      TypeName result = m_scopes[scope_id].MemberLookupFunc(name);       \
-      if (result) return result;                                         \
-      if (scope_id == 0) break;                                          \
-    }                                                                    \
-    return nullptr;                                                      \
-  }
-
 std::string variable_borrowed_state_to_string(BorrowState bs);
+using SymbolData = std::variant<std::monostate, Variable*, Type*>;
 
 struct Symbol {
   enum Kind { Variable, Type };
   Kind kind;
-  std::shared_ptr<void> data;
+  SymbolData data;
 
   template <typename T>
-  std::shared_ptr<T> as() const {
-    return std::static_pointer_cast<T>(data);
+  T* as() const {
+    if (std::holds_alternative<T*>(data)) {
+      return std::get<T*>(data);
+    }
+    return nullptr;
   }
 };
 
@@ -50,63 +31,70 @@ class Scope {
 public:
   Scope(size_t parent) : m_parent_scope(parent) {}
   size_t get_parent_scope() const { return m_parent_scope; }
-  const std::unordered_map<std::string, Symbol>& get_symbols() const {
+
+  const std::unordered_map<std::string_view, Symbol>& get_symbols() const {
     return m_symbols;
   }
 
-  template <typename T>
-  std::shared_ptr<T> add(const std::string& name, Symbol::Kind kind,
-                         const T& value) {
-    std::shared_ptr<T> shrd_type = std::make_shared<T>(value);
-    auto itr = m_symbols.insert({name, {kind, shrd_type}});
-    return itr.second ? shrd_type : nullptr;
+  Variable* add_variable(std::string_view name, Variable* var) {
+    auto itr = m_symbols.insert({name, {Symbol::Variable, var}});
+    return itr.second ? var : nullptr;
   }
 
-  DEFINE_ADD_DECL(StructDeclPtr, add_struct, m_structs)
+  Type* add_type(std::string_view name, Type* type) {
+    auto itr = m_symbols.insert({name, {Symbol::Type, type}});
+    return itr.second ? type : nullptr;
+  }
 
-  const Symbol* lookup(const std::string& name) const;
-  StructDeclPtr lookup_struct(const std::string& name) const;
+  StructDeclPtr add_struct(std::string_view name, StructDeclPtr decl) {
+    auto itr = m_structs.insert({name, decl});
+    return itr.second ? decl : nullptr;
+  }
+
+  const Symbol* lookup(std::string_view name) const;
+  StructDeclPtr lookup_struct(std::string_view name) const;
 
   void print(std::ostream& out, const std::string& indent = "") const;
 
 private:
   size_t m_parent_scope;
-  std::unordered_map<std::string, Symbol> m_symbols;
-  std::unordered_map<std::string, StructDeclPtr> m_structs;
+  std::unordered_map<std::string_view, Symbol> m_symbols;
+  std::unordered_map<std::string_view, StructDeclPtr> m_structs;
 };
 
 class SymTab {
 public:
-  SymTab();
+  SymTab(ArenaAllocator* arena);
+
   void enter_scope();
   void exit_scope();
+
   const std::vector<Scope>& get_scopes() const { return m_scopes; }
+  size_t current_scope() const { return m_current_scope; }
 
   template <typename T>
-  std::shared_ptr<T> lookup(const std::string& name, size_t start_scope) const {
+  T* lookup(std::string_view name, size_t start_scope) const {
     if (start_scope >= m_scopes.size()) {
       return nullptr;
     }
-    for (size_t scope_id = start_scope;;
-         scope_id = m_scopes[scope_id].get_parent_scope()) {
+    for (size_t scope_id = start_scope;; scope_id = m_scopes[scope_id].get_parent_scope()) {
       const Symbol* s = m_scopes[scope_id].lookup(name);
-      if (s && s->data) return s->as<T>();
+      if (s) return s->as<T>();
       if (scope_id == 0) break;
     }
     return nullptr;
   }
+  StructDeclPtr lookup_struct(std::string_view name, size_t start_scope) const;
 
-  DEFINE_LOOKUP(StructDeclPtr, lookup_struct, lookup_struct)
-
-  template <typename T>
-  std::shared_ptr<T> declare(const std::string& name, Symbol::Kind kind,
-                             const T& value, size_t scope) {
-    return m_scopes[scope].add<T>(name, kind, value);
+  Variable* declare_variable(std::string_view name, Variable* var, size_t scope) {
+    return m_scopes[scope].add_variable(name, var);
   }
-
-  DEFINE_DECLARE_DECL(StructDeclPtr, declare_struct, add_struct)
-
-  size_t current_scope() const { return m_current_scope; }
+  Type* declare_type(std::string_view name, Type* type, size_t scope) {
+    return m_scopes[scope].add_type(name, type);
+  }
+  StructDeclPtr declare_struct(std::string_view name, StructDeclPtr decl, size_t scope) {
+    return m_scopes[scope].add_struct(name, decl);
+  }
 
   void print(std::ostream& out) const;
 

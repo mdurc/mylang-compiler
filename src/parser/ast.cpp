@@ -2,6 +2,8 @@
 
 #include "visitor.h"
 
+void PoisonExprNode::accept(Visitor& v) { v.visit(*this); }
+void PoisonStmtNode::accept(Visitor& v) { v.visit(*this); }
 void IntegerLiteralNode::accept(Visitor& v) { v.visit(*this); }
 void FloatLiteralNode::accept(Visitor& v) { v.visit(*this); }
 void StringLiteralNode::accept(Visitor& v) { v.visit(*this); }

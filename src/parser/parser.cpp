@@ -1,6 +1,18 @@
 #include "parser.h"
+#include <string_view>
 
-#define _panic_mode() throw std::runtime_error("Parser error");
+struct ParsePanic : public std::runtime_error {
+  ParsePanic() : std::runtime_error("ParsePanic") {}
+};
+
+#define _panic_mode() throw ParsePanic();
+#define _assert(cond, msg)                                                   \
+  do {                                                                       \
+    if (!(cond)) {                                                           \
+      m_logger->report(Diag::Fatal(current()->get_span(), std::string("Internal: ") + msg)); \
+      throw std::runtime_error(msg); /* compiler crash */                    \
+    }                                                                        \
+  } while (false)
 
 #define _consume(_type)    \
   do {                     \
@@ -9,18 +21,21 @@
     }                      \
   } while (0)
 
-#define _AST(_type, ...) std::make_shared<_type>(__VA_ARGS__)
+#define _alloc(_type, ...) m_arena->make<_type>(__VA_ARGS__)
 
-#include "../util.h"
+std::string_view Parser::intern_string(const std::string& str) {
+  char* mem = static_cast<char*>(m_arena->allocate(str.size() + 1, 1));
+  std::memcpy(mem, str.c_str(), str.size());
+  mem[str.size()] = '\0';
+  return std::string_view(mem, str.size());
+}
 
 // == Movement Operations through Tokens ==
 const Token* Parser::current() {
   if (m_pos < m_tokens.size()) {
     return &m_tokens[m_pos];
   }
-  m_logger->report(
-      Error(m_tokens.back().get_span(),
-            "Attempting to access current position when out of bounds"));
+  m_logger->report(Diag::Error(m_tokens.back().get_span(), "Attempting to access current position when out of bounds"));
   _panic_mode();
 }
 
@@ -29,9 +44,7 @@ const Token* Parser::advance() {
   if (m_pos < m_tokens.size()) {
     return &m_tokens[m_pos++];
   }
-  m_logger->report(Error(
-      m_tokens.back().get_span(),
-      "Attempting to access current position and advance when out of bounds"));
+  m_logger->report(Diag::Error(m_tokens.back().get_span(), "Attempting to access current position and advance when out of bounds"));
   _panic_mode();
 }
 
@@ -42,7 +55,7 @@ bool Parser::consume(TokenType type) {
     return true;
   }
   const Token* curr = current();
-  m_logger->report(ExpectedToken(curr->get_span(), type, curr->get_type()));
+  m_logger->report(Diag::ExpectedToken(curr->get_span(), token_type_to_string(type), token_type_to_string(curr->get_type())));
   return false;
 }
 
@@ -88,25 +101,16 @@ void Parser::synchronize() {
   }
 }
 
-std::vector<AstPtr> Parser::parse_program(SymTab* symtab,
-                                          std::vector<Token> tokens) {
+std::vector<AstPtr> Parser::parse_program(SymTab* symtab, const std::vector<Token>& tokens) {
   m_symtab = symtab;
-  m_tokens = std::move(tokens);
+  m_tokens = tokens;
   m_pos = 0;
   m_root.clear();
 
   while (m_pos < m_tokens.size()) {
-    try {
-      AstPtr node = parse_toplevel_declaration();
-      // a nullptr will be returned upon any error, if not thrown for panic-mode
-      if (node) {
-        m_root.push_back(node);
-      }
-    } catch (const FatalError& internal_error) {
-      m_logger->report(internal_error);
-      throw internal_error; // exit
-    } catch (const std::runtime_error&) {
-      synchronize();
+    AstPtr node = parse_toplevel_declaration();
+    if (node) {
+      m_root.push_back(node);
     }
   }
 
@@ -114,12 +118,17 @@ std::vector<AstPtr> Parser::parse_program(SymTab* symtab,
 }
 
 AstPtr Parser::parse_toplevel_declaration() {
-  if (match(TokenType::STRUCT)) {
-    return parse_struct_decl();
-  } else if (match(TokenType::FUNC)) {
-    return parse_function_decl();
-  } else {
-    return parse_statement();
+  try {
+    if (match(TokenType::STRUCT)) {
+      return parse_struct_decl();
+    } else if (match(TokenType::FUNC)) {
+      return parse_function_decl();
+    } else {
+      return parse_statement();
+    }
+  } catch (const ParsePanic&) {
+    synchronize();
+    return _alloc(PoisonStmtNode, current(), m_symtab->current_scope());
   }
 }
 
@@ -131,27 +140,24 @@ AstPtr Parser::parse_struct_decl() {
   const Token* name_tok = current();
   _consume(TokenType::IDENTIFIER);
 
-  Type struct_type(Type::Named(name_tok->get_lexeme()),
-                   m_symtab->current_scope(), Type::PTR_SIZE);
+  std::string_view type_name = name_tok->get_lexeme();
+  size_t scope_id = m_symtab->current_scope();
+
+  Type* struct_type = _alloc(Type, Type::Named(type_name), scope_id, Type::PTR_SIZE);
 
   // declare it and see if it already exists (in which an error should occur)
-  std::string type_name = struct_type.to_string();
-  size_t scope_id = struct_type.get_scope_id();
-  std::shared_ptr<Type> sym_struct_type =
-      m_symtab->declare<Type>(type_name, Symbol::Type, struct_type, scope_id);
+  Type* sym_struct_type = m_symtab->declare_type(type_name, struct_type, scope_id);
   if (!sym_struct_type) {
-    m_logger->report(DuplicateDeclarationError(name_tok->get_span(),
-                                               struct_type.to_string()));
+    m_logger->report(Diag::DuplicateDeclaration(name_tok->get_span(), std::string(type_name)));
     return nullptr;
   }
 
   // now link the struct declaration node to the symbol table for the IR
   StructDeclPtr struct_node =
-      _AST(StructDeclNode, name_tok, m_symtab->current_scope(), sym_struct_type,
+      _alloc(StructDeclNode, name_tok, m_symtab->current_scope(), sym_struct_type,
            std::vector<StructFieldPtr>{});
   if (!m_symtab->declare_struct(type_name, struct_node, scope_id)) {
-    m_logger->report(
-        DuplicateDeclarationError(name_tok->get_span(), "struct " + type_name));
+    m_logger->report(Diag::DuplicateDeclaration(name_tok->get_span(), "struct " + std::string(type_name)));
     _panic_mode();
   }
 
@@ -177,27 +183,24 @@ StructFieldPtr Parser::parse_struct_field() {
   const Token* name_tok = current();
   _consume(TokenType::IDENTIFIER);
 
-  IdentPtr name_ident = _AST(IdentifierNode, name_tok,
+  IdentPtr name_ident = _alloc(IdentifierNode, name_tok,
                              m_symtab->current_scope(), name_tok->get_lexeme());
   _consume(TokenType::COLON);
 
-  std::shared_ptr<Type> type = parse_type();
+  Type* type = parse_type();
 
   // declare it as a variable within the current scope which is struct decl
-  Variable field_var(name_tok->get_lexeme(), name_tok->get_span(),
-                     BorrowState::MutablyOwned, type,
-                     m_symtab->current_scope());
+  Variable* field_var = _alloc(Variable,
+      name_tok->get_lexeme(), name_tok->get_span(),
+      BorrowState::MutablyOwned, type, m_symtab->current_scope());
 
   // check if the field is a duplicate to another field
-  if (!m_symtab->declare<Variable>(field_var.name, Symbol::Variable, field_var,
-                                   field_var.scope_id)) {
-    m_logger->report(DuplicateDeclarationError(name_tok->get_span(),
-                                               name_tok->get_lexeme()));
+  if (!m_symtab->declare_variable(field_var->name, field_var, field_var->scope_id)) {
+    m_logger->report(Diag::DuplicateDeclaration(name_tok->get_span(), std::string(name_tok->get_lexeme())));
     _panic_mode();
   }
 
-  return _AST(StructFieldNode, name_tok, m_symtab->current_scope(), name_ident,
-              type);
+  return _alloc(StructFieldNode, name_tok, m_symtab->current_scope(), name_ident, type);
 }
 
 // Functions
@@ -210,7 +213,7 @@ FuncDeclPtr Parser::parse_function_decl() {
   const Token* name_tok = current();
   _consume(TokenType::IDENTIFIER);
 
-  IdentPtr name_ident = _AST(IdentifierNode, name_tok,
+  IdentPtr name_ident = _alloc(IdentifierNode, name_tok,
                              m_symtab->current_scope(), name_tok->get_lexeme());
 
   m_symtab->enter_scope();
@@ -226,8 +229,7 @@ FuncDeclPtr Parser::parse_function_decl() {
 
   _consume(TokenType::RPAREN);
 
-  std::pair<std::optional<IdentPtr>, std::shared_ptr<Type>> return_t =
-      std::make_pair(std::nullopt, nullptr);
+  std::pair<IdentPtr, Type*> return_t = {nullptr, nullptr};
   if (match(TokenType::RETURNS)) {
     return_t = parse_function_return_type();
   } else {
@@ -247,27 +249,25 @@ FuncDeclPtr Parser::parse_function_decl() {
 
   // make it at the global scope, as we don't allow member functions
   Type ft(Type::Function(std::move(ft_params), return_t.second), 0);
+  std::string_view name = intern_string(ft.to_string());
 
   // do not redeclare function families
-  std::string name = ft.to_string();
-  std::shared_ptr<Type> fn_type = m_symtab->lookup<Type>(name, 0);
+  Type* fn_type = m_symtab->lookup<Type>(name, 0);
   if (!fn_type) {
     // it doesn't exist, so we can add it as a new func-type
-    fn_type = m_symtab->declare<Type>(name, Symbol::Type, ft, 0);
+    fn_type = m_symtab->declare_type(name, _alloc(Type, ft), 0);
   }
 
   // declare it as a var with the associated type (also at global scope)
-  Variable var(name_tok->get_lexeme(), name_tok->get_span(),
+  Variable* var = _alloc(Variable, name_tok->get_lexeme(), name_tok->get_span(),
                BorrowState::ImmutablyOwned, fn_type, 0);
-  if (!m_symtab->declare<Variable>(var.name, Symbol::Variable, var, 0)) {
-    m_logger->report(DuplicateDeclarationError(name_tok->get_span(),
-                                               name_tok->get_lexeme()));
+  if (!m_symtab->declare_variable(var->name, var, 0)) {
+    m_logger->report(Diag::DuplicateDeclaration(name_tok->get_span(), std::string(name_tok->get_lexeme())));
     _panic_mode();
   }
 
-  return _AST(FunctionDeclNode, func_tok, m_symtab->current_scope(), name_ident,
-              std::move(params_vec), std::move(return_t.first), return_t.second,
-              body_block);
+  return _alloc(FunctionDeclNode, func_tok, m_symtab->current_scope(), name_ident,
+              std::move(params_vec), return_t.first, return_t.second, body_block);
 }
 
 BorrowState Parser::parse_function_param_prefix() {
@@ -299,32 +299,26 @@ ParamPtr Parser::parse_function_param() {
   const Token* name_tok = current();
   _consume(TokenType::IDENTIFIER);
 
-  IdentPtr name_ident = _AST(IdentifierNode, name_tok,
+  IdentPtr name_ident = _alloc(IdentifierNode, name_tok,
                              m_symtab->current_scope(), name_tok->get_lexeme());
 
   _consume(TokenType::COLON);
 
-  std::shared_ptr<Type> type_val = parse_type();
+  Type* type_val = parse_type();
 
   // declare the parameter as a variable in current scope
-  Variable param_var(name_tok->get_lexeme(), name_tok->get_span(), modifier,
+  Variable* param_var = _alloc(Variable, name_tok->get_lexeme(), name_tok->get_span(), modifier,
                      type_val, m_symtab->current_scope());
-  if (!m_symtab->declare<Variable>(param_var.name, Symbol::Variable, param_var,
-                                   param_var.scope_id)) {
-    m_logger->report(DuplicateDeclarationError(name_tok->get_span(),
-                                               name_tok->get_lexeme()));
+  if (!m_symtab->declare_variable(param_var->name, param_var, param_var->scope_id)) {
+    m_logger->report(Diag::DuplicateDeclaration(name_tok->get_span(), std::string(name_tok->get_lexeme())));
     _panic_mode();
   }
-
-  return _AST(ParamNode, first_tok, m_symtab->current_scope(), modifier,
-              name_ident, type_val);
+  return _alloc(ParamNode, first_tok, m_symtab->current_scope(), modifier, name_ident, type_val);
 }
 
 // <ReturnType> ::= 'returns' '(' Identifier ':' <Type> ')'
-std::pair<IdentPtr, std::shared_ptr<Type>>
-Parser::parse_function_return_type() {
+std::pair<IdentPtr, Type*> Parser::parse_function_return_type() {
   _consume(TokenType::RETURNS);
-
   _consume(TokenType::LPAREN);
 
   const Token* ident_tok = current();
@@ -332,24 +326,21 @@ Parser::parse_function_return_type() {
 
   _consume(TokenType::COLON);
 
-  std::shared_ptr<Type> type_val = parse_type();
+  Type* type_val = parse_type();
 
   _consume(TokenType::RPAREN);
 
   // MutablyOwned is required
   size_t scope = m_symtab->current_scope();
-  Variable return_var(ident_tok->get_lexeme(), ident_tok->get_span(),
+  Variable* return_var = _alloc(Variable, ident_tok->get_lexeme(), ident_tok->get_span(),
                       BorrowState::MutablyOwned, type_val, scope, true);
-  if (!m_symtab->declare<Variable>(return_var.name, Symbol::Variable,
-                                   return_var, return_var.scope_id)) {
-    m_logger->report(DuplicateDeclarationError(ident_tok->get_span(),
-                                               ident_tok->get_lexeme()));
+  if (!m_symtab->declare_variable(return_var->name, return_var, return_var->scope_id)) {
+    m_logger->report(Diag::DuplicateDeclaration(ident_tok->get_span(), std::string(ident_tok->get_lexeme())));
     _panic_mode();
   }
 
-  IdentPtr ident = std::make_shared<IdentifierNode>(ident_tok, scope,
-                                                    ident_tok->get_lexeme());
-  return std::make_pair(std::move(ident), type_val);
+  IdentPtr ident = _alloc(IdentifierNode, ident_tok, scope, ident_tok->get_lexeme());
+  return {ident, type_val};
 }
 
 bool Parser::is_next_var_decl() {
@@ -366,43 +357,48 @@ bool Parser::is_next_var_decl() {
 
 // Statements
 StmtPtr Parser::parse_statement() {
-  // Handle case where the identifier can be the start of a var declaration
-  if (is_next_var_decl()) {
-    return parse_var_decl();
-  }
-
-  TokenType type = current()->get_type();
-  switch (type) {
-    case TokenType::IF: return parse_if_stmt();
-    case TokenType::FOR: return parse_for_stmt();
-    case TokenType::WHILE: return parse_while_stmt();
-    case TokenType::SWITCH: return parse_switch_stmt();
-    case TokenType::READ: {
-      const Token* read_tok = advance();
-      ExprPtr expr = parse_expression(); // should be an identifier, verified by
-                                         // type checker
-      _consume(TokenType::SEMICOLON);
-      return _AST(ReadStmtNode, read_tok, m_symtab->current_scope(), expr);
+  try {
+    // Handle case where the identifier can be the start of a var declaration
+    if (is_next_var_decl()) {
+      return parse_var_decl();
     }
-    case TokenType::PRINT: return parse_print_stmt();
-    case TokenType::LBRACE: return parse_block(true);
-    case TokenType::RETURN: return parse_return_stmt();
-    case TokenType::BREAK: return parse_break_stmt();
-    case TokenType::CONTINUE: return parse_continue_stmt();
-    case TokenType::FREE: return parse_free_stmt();
-    case TokenType::ERROR_KW: return parse_error_stmt();
-    case TokenType::EXIT_KW: return parse_exit_stmt();
-    case TokenType::ASM: return parse_asm_block();
-    default: {
-      // <Expr> ';'
-      const Token* expr_start_tok = current();
-      ExprPtr expr = parse_expression();
 
-      // return the expression stmt
-      _consume(TokenType::SEMICOLON);
-      return _AST(ExpressionStatementNode, expr_start_tok,
-                  m_symtab->current_scope(), expr);
+    TokenType type = current()->get_type();
+    switch (type) {
+      case TokenType::IF: return parse_if_stmt();
+      case TokenType::FOR: return parse_for_stmt();
+      case TokenType::WHILE: return parse_while_stmt();
+      case TokenType::SWITCH: return parse_switch_stmt();
+      case TokenType::READ:
+      {
+        const Token* read_tok = advance();
+        ExprPtr expr = parse_expression(); // should be an identifier, verified by type checker
+        _consume(TokenType::SEMICOLON);
+        return _alloc(ReadStmtNode, read_tok, m_symtab->current_scope(), expr);
+      }
+      case TokenType::PRINT: return parse_print_stmt();
+      case TokenType::LBRACE: return parse_block(true);
+      case TokenType::RETURN: return parse_return_stmt();
+      case TokenType::BREAK: return parse_break_stmt();
+      case TokenType::CONTINUE: return parse_continue_stmt();
+      case TokenType::FREE: return parse_free_stmt();
+      case TokenType::ERROR_KW: return parse_error_stmt();
+      case TokenType::EXIT_KW: return parse_exit_stmt();
+      case TokenType::ASM: return parse_asm_block();
+      default:
+      {
+        // <Expr> ';'
+        const Token* expr_start_tok = current();
+        ExprPtr expr = parse_expression();
+
+        // return the expression stmt
+        _consume(TokenType::SEMICOLON);
+        return _alloc(ExpressionStatementNode, expr_start_tok, m_symtab->current_scope(), expr);
+      }
     }
+  } catch (const ParsePanic&) {
+    synchronize();
+    return _alloc(PoisonStmtNode, current(), m_symtab->current_scope());
   }
 }
 
@@ -422,11 +418,10 @@ StmtPtr Parser::parse_var_decl() {
   const Token* name_tok = current();
   _consume(TokenType::IDENTIFIER);
 
-  IdentPtr var_name = _AST(IdentifierNode, name_tok, m_symtab->current_scope(),
+  IdentPtr var_name = _alloc(IdentifierNode, name_tok, m_symtab->current_scope(),
                            name_tok->get_lexeme());
 
-  std::shared_ptr<Type> type_val = nullptr;
-
+  Type* type_val = nullptr;
   ExprPtr initializer = nullptr;
 
   if (match(TokenType::COLON)) { // ':' <Type> ( '=' <Expr> )?
@@ -442,28 +437,24 @@ StmtPtr Parser::parse_var_decl() {
     advance();
     initializer = parse_expression();
   } else {
-    m_logger->report(
-        ExpectedToken(current()->get_span(), ": | :=", current()->get_type()));
+    m_logger->report(Diag::ExpectedToken(current()->get_span(), ": | :=", token_type_to_string(current()->get_type())));
     _panic_mode();
   }
 
   _consume(TokenType::SEMICOLON);
 
-  BorrowState bs =
-      is_mutable ? BorrowState::MutablyOwned : BorrowState::ImmutablyOwned;
+  BorrowState bs = is_mutable ? BorrowState::MutablyOwned : BorrowState::ImmutablyOwned;
 
-  Variable var_sym(name_tok->get_lexeme(), name_tok->get_span(), bs, type_val,
+  Variable* var_sym = _alloc(Variable, name_tok->get_lexeme(), name_tok->get_span(), bs, type_val,
                    m_symtab->current_scope());
 
   // check if it is a duplicate variable
-  if (!m_symtab->declare<Variable>(var_sym.name, Symbol::Variable, var_sym,
-                                   var_sym.scope_id)) {
-    m_logger->report(DuplicateDeclarationError(name_tok->get_span(),
-                                               name_tok->get_lexeme()));
+  if (!m_symtab->declare_variable(var_sym->name, var_sym, var_sym->scope_id)) {
+    m_logger->report(Diag::DuplicateDeclaration(name_tok->get_span(), std::string(name_tok->get_lexeme())));
     _panic_mode();
   }
 
-  return _AST(VariableDeclNode, start_tok, m_symtab->current_scope(),
+  return _alloc(VariableDeclNode, start_tok, m_symtab->current_scope(),
               is_mutable, var_name, type_val, initializer);
 }
 
@@ -485,14 +476,14 @@ StmtPtr Parser::parse_if_stmt() {
       // else if block
       StmtPtr else_if_stmt = parse_if_stmt();
       const Token* else_if_tok = else_if_stmt->token;
-      else_branch = _AST(BlockNode, else_if_tok, m_symtab->current_scope(),
+      else_branch = _alloc(BlockNode, else_if_tok, m_symtab->current_scope(),
                          std::vector<StmtPtr>{else_if_stmt});
     } else {
       // else block
       else_branch = parse_block(true);
     }
   }
-  return _AST(IfStmtNode, if_tok, m_symtab->current_scope(), condition,
+  return _alloc(IfStmtNode, if_tok, m_symtab->current_scope(), condition,
               then_branch, else_branch);
 }
 
@@ -533,7 +524,7 @@ StmtPtr Parser::parse_for_stmt() {
 
   m_symtab->exit_scope();
 
-  return _AST(ForStmtNode, for_tok, m_symtab->current_scope(),
+  return _alloc(ForStmtNode, for_tok, m_symtab->current_scope(),
               std::move(initializer), condition, iteration, body);
 }
 
@@ -549,8 +540,7 @@ StmtPtr Parser::parse_while_stmt() {
 
   BlockPtr body = parse_block(true);
 
-  return _AST(WhileStmtNode, while_tok, m_symtab->current_scope(), condition,
-              body);
+  return _alloc(WhileStmtNode, while_tok, m_symtab->current_scope(), condition, body);
 }
 
 // <SwitchStmt> ::= 'switch' '(' <Expr> ')' '{' <Case>* '}'
@@ -576,8 +566,7 @@ StmtPtr Parser::parse_switch_stmt() {
     } else if (match(TokenType::DEFAULT)) {
       advance(); // value remains nullptr for default
     } else {
-      m_logger->report(ExpectedToken(current()->get_span(), "case | default",
-                                     current()->get_type()));
+      m_logger->report(Diag::ExpectedToken(current()->get_span(), "case | default", token_type_to_string(current()->get_type())));
       _panic_mode();
     }
 
@@ -586,12 +575,12 @@ StmtPtr Parser::parse_switch_stmt() {
     BlockPtr body = parse_block(true); // each case will have its own scope
 
     cases.push_back(
-        _AST(CaseNode, case_tok, m_symtab->current_scope(), body, value));
+        _alloc(CaseNode, case_tok, m_symtab->current_scope(), body, value));
   }
 
   _consume(TokenType::RBRACE);
 
-  return _AST(SwitchStmtNode, switch_tok, m_symtab->current_scope(), expression,
+  return _alloc(SwitchStmtNode, switch_tok, m_symtab->current_scope(), expression,
               std::move(cases));
 }
 
@@ -604,7 +593,7 @@ StmtPtr Parser::parse_print_stmt() {
     exprs.push_back(parse_expression());
   } while (match(TokenType::COMMA) && advance());
   _consume(TokenType::SEMICOLON);
-  return _AST(PrintStmtNode, print_tok, m_symtab->current_scope(), exprs);
+  return _alloc(PrintStmtNode, print_tok, m_symtab->current_scope(), exprs);
 }
 
 // == Expression Parsing ==
@@ -624,7 +613,7 @@ StmtPtr Parser::parse_return_stmt() {
   }
   _consume(TokenType::SEMICOLON);
 
-  return _AST(ReturnStmtNode, ret_tok, m_symtab->current_scope(), value);
+  return _alloc(ReturnStmtNode, ret_tok, m_symtab->current_scope(), value);
 }
 
 // <BreakStmt> ::= 'break'
@@ -632,7 +621,7 @@ StmtPtr Parser::parse_break_stmt() {
   const Token* break_tok = current();
   _consume(TokenType::BREAK);
   _consume(TokenType::SEMICOLON);
-  return _AST(BreakStmtNode, break_tok, m_symtab->current_scope());
+  return _alloc(BreakStmtNode, break_tok, m_symtab->current_scope());
 }
 
 // <ContinueStmt> ::= 'continue'
@@ -640,7 +629,7 @@ StmtPtr Parser::parse_continue_stmt() {
   const Token* cont_tok = current();
   _consume(TokenType::CONTINUE);
   _consume(TokenType::SEMICOLON);
-  return _AST(ContinueStmtNode, cont_tok, m_symtab->current_scope());
+  return _alloc(ContinueStmtNode, cont_tok, m_symtab->current_scope());
 }
 
 // <FreeStmt> ::= 'free' '[]'? <Expr>
@@ -659,8 +648,7 @@ StmtPtr Parser::parse_free_stmt() {
   ExprPtr expr = parse_expression();
   _consume(TokenType::SEMICOLON);
 
-  return _AST(FreeStmtNode, free_tok, m_symtab->current_scope(), is_array,
-              expr);
+  return _alloc(FreeStmtNode, free_tok, m_symtab->current_scope(), is_array, expr);
 }
 
 // <ErrorStmt> ::= 'Error' String
@@ -672,16 +660,14 @@ StmtPtr Parser::parse_error_stmt() {
   _consume(TokenType::STRING_LITERAL);
 
   if (!str_tok->is_literal()) {
-    m_logger->report(Error(
-        str_tok->get_span(),
-        "Internal Error: Expected string literal token to have string data"));
+    m_logger->report(Diag::Error(str_tok->get_span(), "Internal Error: Expected string literal token to have string data"));
     return nullptr;
   }
   const std::string& msg = str_tok->get_string_val();
 
   _consume(TokenType::SEMICOLON);
 
-  return _AST(ErrorStmtNode, error_tok, m_symtab->current_scope(), msg);
+  return _alloc(ErrorStmtNode, error_tok, m_symtab->current_scope(), msg);
 }
 
 // <ExitStmt> ::= 'exit' (1 | 0)
@@ -695,7 +681,7 @@ StmtPtr Parser::parse_exit_stmt() {
 
   _assert(int_tok->is_literal(), "exit stmt token should be an integer");
 
-  return _AST(ExitStmtNode, exit_tok, m_symtab->current_scope(),
+  return _alloc(ExitStmtNode, exit_tok, m_symtab->current_scope(),
               int_tok->get_int_val());
 }
 
@@ -718,7 +704,7 @@ BlockPtr Parser::parse_block(bool create_scope) {
     m_symtab->exit_scope();
   }
 
-  return _AST(BlockNode, lbrace_tok, m_symtab->current_scope(),
+  return _alloc(BlockNode, lbrace_tok, m_symtab->current_scope(),
               std::move(statements_vec));
 }
 
@@ -770,14 +756,14 @@ StmtPtr Parser::parse_asm_block() {
   }
 
   if (brace_level != 0 || m_pos >= m_tokens.size()) {
-    m_logger->report(ExpectedToken(current()->get_span(), "}", "<none>"));
+    m_logger->report(Diag::ExpectedToken(current()->get_span(), "}", "<none>"));
     _panic_mode();
   }
 
   _consume(TokenType::RBRACE);
   _consume(TokenType::SEMICOLON);
 
-  return _AST(AsmBlockNode, asm_tok, m_symtab->current_scope(), asm_body_str);
+  return _alloc(AsmBlockNode, asm_tok, m_symtab->current_scope(), asm_body_str);
 }
 
 // Expression Hierarchy
@@ -787,7 +773,7 @@ ExprPtr Parser::parse_assignment() {
   if (match(TokenType::EQUAL)) {
     const Token* tok = advance();
     ExprPtr right = parse_assignment();
-    return _AST(AssignmentNode, tok, m_symtab->current_scope(), left, right);
+    return _alloc(AssignmentNode, tok, m_symtab->current_scope(), left, right);
   }
 
   return left;
@@ -799,7 +785,7 @@ ExprPtr Parser::parse_logic_or() {
   while (match(TokenType::OR)) {
     const Token* op_tok = advance();
     ExprPtr right = parse_logic_and();
-    expr = _AST(BinaryOpExprNode, op_tok, m_symtab->current_scope(),
+    expr = _alloc(BinaryOpExprNode, op_tok, m_symtab->current_scope(),
                 BinOperator::LogicalOr, expr, right);
   }
   return expr;
@@ -811,7 +797,7 @@ ExprPtr Parser::parse_logic_and() {
   while (match(TokenType::AND)) {
     const Token* op_tok = advance();
     ExprPtr right = parse_equality();
-    expr = _AST(BinaryOpExprNode, op_tok, m_symtab->current_scope(),
+    expr = _alloc(BinaryOpExprNode, op_tok, m_symtab->current_scope(),
                 BinOperator::LogicalAnd, expr, right);
   }
   return expr;
@@ -826,8 +812,7 @@ ExprPtr Parser::parse_equality() {
                          ? BinOperator::Equal
                          : BinOperator::NotEqual;
     ExprPtr right = parse_relational();
-    expr = _AST(BinaryOpExprNode, op_tok, m_symtab->current_scope(), op, expr,
-                right);
+    expr = _alloc(BinaryOpExprNode, op_tok, m_symtab->current_scope(), op, expr, right);
   }
   return expr;
 }
@@ -847,15 +832,13 @@ ExprPtr Parser::parse_relational() {
       case TokenType::LESS_EQUAL: op = BinOperator::LessEqual; break;
       case TokenType::GREATER_EQUAL: op = BinOperator::GreaterEqual; break;
       default: {
-        m_logger->report(
-            Error(op_tok->get_span(), "Unknown binary operator type"));
+        m_logger->report(Diag::Error(op_tok->get_span(), "Unknown binary operator type"));
         _panic_mode();
       }
     }
 
     ExprPtr right = parse_additive();
-    expr = _AST(BinaryOpExprNode, op_tok, m_symtab->current_scope(), op, expr,
-                right);
+    expr = _alloc(BinaryOpExprNode, op_tok, m_symtab->current_scope(), op, expr, right);
   }
   return expr;
 }
@@ -871,8 +854,7 @@ ExprPtr Parser::parse_additive() {
                          : BinOperator::Minus;
 
     ExprPtr right = parse_multiplicative();
-    expr = _AST(BinaryOpExprNode, op_tok, m_symtab->current_scope(), op, expr,
-                right);
+    expr = _alloc(BinaryOpExprNode, op_tok, m_symtab->current_scope(), op, expr, right);
   }
   return expr;
 }
@@ -890,15 +872,13 @@ ExprPtr Parser::parse_multiplicative() {
       case TokenType::SLASH: op = BinOperator::Divide; break;
       case TokenType::MODULO: op = BinOperator::Modulo; break;
       default: {
-        m_logger->report(Error(op_tok->get_span(),
-                               "Unknown multiplicative binary operator type"));
+        m_logger->report(Diag::Error(op_tok->get_span(), "Unknown multiplicative binary operator type"));
         _panic_mode();
       }
     }
 
     ExprPtr right = parse_unary();
-    expr = _AST(BinaryOpExprNode, op_tok, m_symtab->current_scope(), op, expr,
-                right);
+    expr = _alloc(BinaryOpExprNode, op_tok, m_symtab->current_scope(), op, expr, right);
   }
   return expr;
 }
@@ -920,26 +900,25 @@ ExprPtr Parser::parse_unary() {
       }
       // recur in order to find joined unary chains
       ExprPtr operand = parse_unary();
-      return _AST(UnaryExprNode, op_tok, m_symtab->current_scope(), op,
-                  operand);
+      return _alloc(UnaryExprNode, op_tok, m_symtab->current_scope(), op, operand);
     }
     case TokenType::STAR: {
       // dereference operation
       advance();
       ExprPtr operand = parse_unary();
-      return _AST(UnaryExprNode, op_tok, m_symtab->current_scope(),
+      return _alloc(UnaryExprNode, op_tok, m_symtab->current_scope(),
                   UnaryOperator::Dereference, operand);
     }
     case TokenType::BANG: {
       advance();
       ExprPtr operand = parse_unary();
-      return _AST(UnaryExprNode, op_tok, m_symtab->current_scope(),
+      return _alloc(UnaryExprNode, op_tok, m_symtab->current_scope(),
                   UnaryOperator::LogicalNot, operand);
     }
     case TokenType::MINUS: {
       advance();
       ExprPtr operand = parse_unary();
-      return _AST(UnaryExprNode, op_tok, m_symtab->current_scope(),
+      return _alloc(UnaryExprNode, op_tok, m_symtab->current_scope(),
                   UnaryOperator::Negate, operand);
     }
     default: break;
@@ -962,7 +941,7 @@ ExprPtr Parser::parse_postfix() {
         ExprPtr index_expr = parse_expression();
 
         _consume(TokenType::RBRACK);
-        expr = _AST(ArrayIndexNode, op_tok, m_symtab->current_scope(), expr,
+        expr = _alloc(ArrayIndexNode, op_tok, m_symtab->current_scope(), expr,
                     index_expr);
         break;
       }
@@ -972,7 +951,7 @@ ExprPtr Parser::parse_postfix() {
         std::vector<ArgPtr> args_vec = parse_args();
         _consume(TokenType::RPAREN);
 
-        expr = _AST(FunctionCallNode, op_tok, m_symtab->current_scope(), expr,
+        expr = _alloc(FunctionCallNode, op_tok, m_symtab->current_scope(), expr,
                     std::move(args_vec));
         break;
       }
@@ -983,9 +962,9 @@ ExprPtr Parser::parse_postfix() {
         _consume(TokenType::IDENTIFIER);
 
         IdentPtr field_ident =
-            _AST(IdentifierNode, field_name_tok, m_symtab->current_scope(),
+            _alloc(IdentifierNode, field_name_tok, m_symtab->current_scope(),
                  field_name_tok->get_lexeme());
-        expr = _AST(FieldAccessNode, op_tok, m_symtab->current_scope(), expr,
+        expr = _alloc(FieldAccessNode, op_tok, m_symtab->current_scope(), expr,
                     field_ident);
         break;
       }
@@ -1012,7 +991,7 @@ std::vector<ArgPtr> Parser::parse_args() {
     }
 
     ExprPtr arg_expr = parse_expression();
-    args_vec.push_back(_AST(ArgumentNode, arg_tok, m_symtab->current_scope(),
+    args_vec.push_back(_alloc(ArgumentNode, arg_tok, m_symtab->current_scope(),
                             is_give, arg_expr));
   } while (match(TokenType::COMMA) && advance());
 
@@ -1020,25 +999,23 @@ std::vector<ArgPtr> Parser::parse_args() {
 }
 
 // <Type> ::= <BasicType> | <StructType> | <PointerType> | <FunctionType>
-std::shared_ptr<Type> Parser::parse_type() {
+Type* Parser::parse_type() {
   const Token* type_start_tok = current();
   if (is_basic_type(type_start_tok->get_type())) {
     // Basic types
     advance();
-    std::shared_ptr<Type> t =
-        m_symtab->lookup<Type>(type_start_tok->get_lexeme(), 0);
+    Type* t = m_symtab->lookup<Type>(type_start_tok->get_lexeme(), 0);
     _assert(t != nullptr, "basic primitive type should be found in the symtab");
     return t;
   }
   if (match(TokenType::IDENTIFIER)) {
     // Struct type
     advance();
-    const std::string& name = type_start_tok->get_lexeme();
+    std::string_view name = type_start_tok->get_lexeme();
     size_t scope = m_symtab->current_scope();
-    std::shared_ptr<Type> t = m_symtab->lookup<Type>(name, scope);
+    Type* t = m_symtab->lookup<Type>(name, scope);
     if (t == nullptr) {
-      m_logger->report(TypeNotFoundError(type_start_tok->get_span(),
-                                         type_start_tok->get_lexeme()));
+      m_logger->report(Diag::TypeNotFound(type_start_tok->get_span(), std::string(name)));
       _panic_mode();
     }
     return t;
@@ -1056,22 +1033,21 @@ std::shared_ptr<Type> Parser::parse_type() {
       advance();
     }
 
-    std::shared_ptr<Type> pointee = parse_type();
+    Type* pointee = parse_type();
     _consume(TokenType::RANGLE);
 
     // we do not check the symbol table for this because ptrs of any valid
     // pointee types are allowed. We will add it to the symbol table though.
 
-    Type search_t(Type::Pointer(is_mutable, pointee),
-                  m_symtab->current_scope());
-    std::string name = search_t.to_string();
+    Type search_t(Type::Pointer(is_mutable, pointee), m_symtab->current_scope());
+    std::string_view name = intern_string(search_t.to_string());
+
     size_t scope = search_t.get_scope_id();
-    std::shared_ptr<Type> ptr_type = m_symtab->lookup<Type>(name, scope);
+    Type* ptr_type = m_symtab->lookup<Type>(name, scope);
     if (!ptr_type) {
       // it doesn't exist, so we can add
-      ptr_type = m_symtab->declare<Type>(name, Symbol::Type, search_t, scope);
+      ptr_type = m_symtab->declare_type(name, _alloc(Type, search_t), scope);
     }
-
     return ptr_type;
   } else if (match(TokenType::FUNC)) {
     // <FunctionType> ::= 'func' '(' (<Type> ( ',' <Type> )*)? ')' '->' <Type>
@@ -1094,23 +1070,21 @@ std::shared_ptr<Type> Parser::parse_type() {
 
     _consume(TokenType::ARROW);
 
-    std::shared_ptr<Type> ret_type = parse_type();
+    Type* ret_type = parse_type();
 
     // functions are declared at scope 0
     Type func_type(Type::Function(std::move(param_types), ret_type), 0);
-    std::string name = func_type.to_string();
-    std::shared_ptr<Type> t = m_symtab->lookup<Type>(name, 0);
+    std::string_view name = intern_string(func_type.to_string());
+    Type* t = m_symtab->lookup<Type>(name, 0);
     if (t == nullptr) {
       // the function type should already have been declared
-      m_logger->report(
-          TypeNotFoundError(type_start_tok->get_span(), func_type.to_string()));
+      m_logger->report(Diag::TypeNotFound(type_start_tok->get_span(), std::string(name)));
       _panic_mode();
     }
     return t;
   }
 
-  m_logger->report(ExpectedToken(type_start_tok->get_span(), "<type>",
-                                 type_start_tok->get_type()));
+  m_logger->report(Diag::ExpectedToken(type_start_tok->get_span(), "<type>", token_type_to_string(type_start_tok->get_type())));
   _panic_mode();
 }
 
@@ -1128,7 +1102,7 @@ ExprPtr Parser::parse_primary() {
 
     // if it exists as a type, then it is a struct because that is the only
     // other named type that can exist besides primatives
-    const std::string& name = tok->get_lexeme();
+    std::string_view name = tok->get_lexeme();
     size_t scope = m_symtab->current_scope();
     StructDeclPtr struct_decl = m_symtab->lookup_struct(name, scope);
     if (struct_decl) {
@@ -1137,22 +1111,20 @@ ExprPtr Parser::parse_primary() {
 
     // otherwise it is an identifier
     advance();
-    return _AST(IdentifierNode, tok, m_symtab->current_scope(),
-                tok->get_lexeme());
+    return _alloc(IdentifierNode, tok, scope, name);
   } else if (match(TokenType::LPAREN)) {
     // Grouped Expression: '(' <Expr> ')'
     advance();
     ExprPtr grouped_expr = parse_expression();
     _consume(TokenType::RPAREN);
 
-    return _AST(GroupedExprNode, tok, m_symtab->current_scope(), grouped_expr);
+    return _alloc(GroupedExprNode, tok, m_symtab->current_scope(), grouped_expr);
   } else if (match(TokenType::NEW)) {
     return parse_new_expr();
   }
 
   // Otherwise it is invalid
-  m_logger->report(
-      ExpectedToken(tok->get_span(), "<primary>", tok->get_type()));
+  m_logger->report(Diag::ExpectedToken(tok->get_span(), "<primary>", token_type_to_string(tok->get_type())));
   _panic_mode();
 }
 
@@ -1164,28 +1136,27 @@ ExprPtr Parser::parse_primitive_literal() {
   advance();
   switch (type) {
     case TokenType::INT_LITERAL:
-      return _AST(IntegerLiteralNode, tok, m_symtab->current_scope(),
+      return _alloc(IntegerLiteralNode, tok, m_symtab->current_scope(),
                   tok->get_int_val());
     case TokenType::FLOAT_LITERAL:
-      return _AST(FloatLiteralNode, tok, m_symtab->current_scope(),
+      return _alloc(FloatLiteralNode, tok, m_symtab->current_scope(),
                   tok->get_float_val());
     case TokenType::STRING_LITERAL:
-      return _AST(StringLiteralNode, tok, m_symtab->current_scope(),
+      return _alloc(StringLiteralNode, tok, m_symtab->current_scope(),
                   tok->get_string_val());
     case TokenType::CHAR_LITERAL:
-      return _AST(CharLiteralNode, tok, m_symtab->current_scope(),
+      return _alloc(CharLiteralNode, tok, m_symtab->current_scope(),
                   tok->get_int_val());
     case TokenType::TRUE:
-      return _AST(BoolLiteralNode, tok, m_symtab->current_scope(), true);
+      return _alloc(BoolLiteralNode, tok, m_symtab->current_scope(), true);
     case TokenType::FALSE:
-      return _AST(BoolLiteralNode, tok, m_symtab->current_scope(), false);
+      return _alloc(BoolLiteralNode, tok, m_symtab->current_scope(), false);
     case TokenType::NULL_:
-      return _AST(NullLiteralNode, tok, m_symtab->current_scope());
+      return _alloc(NullLiteralNode, tok, m_symtab->current_scope());
     default: break;
   }
 
-  m_logger->report(
-      ExpectedToken(tok->get_span(), "<literal>", tok->get_type()));
+  m_logger->report(Diag::ExpectedToken(tok->get_span(), "<literal>", token_type_to_string(tok->get_type())));
   _panic_mode();
 }
 
@@ -1204,14 +1175,14 @@ ExprPtr Parser::parse_struct_literal(StructDeclPtr struct_decl) {
       _consume(TokenType::IDENTIFIER);
 
       IdentPtr field_ident =
-          _AST(IdentifierNode, field_name_tok, m_symtab->current_scope(),
+          _alloc(IdentifierNode, field_name_tok, m_symtab->current_scope(),
                field_name_tok->get_lexeme());
 
       _consume(TokenType::EQUAL);
 
       ExprPtr value_expr = parse_expression();
 
-      initializers_vec.push_back(_AST(StructFieldInitializerNode,
+      initializers_vec.push_back(_alloc(StructFieldInitializerNode,
                                       field_name_tok, m_symtab->current_scope(),
                                       field_ident, value_expr));
     } while (match(TokenType::COMMA) && advance());
@@ -1219,7 +1190,7 @@ ExprPtr Parser::parse_struct_literal(StructDeclPtr struct_decl) {
 
   _consume(TokenType::RBRACE);
 
-  return _AST(StructLiteralNode, type_name_tok, m_symtab->current_scope(),
+  return _alloc(StructLiteralNode, type_name_tok, m_symtab->current_scope(),
               struct_decl, std::move(initializers_vec));
 }
 
@@ -1240,7 +1211,7 @@ ExprPtr Parser::parse_new_expr() {
     advance();
   }
 
-  std::shared_ptr<Type> allocated_type = parse_type();
+  Type* allocated_type = parse_type();
 
   _consume(TokenType::RANGLE);
 
@@ -1257,7 +1228,7 @@ ExprPtr Parser::parse_new_expr() {
     advance();
     if (!match(TokenType::RPAREN)) {
       // Check if the current token is the start of a declared Struct Type
-      const std::string& name = current()->get_lexeme();
+      std::string_view name = current()->get_lexeme();
       size_t scope = m_symtab->current_scope();
       StructDeclPtr struct_decl = m_symtab->lookup_struct(name, scope);
       if (struct_decl) {
@@ -1271,10 +1242,9 @@ ExprPtr Parser::parse_new_expr() {
     }
     _consume(TokenType::RPAREN);
   } else {
-    m_logger->report(ExpectedToken(current()->get_span(), "[ | < | (",
-                                   current()->get_type()));
+    m_logger->report(Diag::ExpectedToken(current()->get_span(), "[ | < | (", token_type_to_string(current()->get_type())));
     _panic_mode();
   }
-  return _AST(NewExprNode, new_tok, m_symtab->current_scope(),
+  return _alloc(NewExprNode, new_tok, m_symtab->current_scope(),
               is_memory_mutable, is_array, allocated_type, specifier);
 }

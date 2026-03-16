@@ -9,21 +9,20 @@
 #include "../lexer/token.h"
 #include "types.h"
 
-template <typename T>
-using ShrdPtr = std::shared_ptr<T>;
-using AstPtr = ShrdPtr<class AstNode>;
-using ExprPtr = ShrdPtr<class ExpressionNode>;
-using StmtPtr = ShrdPtr<class StatementNode>;
-using IdentPtr = ShrdPtr<class IdentifierNode>;
-using BlockPtr = ShrdPtr<class BlockNode>;
+/* TODO: get rid of these renames? */
+using AstPtr = class AstNode*;
+using ExprPtr = class ExpressionNode*;
+using StmtPtr = class StatementNode*;
+using IdentPtr = class IdentifierNode*;
+using BlockPtr = class BlockNode*;
 
-using ArgPtr = ShrdPtr<class ArgumentNode>;
-using StructFieldInitPtr = ShrdPtr<class StructFieldInitializerNode>;
-using CasePtr = ShrdPtr<class CaseNode>;
-using StructFieldPtr = ShrdPtr<class StructFieldNode>;
-using ParamPtr = ShrdPtr<class ParamNode>;
-using FuncDeclPtr = ShrdPtr<class FunctionDeclNode>;
-using StructDeclPtr = ShrdPtr<class StructDeclNode>;
+using ArgPtr = class ArgumentNode*;
+using StructFieldInitPtr = class StructFieldInitializerNode*;
+using CasePtr = class CaseNode*;
+using StructFieldPtr = class StructFieldNode*;
+using ParamPtr = class ParamNode*;
+using FuncDeclPtr = class FunctionDeclNode*;
+using StructDeclPtr = class StructDeclNode*;
 
 class Visitor;
 
@@ -61,7 +60,7 @@ enum UnaryOperator { Negate, LogicalNot, Dereference, AddressOf, AddressOfMut };
   public:                                        \
     T value;                                     \
     Name(const Token* tok, size_t sc, T val)     \
-        : ExpressionNode(tok, sc), value(val) {} \
+        : ExpressionNode(tok, sc), value(std::move(val)) {} \
     void accept(Visitor& v) override;            \
   };
 
@@ -78,16 +77,16 @@ public:
 // == Base Abstract Nodes (Expressions and Statements) ==
 class ExpressionNode : public AstNode {
 public:
-  std::shared_ptr<Type> expr_type = nullptr; // filled by type checker
+  Type* expr_type = nullptr; // filled by type checker
   using AstNode::AstNode;
 };
 DERIVE_ABSTRACT_NODE(StatementNode, AstNode)
 
 // == Literal Nodes ==
-LITERAL_NODE(IntegerLiteralNode, uint64_t)
+LITERAL_NODE(IntegerLiteralNode, std::uint64_t)
 LITERAL_NODE(FloatLiteralNode, double)
 LITERAL_NODE(StringLiteralNode, std::string)
-LITERAL_NODE(CharLiteralNode, uint64_t)
+LITERAL_NODE(CharLiteralNode, std::uint64_t)
 LITERAL_NODE(BoolLiteralNode, bool)
 DERIVE_NODE(NullLiteralNode, ExpressionNode)
 
@@ -95,12 +94,24 @@ DERIVE_NODE(NullLiteralNode, ExpressionNode)
 DERIVE_NODE(BreakStmtNode, StatementNode)
 DERIVE_NODE(ContinueStmtNode, StatementNode)
 
+// == Error handling Nodes ==
+class PoisonExprNode : public ExpressionNode {
+public:
+  PoisonExprNode(const Token* tok, size_t sc) : ExpressionNode(tok, sc) {}
+  void accept(Visitor& v) override;
+};
+class PoisonStmtNode : public StatementNode {
+public:
+  PoisonStmtNode(const Token* tok, size_t sc) : StatementNode(tok, sc) {}
+  void accept(Visitor& v) override;
+};
+
 // == Expression Nodes ==
 class IdentifierNode : public ExpressionNode {
 public:
-  std::string name;
-  IdentifierNode(const Token* tok, size_t sc, std::string name_val)
-      : ExpressionNode(tok, sc), name(std::move(name_val)) {}
+  std::string_view name;
+  IdentifierNode(const Token* tok, size_t sc, std::string_view name_val)
+      : ExpressionNode(tok, sc), name(name_val) {}
   void accept(Visitor& v) override;
 };
 
@@ -108,7 +119,6 @@ class AssignmentNode : public ExpressionNode {
 public:
   ExprPtr lvalue;
   ExprPtr rvalue;
-
   AssignmentNode(const Token* tok, size_t sc, ExprPtr lval, ExprPtr rval)
       : ExpressionNode(tok, sc), lvalue(lval), rvalue(rval) {}
   void accept(Visitor& v) override;
@@ -119,7 +129,6 @@ public:
   BinOperator op_type;
   ExprPtr left;
   ExprPtr right;
-
   BinaryOpExprNode(const Token* tok, size_t sc, BinOperator op, ExprPtr l,
                    ExprPtr r)
       : ExpressionNode(tok, sc), op_type(op), left(l), right(r) {}
@@ -218,11 +227,11 @@ class NewExprNode : public ExpressionNode {
 public:
   bool is_memory_mutable;
   bool is_array_allocation;
-  std::shared_ptr<Type> type_to_allocate; // The <Type> part
+  Type* type_to_allocate; // The <Type> part
   ExprPtr allocation_specifier;
 
   NewExprNode(const Token* tok, size_t sc, bool is_mut, bool is_array,
-              std::shared_ptr<Type> allocated_type, ExprPtr specifier)
+              Type* allocated_type, ExprPtr specifier)
       : ExpressionNode(tok, sc),
         is_memory_mutable(is_mut),
         is_array_allocation(is_array),
@@ -236,11 +245,11 @@ class VariableDeclNode : public StatementNode {
 public:
   bool is_mutable;
   IdentPtr var_name;
-  std::shared_ptr<Type> type; // optional for ':=' type inference
+  Type* type; // optional for ':=' type inference
   ExprPtr initializer;        // optional
 
   VariableDeclNode(const Token* tok, size_t sc, bool mut, IdentPtr var_name,
-                   std::shared_ptr<Type> tk, ExprPtr init)
+                   Type* tk, ExprPtr init)
       : StatementNode(tok, sc),
         is_mutable(mut),
         var_name(var_name),
@@ -394,10 +403,10 @@ public:
 class StructFieldNode : public AstNode {
 public:
   IdentPtr name;
-  std::shared_ptr<Type> type;
+  Type* type;
 
   StructFieldNode(const Token* tok, size_t sc, IdentPtr name,
-                  std::shared_ptr<Type> tk)
+                  Type* tk)
       : AstNode(tok, sc), name(name), type(tk) {}
   void accept(Visitor& v) override;
 };
@@ -405,15 +414,15 @@ public:
 class StructDeclNode : public AstNode {
 public:
   // this struct's type (to be set after type creation in parser)
-  std::shared_ptr<Type> type;
+  Type* type;
 
   // we have removed the feature of member functions
   std::vector<StructFieldPtr> fields;
 
   // the total struct size (sum of sizes of fields)
-  uint64_t struct_size; // set by the type checker
+  std::uint64_t struct_size; // set by the type checker
 
-  StructDeclNode(const Token* tok, size_t sc, std::shared_ptr<Type> type,
+  StructDeclNode(const Token* tok, size_t sc, Type* type,
                  std::vector<StructFieldPtr> f)
       : AstNode(tok, sc), type(type), fields(std::move(f)), struct_size(0) {}
   void accept(Visitor& v) override;
@@ -423,10 +432,9 @@ class ParamNode : public AstNode {
 public:
   BorrowState modifier;
   IdentPtr name;
-  std::shared_ptr<Type> type;
+  Type* type;
 
-  ParamNode(const Token* tok, size_t sc, BorrowState mod, IdentPtr name,
-            std::shared_ptr<Type> tk)
+  ParamNode(const Token* tok, size_t sc, BorrowState mod, IdentPtr name, Type* tk)
       : AstNode(tok, sc), modifier(mod), name(name), type(tk) {}
   void accept(Visitor& v) override;
 };
@@ -436,16 +444,16 @@ public:
   IdentPtr name;
   std::vector<ParamPtr> params;
   std::optional<IdentPtr> return_type_name; // optional for u0 return type
-  std::shared_ptr<Type> return_type;
+  Type* return_type;
   BlockPtr body;
 
   FunctionDeclNode(const Token* tok, size_t sc, IdentPtr name,
                    std::vector<ParamPtr> ps, std::optional<IdentPtr> rt_n,
-                   std::shared_ptr<Type> rt, BlockPtr b)
+                   Type* rt, BlockPtr b)
       : AstNode(tok, sc),
         name(name),
         params(std::move(ps)),
-        return_type_name(std::move(rt_n)),
+        return_type_name(rt_n),
         return_type(rt),
         body(b) {}
   void accept(Visitor& v) override;

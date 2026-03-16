@@ -12,9 +12,8 @@ static std::string modifier_to_string_prefix(BorrowState modifier) {
 std::string Type::to_string_recursive(std::vector<const Type*>& visited) const {
   for (const Type* t : visited) {
     if (t == this) {
-      if (std::holds_alternative<Named>(m_storage)) {
-        return "[recursive_ref_to:" + std::get<Named>(m_storage).identifier +
-               "]";
+      if (t->is<Named>()) {
+        return "[recursive_ref_to:" + std::string(t->as<Named>().identifier) + "]";
       }
       return "[recursive_type_ref]";
     }
@@ -55,6 +54,9 @@ std::string Type::to_string_recursive(std::vector<const Type*>& visited) const {
       str += "uninitialized_pointee_type";
     }
     str += ">";
+  } else if (this->is<ErrorType>()) {
+    /* poisoned/invalid type */
+    str = "<ErrorType>";
   }
   visited.pop_back();
   return str;
