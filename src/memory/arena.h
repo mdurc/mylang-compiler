@@ -25,6 +25,9 @@ public:
     return new (memory) T(std::forward<Args>(args)...);
   }
 
+  /* helper to create new strings in the arena */
+  std::string_view make_string(const std::string& str);
+
   /* free up the memory without releasing chunks to OS */
   void reset();
 

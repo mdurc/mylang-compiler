@@ -43,6 +43,14 @@ void* ArenaAllocator::allocate(size_t size, size_t align) {
   return result;
 }
 
+std::string_view ArenaAllocator::make_string(const std::string& str) {
+  size_t sz = str.size();
+  char* mem = static_cast<char*>(allocate(sz + 1, 1));
+  std::memcpy(mem, str.c_str(), sz);
+  mem[sz] = '\0';
+  return std::string_view(mem, sz);
+}
+
 void ArenaAllocator::reset() {
   for (Chunk& chunk : m_chunks) {
     chunk.used = 0;

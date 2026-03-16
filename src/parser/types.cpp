@@ -9,6 +9,11 @@ static std::string modifier_to_string_prefix(BorrowState modifier) {
   }
 }
 
+std::string Type::to_string() const {
+  std::vector<const Type*> visited;
+  return to_string_recursive(visited);
+}
+
 std::string Type::to_string_recursive(std::vector<const Type*>& visited) const {
   for (const Type* t : visited) {
     if (t == this) {
@@ -60,9 +65,4 @@ std::string Type::to_string_recursive(std::vector<const Type*>& visited) const {
   }
   visited.pop_back();
   return str;
-}
-
-std::string Type::to_string() const {
-  std::vector<const Type*> visited;
-  return to_string_recursive(visited);
 }

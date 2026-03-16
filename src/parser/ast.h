@@ -27,19 +27,13 @@ using StructDeclPtr = class StructDeclNode*;
 class Visitor;
 
 enum BinOperator {
-  Plus,
-  Minus,
-  Divide,
-  Modulo,
-  Multiply,
-  Equal,
+  Plus,     GreaterThan,
+  Minus,    GreaterEqual,
+  Divide,   LessThan,
+  Modulo,   LessEqual,
+  Multiply, LogicalAnd,
+  Equal,    LogicalOr,
   NotEqual,
-  GreaterThan,
-  GreaterEqual,
-  LessThan,
-  LessEqual,
-  LogicalAnd,
-  LogicalOr
 };
 
 enum UnaryOperator { Negate, LogicalNot, Dereference, AddressOf, AddressOfMut };
@@ -55,19 +49,20 @@ enum UnaryOperator { Negate, LogicalNot, Dereference, AddressOf, AddressOfMut };
     using Base::Base;                    \
   };
 
-#define LITERAL_NODE(Name, T)                    \
-  class Name : public ExpressionNode {           \
-  public:                                        \
-    T value;                                     \
-    Name(const Token* tok, size_t sc, T val)     \
-        : ExpressionNode(tok, sc), value(std::move(val)) {} \
-    void accept(Visitor& v) override;            \
+#define LITERAL_NODE(Name, T)                \
+  class Name : public ExpressionNode {       \
+  public:                                    \
+    T value;                                 \
+    Name(const Token* tok, size_t sc, T val) \
+        : ExpressionNode(tok, sc),           \
+          value(std::move(val)) {}           \
+    void accept(Visitor& v) override;        \
   };
 
 class AstNode {
 public:
-  const Token* token; // Primarily for location and error handling
-  size_t scope_id;    // Id within the Symbol Table
+  const Token* token; /* for location and error handling */
+  size_t scope_id;    /* id from symbol table */
 
   AstNode(const Token* tok, size_t sc) : token(tok), scope_id(sc) {}
   virtual ~AstNode() = default;
@@ -77,7 +72,7 @@ public:
 // == Base Abstract Nodes (Expressions and Statements) ==
 class ExpressionNode : public AstNode {
 public:
-  Type* expr_type = nullptr; // filled by type checker
+  Type* expr_type = nullptr; /* filled by type checker */
   using AstNode::AstNode;
 };
 DERIVE_ABSTRACT_NODE(StatementNode, AstNode)
@@ -109,9 +104,9 @@ public:
 // == Expression Nodes ==
 class IdentifierNode : public ExpressionNode {
 public:
-  std::string_view name;
-  IdentifierNode(const Token* tok, size_t sc, std::string_view name_val)
-      : ExpressionNode(tok, sc), name(name_val) {}
+  std::string_view name_str;
+  IdentifierNode(const Token* tok, size_t sc, std::string_view name_str)
+      : ExpressionNode(tok, sc), name_str(name_str) {}
   void accept(Visitor& v) override;
 };
 
@@ -129,8 +124,7 @@ public:
   BinOperator op_type;
   ExprPtr left;
   ExprPtr right;
-  BinaryOpExprNode(const Token* tok, size_t sc, BinOperator op, ExprPtr l,
-                   ExprPtr r)
+  BinaryOpExprNode(const Token* tok, size_t sc, BinOperator op, ExprPtr l, ExprPtr r)
       : ExpressionNode(tok, sc), op_type(op), left(l), right(r) {}
   void accept(Visitor& v) override;
 };
@@ -139,7 +133,6 @@ class UnaryExprNode : public ExpressionNode {
 public:
   UnaryOperator op_type;
   ExprPtr operand;
-
   UnaryExprNode(const Token* tok, size_t sc, UnaryOperator op, ExprPtr expr)
       : ExpressionNode(tok, sc), op_type(op), operand(expr) {}
   void accept(Visitor& v) override;
@@ -147,9 +140,8 @@ public:
 
 class ArgumentNode : public AstNode {
 public:
-  bool is_give; // for 'give' keyword
+  bool is_give; /* for 'give' keyword */
   ExprPtr expression;
-
   ArgumentNode(const Token* tok, size_t sc, bool give, ExprPtr expr)
       : AstNode(tok, sc), is_give(give), expression(expr) {}
   void accept(Visitor& v) override;
@@ -159,21 +151,15 @@ class FunctionCallNode : public ExpressionNode {
 public:
   ExprPtr callee;
   std::vector<ArgPtr> arguments;
-
-  FunctionCallNode(const Token* tok, size_t sc, ExprPtr fn_callee,
-                   std::vector<ArgPtr> args)
-      : ExpressionNode(tok, sc),
-        callee(fn_callee),
-        arguments(std::move(args)) {}
+  FunctionCallNode(const Token* tok, size_t sc, ExprPtr fn_callee, std::vector<ArgPtr> args)
+      : ExpressionNode(tok, sc), callee(fn_callee), arguments(std::move(args)) {}
   void accept(Visitor& v) override;
 };
 
 class FieldAccessNode : public ExpressionNode {
 public:
   ExprPtr object;
-  IdentPtr field;
-  // <object>.<field>
-
+  IdentPtr field; /* syntax: <object>.<field> */
   FieldAccessNode(const Token* tok, size_t sc, ExprPtr obj_expr, IdentPtr field)
       : ExpressionNode(tok, sc), object(obj_expr), field(field) {}
   void accept(Visitor& v) override;
@@ -182,11 +168,8 @@ public:
 class ArrayIndexNode : public ExpressionNode {
 public:
   ExprPtr object;
-  ExprPtr index;
-  // <object>[<index>]
-
-  ArrayIndexNode(const Token* tok, size_t sc, ExprPtr arr_expr,
-                 ExprPtr idx_expr)
+  ExprPtr index; /* syntax: <object>[<index>] */
+  ArrayIndexNode(const Token* tok, size_t sc, ExprPtr arr_expr, ExprPtr idx_expr)
       : ExpressionNode(tok, sc), object(arr_expr), index(idx_expr) {}
   void accept(Visitor& v) override;
 };
@@ -203,9 +186,7 @@ class StructFieldInitializerNode : public AstNode {
 public:
   IdentPtr field;
   ExprPtr value;
-
-  StructFieldInitializerNode(const Token* tok, size_t sc, IdentPtr field,
-                             ExprPtr val)
+  StructFieldInitializerNode(const Token* tok, size_t sc, IdentPtr field, ExprPtr val)
       : AstNode(tok, sc), field(field), value(val) {}
   void accept(Visitor& v) override;
 };
@@ -214,12 +195,8 @@ class StructLiteralNode : public ExpressionNode {
 public:
   StructDeclPtr struct_decl;
   std::vector<StructFieldInitPtr> initializers;
-
-  StructLiteralNode(const Token* tok, size_t sc, StructDeclPtr struct_decl,
-                    std::vector<StructFieldInitPtr> inits)
-      : ExpressionNode(tok, sc),
-        struct_decl(struct_decl),
-        initializers(std::move(inits)) {}
+  StructLiteralNode(const Token* tok, size_t sc, StructDeclPtr struct_decl, std::vector<StructFieldInitPtr> inits)
+      : ExpressionNode(tok, sc), struct_decl(struct_decl), initializers(std::move(inits)) {}
   void accept(Visitor& v) override;
 };
 
@@ -227,16 +204,11 @@ class NewExprNode : public ExpressionNode {
 public:
   bool is_memory_mutable;
   bool is_array_allocation;
-  Type* type_to_allocate; // The <Type> part
+  Type* type_to_allocate;
   ExprPtr allocation_specifier;
-
-  NewExprNode(const Token* tok, size_t sc, bool is_mut, bool is_array,
-              Type* allocated_type, ExprPtr specifier)
-      : ExpressionNode(tok, sc),
-        is_memory_mutable(is_mut),
-        is_array_allocation(is_array),
-        type_to_allocate(allocated_type),
-        allocation_specifier(specifier) {}
+  NewExprNode(const Token* tok, size_t sc, bool is_mut, bool is_array, Type* allocated_type, ExprPtr specifier)
+      : ExpressionNode(tok, sc), is_memory_mutable(is_mut), is_array_allocation(is_array),
+        type_to_allocate(allocated_type), allocation_specifier(specifier) {}
   void accept(Visitor& v) override;
 };
 
@@ -244,24 +216,18 @@ public:
 class VariableDeclNode : public StatementNode {
 public:
   bool is_mutable;
-  IdentPtr var_name;
-  Type* type; // optional for ':=' type inference
-  ExprPtr initializer;        // optional
-
-  VariableDeclNode(const Token* tok, size_t sc, bool mut, IdentPtr var_name,
-                   Type* tk, ExprPtr init)
-      : StatementNode(tok, sc),
-        is_mutable(mut),
-        var_name(var_name),
-        type(tk),
-        initializer(init) {}
+  IdentPtr name;
+  Type* type;          /* optional for ':=' type inference */
+  ExprPtr initializer; /* optional if not an initialization stmt */
+  VariableDeclNode(const Token* tok, size_t sc, bool mut, IdentPtr name, Type* tk, ExprPtr init)
+      : StatementNode(tok, sc), is_mutable(mut), name(name),
+        type(tk), initializer(init) {}
   void accept(Visitor& v) override;
 };
 
 class BlockNode : public StatementNode {
 public:
   std::vector<StmtPtr> statements;
-
   BlockNode(const Token* tok, size_t sc, std::vector<StmtPtr> stmts)
       : StatementNode(tok, sc), statements(std::move(stmts)) {}
   void accept(Visitor& v) override;
@@ -271,33 +237,23 @@ class IfStmtNode : public StatementNode {
 public:
   ExprPtr condition;
   BlockPtr then_branch;
-  BlockPtr else_branch; // optional
-
-  IfStmtNode(const Token* tok, size_t sc, ExprPtr cond, BlockPtr then_b,
-             BlockPtr else_b)
-      : StatementNode(tok, sc),
-        condition(cond),
-        then_branch(then_b),
-        else_branch(else_b) {}
+  BlockPtr else_branch; /* optional */
+  IfStmtNode(const Token* tok, size_t sc, ExprPtr cond, BlockPtr then_b, BlockPtr else_b)
+      : StatementNode(tok, sc), condition(cond), then_branch(then_b), else_branch(else_b) {}
   void accept(Visitor& v) override;
 };
 
 class ForStmtNode : public StatementNode {
 public:
-  std::optional<std::variant<ExprPtr, StmtPtr>>
-      initializer;   // has_value ==> non-nullptr
-  ExprPtr condition; // optional
-  ExprPtr iteration; // optional
+  std::optional<std::variant<ExprPtr, StmtPtr>> initializer; /* has-value -> non-nullptr */
+  ExprPtr condition; /* optional */
+  ExprPtr iteration; /* optional */
   BlockPtr body;
-
   ForStmtNode(const Token* tok, size_t sc,
               std::optional<std::variant<ExprPtr, StmtPtr>> init, ExprPtr cond,
               ExprPtr iter, BlockPtr b)
-      : StatementNode(tok, sc),
-        initializer(std::move(init)),
-        condition(cond),
-        iteration(iter),
-        body(b) {}
+      : StatementNode(tok, sc), initializer(std::move(init)), condition(cond),
+        iteration(iter), body(b) {}
   void accept(Visitor& v) override;
 };
 
@@ -305,7 +261,6 @@ class WhileStmtNode : public StatementNode {
 public:
   ExprPtr condition;
   BlockPtr body;
-
   WhileStmtNode(const Token* tok, size_t sc, ExprPtr cond, BlockPtr b)
       : StatementNode(tok, sc), condition(cond), body(b) {}
   void accept(Visitor& v) override;
@@ -313,9 +268,8 @@ public:
 
 class CaseNode : public AstNode {
 public:
-  ExprPtr value; // nullptr for default case
+  ExprPtr value; /* nullptr for default case */
   BlockPtr body;
-
   CaseNode(const Token* tok, size_t sc, BlockPtr b, ExprPtr val)
       : AstNode(tok, sc), value(val), body(b) {}
   void accept(Visitor& v) override;
@@ -325,7 +279,6 @@ class SwitchStmtNode : public StatementNode {
 public:
   ExprPtr expression;
   std::vector<CasePtr> cases;
-
   SwitchStmtNode(const Token* tok, size_t sc, ExprPtr expr,
                  std::vector<CasePtr> c)
       : StatementNode(tok, sc), expression(expr), cases(std::move(c)) {}
@@ -334,7 +287,7 @@ public:
 
 class ReadStmtNode : public StatementNode {
 public:
-  ExprPtr expression; // identifier to store stdin into
+  ExprPtr expression; /* where to store memory we read */
   ReadStmtNode(const Token* tok, size_t sc, ExprPtr expr)
       : StatementNode(tok, sc), expression(expr) {}
   void accept(Visitor& v) override;
@@ -358,7 +311,7 @@ public:
 
 class ReturnStmtNode : public StatementNode {
 public:
-  ExprPtr value; // optional
+  ExprPtr value; /* optional for void/u0 return */
   ReturnStmtNode(const Token* tok, size_t sc, ExprPtr val)
       : StatementNode(tok, sc), value(val) {}
   void accept(Visitor& v) override;
@@ -369,9 +322,7 @@ public:
   bool is_array_deallocation;
   ExprPtr expression;
   FreeStmtNode(const Token* tok, size_t sc, bool is_arr, ExprPtr expr)
-      : StatementNode(tok, sc),
-        is_array_deallocation(is_arr),
-        expression(expr) {}
+      : StatementNode(tok, sc), is_array_deallocation(is_arr), expression(expr) {}
   void accept(Visitor& v) override;
 };
 
@@ -404,26 +355,17 @@ class StructFieldNode : public AstNode {
 public:
   IdentPtr name;
   Type* type;
-
-  StructFieldNode(const Token* tok, size_t sc, IdentPtr name,
-                  Type* tk)
+  StructFieldNode(const Token* tok, size_t sc, IdentPtr name, Type* tk)
       : AstNode(tok, sc), name(name), type(tk) {}
   void accept(Visitor& v) override;
 };
 
 class StructDeclNode : public AstNode {
 public:
-  // this struct's type (to be set after type creation in parser)
-  Type* type;
-
-  // we have removed the feature of member functions
-  std::vector<StructFieldPtr> fields;
-
-  // the total struct size (sum of sizes of fields)
-  std::uint64_t struct_size; // set by the type checker
-
-  StructDeclNode(const Token* tok, size_t sc, Type* type,
-                 std::vector<StructFieldPtr> f)
+  Type* type; /* new type to be set after type creation in parser */
+  std::vector<StructFieldPtr> fields; /* only fields, no methods */
+  std::uint64_t struct_size; /* total struct size set by the type checker */
+  StructDeclNode(const Token* tok, size_t sc, Type* type, std::vector<StructFieldPtr> f)
       : AstNode(tok, sc), type(type), fields(std::move(f)), struct_size(0) {}
   void accept(Visitor& v) override;
 };
@@ -433,7 +375,6 @@ public:
   BorrowState modifier;
   IdentPtr name;
   Type* type;
-
   ParamNode(const Token* tok, size_t sc, BorrowState mod, IdentPtr name, Type* tk)
       : AstNode(tok, sc), modifier(mod), name(name), type(tk) {}
   void accept(Visitor& v) override;
@@ -443,19 +384,14 @@ class FunctionDeclNode : public AstNode {
 public:
   IdentPtr name;
   std::vector<ParamPtr> params;
-  std::optional<IdentPtr> return_type_name; // optional for u0 return type
+  IdentPtr retvar_name; /* optional for u0 return type */
   Type* return_type;
   BlockPtr body;
-
   FunctionDeclNode(const Token* tok, size_t sc, IdentPtr name,
-                   std::vector<ParamPtr> ps, std::optional<IdentPtr> rt_n,
+                   std::vector<ParamPtr> ps, IdentPtr rt_n,
                    Type* rt, BlockPtr b)
-      : AstNode(tok, sc),
-        name(name),
-        params(std::move(ps)),
-        return_type_name(rt_n),
-        return_type(rt),
-        body(b) {}
+      : AstNode(tok, sc), name(name), params(std::move(ps)),
+        retvar_name(rt_n), return_type(rt), body(b) {}
   void accept(Visitor& v) override;
 };
 

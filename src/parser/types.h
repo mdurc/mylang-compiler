@@ -15,7 +15,7 @@ enum BorrowState {
 class Type {
 public:
   struct Named {
-    std::string_view identifier;
+    std::string_view identifier; /* points to name allocated for symbol table */
     Named(std::string_view id) : identifier(id) {}
 
     friend bool operator==(const Named& a, const Named& b) {
@@ -24,7 +24,7 @@ public:
   };
 
   struct ParamInfo {
-    Type* type;
+    Type* type; /* points to type defined by symbol table */
     BorrowState modifier;
 
     friend bool operator==(const ParamInfo& a, const ParamInfo& b) {
@@ -62,20 +62,23 @@ public:
     friend bool operator==(const ErrorType&, const ErrorType&) { return true; }
   };
 
-  // Public interface
+  // public interface
+  inline static const std::uint64_t PTR_SIZE = 8;
+
+  /* interpret a Type* t via: t->is<Function>() */
   template <typename T> bool is() const { return std::holds_alternative<T>(m_storage); }
   template <typename T> const T& as() const { return std::get<T>(m_storage); }
 
-  inline static const std::uint64_t PTR_SIZE = 8;
-
-  // returns the string format that should be used within the language
+  /* returns the string format that should be used within the language */
   std::string to_string() const;
-  size_t get_scope_id() const { return m_scope_id; }
-  std::uint64_t get_byte_size() const { return m_bytes; }
-  void set_byte_size(std::uint64_t size) { m_bytes = size; }
 
-  // Constructors
-  Type(Named n, size_t sc, std::uint64_t bytes = PTR_SIZE)
+  /* types are scoped based on declaration scope */
+  size_t get_scope_id() const { return m_scope_id; }
+
+  /* getter for ir/code generation */
+  std::uint64_t get_byte_size() const { return m_bytes; }
+
+  Type(Named n, size_t sc, std::uint64_t bytes)
       : m_storage(n), m_scope_id(sc), m_bytes(bytes) {}
   Type(Function f, size_t sc)
       : m_storage(std::move(f)), m_scope_id(sc), m_bytes(PTR_SIZE) {}
@@ -97,10 +100,11 @@ private:
 // == Variables ==
 class Variable {
 public:
-  std::string_view name;
-  Span span;
+  std::string_view name; /* points to name allocated for symbol table */
+  Span span; /* span at variable declaration */
+
   BorrowState modifier;
-  Type* type; // nullptr means it must be inferred
+  Type* type; /* nullptr means it must be inferred by the type-checker */
   size_t scope_id;
   bool is_return_var;
 

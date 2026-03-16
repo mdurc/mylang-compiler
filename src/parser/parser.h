@@ -16,7 +16,7 @@ public:
   Parser(Logger* logger, ArenaAllocator* arena)
     : m_logger(logger), m_arena(arena) {}
 
-  /* TODO: returns a ... */
+  /* returns a list of top-level ASTs */
   std::vector<AstPtr> parse_program(SymTab* symtab, const std::vector<Token>& tokens);
 
 private:
@@ -29,9 +29,6 @@ private:
 
   std::vector<AstPtr> m_root;
 
-  /* allocate generated strings into arena so they outlive the parser */
-  std::string_view intern_string(const std::string& str);
-
   const Token* current();
   const Token* advance();
   bool consume(TokenType type);
@@ -43,17 +40,17 @@ private:
 
   AstPtr parse_toplevel_declaration();
 
-  // Structs
+  /* Structs */
   AstPtr parse_struct_decl();
   StructFieldPtr parse_struct_field();
 
-  // Functions
+  /* Functions */
   FuncDeclPtr parse_function_decl();
   BorrowState parse_function_param_prefix();
   ParamPtr parse_function_param();
   std::pair<IdentPtr, Type*> parse_function_return_type();
 
-  // Statements
+  /* Statements */
   StmtPtr parse_statement();
   bool is_next_var_decl();
   StmtPtr parse_var_decl();
@@ -72,7 +69,7 @@ private:
   BlockPtr parse_block(bool create_scope);
   StmtPtr parse_asm_block();
 
-  // Expression Hierarchy
+  /* Expression Hierarchy */
   ExprPtr parse_assignment();
   ExprPtr parse_logic_or();
   ExprPtr parse_logic_and();
@@ -86,7 +83,7 @@ private:
   std::vector<ArgPtr> parse_args();
   Type* parse_type();
 
-  // Primary Expressions
+  /* Primary Expressions */
   ExprPtr parse_primary();
   ExprPtr parse_primitive_literal();
   ExprPtr parse_struct_literal(StructDeclPtr struct_decl);
