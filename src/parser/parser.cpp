@@ -9,7 +9,7 @@ struct ParsePanic : public std::runtime_error {
 #define _assert(cond, msg)                                                   \
   do {                                                                       \
     if (!(cond)) {                                                           \
-      m_logger->report(Diag::Fatal(current()->get_span(), std::string("Internal: ") + msg)); \
+      m_logger->report(Diag::Fatal(current()->get_span(), std::string("Internal Parser Error: ") + msg)); \
       throw std::runtime_error(msg); /* compiler crash */                    \
     }                                                                        \
   } while (false)

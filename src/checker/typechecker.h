@@ -2,18 +2,22 @@
 #define CHECKER_TYPECHECKER_H
 
 #include "../logging/logger.h"
+#include "../memory/arena.h"
 #include "../parser/ast.h"
 #include "../parser/symtab.h"
 #include "../parser/visitor.h"
 
 class TypeChecker : public Visitor {
 public:
-  TypeChecker(Logger* logger);
+  TypeChecker(Logger* logger, ArenaAllocator* arena);
 
   void check_program(SymTab* symtab, const std::vector<AstPtr>& program_nodes);
 
   // For ExpressionNode derivatives, they will compute and store the type.
   // For StatementNode derivatives, they will enforce type rules.
+
+  void visit(PoisonExprNode& node) override;
+  void visit(PoisonStmtNode& node) override;
 
   void visit(IntegerLiteralNode& node) override;
   void visit(FloatLiteralNode& node) override;
@@ -59,36 +63,33 @@ public:
 
 private:
   Logger* m_logger;
+  ArenaAllocator* m_arena;
   SymTab* m_symtab;
 
-  // for return types
-  std::shared_ptr<Type> m_current_function_return_type;
+  /* for return types */
+  Type* m_current_function_return_type;
 
-  // for break/continue
-  bool m_in_loop; // note we will not have fall through on switch cases
+  /* for break/continue */
+  bool m_in_loop;
 
-  // To check case stmt compatibility
-  std::shared_ptr<Type> m_current_switch_expr_type;
+  /* to check case stmt compatibility */
+  Type* m_current_switch_expr_type;
 
-  // calls expr->accept(*this) which will return a resolved type
-  std::shared_ptr<Type> get_expr_type(const ExprPtr& expr);
+  /* calls expr->accept(*this) which will return a resolved type */
+  Type* get_expr_type(const ExprPtr& expr);
 
-  // Type compatibility and error reporting helpers
-  bool check_type_assignable(std::shared_ptr<Type> target_type,
-                             std::shared_ptr<Type> value_type,
-                             const Span& span);
-
+  /* type compatibility and error reporting helpers */
+  bool check_type_assignable(Type* target_type, Type* value_type, const Span& span);
   bool expect_specific_type(const ExprPtr& expr, const Type& expected_type_val);
-
   bool expect_boolean_type(const ExprPtr& expr);
 
-  // Helper to determine if an expression is a mutable l-value.
-  // Returns the type of the l-value if it is mutable, nullptr otherwise.
-  std::shared_ptr<Type> get_lvalue_type_if_mutable(const ExprPtr& expr);
+  /* Helper to determine if an expression is a mutable l-value.
+     Returns the type of the l-value if it is mutable, nullptr otherwise. */
+  Type* get_lvalue_type_if_mutable(const ExprPtr& expr);
 
-  bool is_integer_type(const std::shared_ptr<Type>& type) const;
-  bool is_numeric_type(const std::shared_ptr<Type>& type) const;
-  bool is_primitive_type(const std::shared_ptr<Type>& type) const;
+  bool is_integer_type(Type* type) const;
+  bool is_numeric_type(Type* type) const;
+  bool is_primitive_type(Type* type) const;
 };
 
 #endif // CHECKER_TYPECHECKER_H
