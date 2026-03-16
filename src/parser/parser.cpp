@@ -1220,7 +1220,7 @@ ExprPtr Parser::parse_new_expr() {
     }
     _consume(TokenType::RPAREN);
   } else {
-    m_logger->report(Diag::ExpectedToken(current()->get_span(), "[ | < | (", token_type_to_string(current()->get_type())));
+    m_logger->report(Diag::ExpectedToken(current()->get_span(), "[ or (", token_type_to_string(current()->get_type())));
     throw ParsePanic();
   }
   return _alloc(NewExprNode, new_tok, m_symtab->current_scope(),
