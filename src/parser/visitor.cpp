@@ -102,6 +102,8 @@ void AstPrinter::print_type(const Type& type) {
     indent--;
     print_indent();
     out << ")";
+  } else if (type.is<Type::ErrorType>()) {
+    out << "ErrorType!";
   } else {
     out << "UnknownType";
   }
