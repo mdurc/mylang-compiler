@@ -61,12 +61,12 @@ static void assemble_and_link(const std::string& asm_code, const std::string& ou
   fs::remove(obj_path);
 }
 
-static bool run_pipeline(TargetStage stage, const std::string& input_file,
+static bool run_pipeline(TargetStage stage, const std::string& infile,
                          std::ostream& out, const std::string& exe_out = "") {
   Logger logger;
   SourceLoader loader(&logger);
 
-  std::uint32_t file_id = loader.load_file(input_file);
+  std::uint32_t file_id = loader.load_file(infile);
   if (file_id == 0) {
     std::cerr << logger.get_diagnostic_str();
     return false;
@@ -168,7 +168,7 @@ static bool run_pipeline(TargetStage stage, const std::string& input_file,
   return false;
 }
 
-bool drive(const std::string& arg, const std::string& input, const std::string& output) {
+bool drive(const std::string& arg, const std::string& infile, const std::string& outfile) {
   if (arg == "--repl") { run_repl(); return true; }
 
   TargetStage stage;
@@ -182,15 +182,14 @@ bool drive(const std::string& arg, const std::string& input, const std::string& 
   else return false;
 
   if (stage == TargetStage::EXE) {
-    if (output.empty()) throw std::runtime_error("Exe output file must exist");
-    return run_pipeline(stage, input, std::cout, output);
+    return run_pipeline(stage, infile, std::cout, "a.out");
   }
 
-  if (output.empty()) {
-    return run_pipeline(stage, input, std::cout);
+  if (outfile.empty()) {
+    return run_pipeline(stage, infile, std::cout);
   } else {
-    std::ofstream out(output);
-    bool ret = run_pipeline(stage, input, out);
+    std::ofstream out(outfile);
+    bool ret = run_pipeline(stage, infile, out);
     out.close();
     return ret;
   }

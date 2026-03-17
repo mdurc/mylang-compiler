@@ -6,14 +6,14 @@
 #include "driver.h"
 
 static void usage() {
-  std::cerr << "Usage: ./a.out <input>\n"
-            << "       [ --tokens <filename> ]\n"
-            << "       [ --ast    <filename> ]\n"
-            << "       [ --symtab <filename> ]\n"
-            << "       [ --ir     <filename> ]\n"
-            << "       [ --asm    <filename> ]\n"
-            << "       [ --exe    <filename> ]\n"
-            << "       [ --repl              ]\n";
+  std::cerr << "Usage: ./a.out        \n"
+            << "       [ --tokens <infile> <outfile> ]\n"
+            << "       [ --ast    <infile> <outfile> ]\n"
+            << "       [ --symtab <infile> <outfile> ]\n"
+            << "       [ --ir     <infile> <outfile> ]\n"
+            << "       [ --asm    <infile> <outfile> ]\n"
+            << "       [ --exe    <infile> <outfile> ]\n"
+            << "       [ --repl ]\n";
 }
 
 int main(int argc, char** argv) {
@@ -22,15 +22,15 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  std::string input = argv[1];
-  if (input == "--repl") {
-    drive(input, "", "");
+  std::string initial_arg = argv[1];
+  if (initial_arg == "--repl") {
+    drive(initial_arg, "", "");
     return EXIT_SUCCESS;
   }
   std::unordered_set<std::string> opts = {"--tokens", "--ast", "--symtab",
                                           "--ir",     "--asm", "--exe",
                                           "--json",   "--repl"};
-  for (int i = 2; i < argc;) {
+  for (int i = 1; i < argc;) {
     std::string arg = argv[i];
 
     if (opts.find(arg) == opts.end()) {
@@ -38,15 +38,21 @@ int main(int argc, char** argv) {
       return EXIT_FAILURE;
     }
 
-    std::string output = "";
+    std::string infile = "", outfile = "";
     if (i + 1 < argc && argv[i + 1][0] != '-') {
-      output = argv[i + 1];
-      i += 2;
-    } else {
+      infile = argv[i + 1];
       i += 1;
+      if (i + 1 < argc && argv[i + 1][0] != '-') {
+        outfile = argv[i + 1];
+        i += 1;
+      }
+      i += 1;
+    } else {
+      std::cerr << "Must provide an infile after arg: " << arg << "\n";
+      break;
     }
 
-    if (!drive(arg, input, output)) {
+    if (!drive(arg, infile, outfile)) {
       return EXIT_FAILURE;
     }
   }

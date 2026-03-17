@@ -3,8 +3,8 @@
 
 #include <string>
 
-bool drive(const std::string& arg, const std::string& input,
-           const std::string& output);
+bool drive(const std::string& arg, const std::string& infile,
+           const std::string& outfile);
 
 void run_repl();
 

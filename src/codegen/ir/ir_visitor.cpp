@@ -67,14 +67,14 @@ bool IrVisitor::var_exists(std::string_view name, size_t scope_id) {
 
 const IR_Variable& IrVisitor::get_var(std::string_view name, size_t scope_id) {
   Variable* var = m_symtab->lookup<Variable>(name, scope_id);
-  if (!var_exists(name, scope_id)) _assert(false, "var is expected to exist");
+  if (!var_exists(name, scope_id)) _assert(false, "var is expected to exist: " + std::string(name));
   std::uint64_t size = var->type->get_byte_size();
   return *m_vars.find(IR_Variable(make_ir_var_name(var), size));
 }
 
 const IR_Variable* IrVisitor::add_var(std::string_view name, size_t scope_id, bool is_func_decl) {
   Variable* var = m_symtab->lookup<Variable>(name, scope_id);
-  if (!var_exists(name, scope_id)) _assert(false, "var is expected to exist");
+  if (var_exists(name, scope_id)) _assert(false, "var already exists: " + std::string(name));
   std::uint64_t size = var->type->get_byte_size();
   auto itr = m_vars.insert(IR_Variable(make_ir_var_name(var), size, is_func_decl));
   return &(*itr.first);
@@ -126,7 +126,6 @@ void IrVisitor::visit(IdentifierNode& node) {
 }
 
 void IrVisitor::visit(BinaryOpExprNode& node) {
-
   /* short-circuiting operators first */
   if (node.op_type == BinOperator::LogicalAnd || node.op_type == BinOperator::LogicalOr) {
     IR_Register dest_reg = m_ir_gen.new_temp_reg();
@@ -175,6 +174,16 @@ void IrVisitor::visit(BinaryOpExprNode& node) {
   // the only case that these should/can be different sizes is if they are nums
   std::uint64_t l_size = node.left->expr_type->get_byte_size();
   std::uint64_t r_size = node.right->expr_type->get_byte_size();
+
+  // literal values can have their sizes modified to fit the job
+  if (l_size != r_size) {
+    if (std::holds_alternative<IR_Immediate>(right_op)) {
+      r_size = l_size;
+    } else if (std::holds_alternative<IR_Immediate>(left_op)) {
+      l_size = r_size;
+    }
+  }
+
   _assert(l_size == r_size, "Operands of a binary operation must have matching sizes in IR generation (casting should be performed prior via an AST CastNode)");
 
   uint64_t op_size = l_size;
