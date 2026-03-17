@@ -5,18 +5,11 @@
 
 #include "../logging/diagnostic.h"
 #include "../parser/types.h"
+#include "../util.h"
 
 /* we utilize the poisoned nodes to stop checking and return ErrorType,
    without every logging new errors to avoid duplicate errors */
 /* every visited node should have a resolved type, if it is poisoned, it will be ErrorType */
-
-#define _throw_internal(msg) throw std::runtime_error(std::string("Internal TypeChecker Error: ") + msg)
-#define _assert(cond, msg)  \
-  do {                      \
-    if (!(cond)) {          \
-      _throw_internal(msg); \
-    }                       \
-  } while (0)
 
 bool TypeChecker::is_integer_type(Type* type) const {
   if (!type || !type->is<Type::Named>()) return false;
@@ -54,13 +47,9 @@ void TypeChecker::check_program(SymTab* symtab, const std::vector<AstPtr>& progr
   m_in_loop = false;
 
   for (const AstPtr& node : program_nodes) {
+    _assert(node, "AstPtr should never be nullptr");
     if (node) {
-      try {
-        node->accept(*this);
-      } catch (const std::runtime_error& internal_error) {
-        m_logger->report(Diag::Fatal(node->token->get_span(), internal_error.what()));
-        throw;
-      }
+      node->accept(*this);
     }
   }
 }

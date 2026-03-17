@@ -1,18 +1,10 @@
 #include "parser.h"
 #include <string_view>
+#include "../util.h"
 
 struct ParsePanic : public std::runtime_error {
   ParsePanic() : std::runtime_error("ParsePanic") {}
 };
-
-#define _assert(cond, msg)                                  \
-  do {                                                      \
-    if (!(cond)) {                                          \
-      m_logger->report(Diag::Fatal(current()->get_span(),   \
-            std::string("Internal Parser Error: ") + msg)); \
-      throw std::runtime_error(msg); /* compiler crash */   \
-    }                                                       \
-  } while (0)
 
 #define _consume(_type)    \
   do {                     \
