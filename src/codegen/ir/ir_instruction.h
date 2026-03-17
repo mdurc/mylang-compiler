@@ -76,9 +76,9 @@ struct IR_Register {
 struct IR_ParameterSlot {
   size_t index;     // 0-indexed param number
   size_t param_amt; // number of parameters in this group
-  uint64_t size;    // size in bytes
+  std::uint64_t size;    // size in bytes
 
-  IR_ParameterSlot(size_t idx, size_t p_amt, uint64_t s)
+  IR_ParameterSlot(size_t idx, size_t p_amt, std::uint64_t s)
       : index(idx), param_amt(p_amt), size(s) {}
   bool operator==(const IR_ParameterSlot& other) const {
     return index == other.index && size == other.size;
@@ -92,10 +92,10 @@ struct IR_ParameterSlot {
 // Source-level variable from code
 struct IR_Variable {
   std::string name;
-  uint64_t size; // size in bytes
+  std::uint64_t size; // size in bytes
   bool is_func_decl;
 
-  IR_Variable(const std::string& name, uint64_t size, bool func = false)
+  IR_Variable(const std::string& name, std::uint64_t size, bool func = false)
       : name(name), size(size), is_func_decl(func) {}
   bool operator==(const IR_Variable& other) const { return name == other.name; }
   bool operator<(const IR_Variable& other) const { return name < other.name; }
@@ -103,10 +103,10 @@ struct IR_Variable {
 
 // Immediate integer values
 struct IR_Immediate {
-  uint64_t val;  // imms are all positive, though can be negated
-  uint64_t size; // size in bytes
+  std::uint64_t val;  // imms are all positive, though can be negated
+  std::uint64_t size; // size in bytes
 
-  IR_Immediate(uint64_t val, uint64_t s) : val(val), size(s) {}
+  IR_Immediate(std::uint64_t val, std::uint64_t s) : val(val), size(s) {}
   bool operator==(const IR_Immediate& other) const { return val == other.val; }
   bool operator<(const IR_Immediate& other) const { return val < other.val; }
 };
@@ -139,10 +139,10 @@ struct IRInstruction {
 
   // size is tracked in instructions as instructions often require a matching
   // size on both operands, and we enforce that this way.
-  uint64_t size; // size in bytes
+  std::uint64_t size; // size in bytes
 
   IRInstruction(IROpCode op, std::optional<IROperand> res = std::nullopt,
-                std::vector<IROperand> ops = {}, uint64_t s = 0)
+                std::vector<IROperand> ops = {}, std::uint64_t s = 0)
       : opcode(op), result(std::move(res)), operands(std::move(ops)), size(s) {}
 };
 

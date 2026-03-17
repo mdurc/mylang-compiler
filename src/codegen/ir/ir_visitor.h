@@ -22,10 +22,12 @@ public:
   void visit_all(const std::vector<AstPtr>& ast);
 
   // variable helpers to make sure that we take scopes into account + shadowing
-  bool var_exists(const std::string& name, size_t scope_id);
-  const IR_Variable& get_var(const std::string& name, size_t scope_id);
-  const IR_Variable* add_var(const std::string& name, size_t scope_id,
-                             bool is_func_decl);
+  bool var_exists(std::string_view name, size_t scope_id);
+  const IR_Variable& get_var(std::string_view name, size_t scope_id);
+  const IR_Variable* add_var(std::string_view name, size_t scope_id, bool is_func_decl = false);
+
+  void visit(PoisonExprNode& node) override;
+  void visit(PoisonStmtNode& node) override;
 
   // Expression Nodes
   void visit(IntegerLiteralNode& node) override;
@@ -86,18 +88,17 @@ private:
   IROperand m_last_expr_operand;
   bool m_main_function_defined;
 
-  IR_Label get_runtime_print_call(const std::shared_ptr<Type>& type);
+  IR_Label get_runtime_print_call(Type* type);
 
-  IR_Register compute_struct_field_addr(const ExprPtr& object,
-                                        const std::string& field_name);
+  IR_Register compute_struct_field_addr(const ExprPtr& object, std::string_view field_name);
 
   void unimpl(const std::string& nodeName);
 
   IROperand get_copy_of_operand(const IROperand& src, ExprPtr rhs_expr,
                                 bool is_str_lhs_mut = true); // default copy str
-  bool is_string_mutable(std::shared_ptr<Type> type, const std::string& name,
+  bool is_string_mutable(Type* type, const std::string& name,
                          size_t scope_id);
-  bool is_string_mutable(std::shared_ptr<Type> type, BorrowState modifier);
+  bool is_string_mutable(Type* type, BorrowState modifier);
   bool is_string_literal_expr(const ExprPtr& expr);
 };
 
