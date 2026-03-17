@@ -11,7 +11,11 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/checker
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/logging
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/codegen
-    ${CMAKE_CURRENT_SOURCE_DIR}/../vendor
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/loader
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/memory
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/preprocessor
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/json_export
+    ${CMAKE_CURRENT_SOURCE_DIR}/vendor
 )
 
 set(CODEGEN_SOURCES
@@ -36,6 +40,11 @@ set(PARSER_SOURCES
 set(LEXER_SOURCES
     ../src/lexer/lexer.cpp
     ../src/lexer/token.cpp
+)
+
+set(SHARED_SOURCES
+    ../src/loader/source_loader.cpp
+    ../src/memory/arena.cpp
     ../src/preprocessor/preprocessor.cpp
 )
 
@@ -57,6 +66,7 @@ add_executable(${PROJECT_NAME}
     ${LOGGING_SOURCES}
     ${CHECKER_SOURCES}
     ${CODEGEN_SOURCES}
+    ${SHARED_SOURCES}
 )
 
 target_link_libraries(${PROJECT_NAME}
