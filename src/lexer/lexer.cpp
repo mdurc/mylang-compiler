@@ -146,8 +146,6 @@ char Lexer::handle_escape_sequence() {
 
 void Lexer::lex_string() {
   // Opening '"' was consumed by scan_token calling advance()
-  int starting_row = m_row;
-  int starting_col = m_col;
   std::string value; // escape codes require real allocation, not view
   while (peek() != '"' && peek() != '\n' && !is_at_end()) {
     if (peek() == '\\') {
@@ -169,9 +167,6 @@ void Lexer::lex_string() {
 
 void Lexer::lex_char() {
   // Opening single quote was consumed by scan_token calling advance()
-  int starting_row = m_row;
-  int starting_col = m_col;
-
   // check if it is an empty char literal, which is not allowed
   char c = peek();
   if (c == '\'') {

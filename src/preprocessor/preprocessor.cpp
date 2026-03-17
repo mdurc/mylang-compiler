@@ -77,7 +77,7 @@ void Preprocessor::handle_include(const std::vector<Token>& tokens, size_t& i, s
   }
 
   std::uint32_t file_id = m_loader->load_file(full_path);
-  if (file_id == -1) return;
+  if (file_id == 0) return;
 
   if (m_processing_files.find(file_id) != m_processing_files.end()) {
     m_logger->report(Diag::Error(tokens[i].get_span(), "Circular include detected for file: " + include_name));

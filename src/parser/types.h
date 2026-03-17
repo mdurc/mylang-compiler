@@ -84,6 +84,8 @@ public:
       : m_storage(std::move(f)), m_scope_id(sc), m_bytes(PTR_SIZE) {}
   Type(Pointer p, size_t sc)
       : m_storage(p), m_scope_id(sc), m_bytes(PTR_SIZE) {}
+  Type(ErrorType e, size_t sc)
+      : m_storage(e), m_scope_id(sc), m_bytes(PTR_SIZE) {}
 
   friend bool operator==(const Type& a, const Type& b) {
     return a.m_storage == b.m_storage;

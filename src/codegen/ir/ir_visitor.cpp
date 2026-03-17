@@ -84,10 +84,10 @@ void IrVisitor::unimpl(const std::string& note) {
   _assert(false, "Unimplemented IR feature: " + note);
 }
 
-void IrVisitor::visit(PoisonExprNode& node) { // nop
+void IrVisitor::visit(PoisonExprNode&) { /* no-op */
   _assert(false, "found a poisoned expr node in the IR");
 }
-void IrVisitor::visit(PoisonStmtNode& node) { // nop
+void IrVisitor::visit(PoisonStmtNode&) { /* no-op */
   _assert(false, "found a poisoned expr node in the IR");
 }
 
@@ -327,7 +327,7 @@ IR_Register IrVisitor::compute_struct_field_addr(const ExprPtr& object, std::str
   _assert(struct_decl, "Struct definition not found");
 
   // find the field offset
-  std:uint64_t offset = 0;
+  std::uint64_t offset = 0;
   bool found = false;
   for (const StructFieldPtr& field : struct_decl->fields) {
     if (field->name->name_str == field_name) {
@@ -880,8 +880,8 @@ void IrVisitor::visit(ErrorStmtNode& node) {
 
 void IrVisitor::visit(FloatLiteralNode&) { unimpl("FloatLiteralNode"); }
 
-void IrVisitor::visit(StructFieldNode& node) { /* no-op */ }
-void IrVisitor::visit(StructDeclNode& node) { /* no-op */ }
+void IrVisitor::visit(StructFieldNode&) { /* no-op */ }
+void IrVisitor::visit(StructDeclNode&) { /* no-op */ }
 void IrVisitor::visit(StructFieldInitializerNode&) { /* no-op */ }
 
 void IrVisitor::visit(StructLiteralNode& node) {

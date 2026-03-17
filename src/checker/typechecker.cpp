@@ -124,7 +124,7 @@ void TypeChecker::visit(PoisonExprNode& node) {
   node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
 }
 
-void TypeChecker::visit(PoisonStmtNode& node) {
+void TypeChecker::visit(PoisonStmtNode&) {
   // syntax was invalid, do nothing further.
 }
 
@@ -662,9 +662,6 @@ void TypeChecker::visit(UnaryExprNode& node) {
 
   Type* result_type = nullptr;
   Type* bool_type = m_symtab->lookup<Type>("bool", 0);
-  Type* i64_type = m_symtab->lookup<Type>("i64", 0);
-  Type* f64_type = m_symtab->lookup<Type>("f64", 0);
-
   switch (node.op_type) {
     case UnaryOperator::Negate: // '-'
       if (is_numeric_type(operand_type)) {

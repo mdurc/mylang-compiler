@@ -77,12 +77,12 @@ public:
   static std::string unary_op_to_string(UnaryOperator op);
   static std::string borrow_state_to_string(BorrowState bs);
 
-  void visit(PoisonExprNode& node) override {
+  void visit(PoisonExprNode&) override {
     print_indent();
     out << "PoisonExpr()";
   }
 
-  void visit(PoisonStmtNode& node) override {
+  void visit(PoisonStmtNode&) override {
     print_indent();
     out << "PoisonStmt()";
   }

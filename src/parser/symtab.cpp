@@ -80,6 +80,18 @@ void SymTab::exit_scope() {
   }
 }
 
+StructDeclPtr SymTab::lookup_struct(std::string_view name, size_t start_scope) const {
+  if (start_scope >= m_scopes.size()) {
+    return nullptr;
+  }
+  for (size_t scope_id = start_scope;; scope_id = m_scopes[scope_id].get_parent_scope()) {
+    StructDeclPtr decl = m_scopes[scope_id].lookup_struct(name);
+    if (decl) return decl;
+    if (scope_id == 0) break;
+  }
+  return nullptr;
+}
+
 void SymTab::print(std::ostream& out) const {
   out << "Symbol Table State:\n";
   out << "Current Scope ID: " << m_current_scope << "\n";
