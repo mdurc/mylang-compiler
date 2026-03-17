@@ -14,6 +14,13 @@
 #include "../../logging/logger.h"
 #include "../ir/ir_instruction.h"
 
+struct CallContext {
+  size_t stack_args_size = 0;
+  size_t current_args_passed = 0;
+  std::vector<std::string> arg_instrs;
+  std::vector<std::string> used_caller_saved;
+};
+
 class X86_64CodeGenerator {
 public:
   X86_64CodeGenerator(Logger* logger);
@@ -36,10 +43,6 @@ private:
   size_t m_current_func_stack_offset;
 
   // argument handling
-  bool m_in_lcall_prep;
-  size_t m_stack_args_size; // total size of arguments pushed to stack
-  size_t m_current_args_passed;
-  std::vector<std::string> m_current_arg_instrs; // movs and pushes for args
   std::vector<std::string> m_arg_regs;           // register argument order
 
   std::vector<std::string> m_string_literals_data;
@@ -48,9 +51,9 @@ private:
 
   // register allocation
   // {x86_reg_str, <IR_reg_id, reg_size>}
-  std::unordered_map<std::string, std::pair<int, uint64_t>> m_x86_reg_to_ir_reg;
+  std::unordered_map<std::string, std::pair<int, std::uint64_t>> m_x86_reg_to_ir_reg;
   std::unordered_map<int, std::string> m_ir_reg_to_x86_reg;
-  std::unordered_map<int, std::pair<std::string, uint64_t>>
+  std::unordered_map<int, std::pair<std::string, std::uint64_t>>
       m_spilled_ir_reg_locations;
   size_t m_reg_count;
 
@@ -58,33 +61,34 @@ private:
   std::vector<std::string> m_callee_saved_regs;
   std::vector<std::string> m_caller_saved_regs;
 
-  std::vector<std::string> m_used_caller_saved; // saved prior to calls
+  std::stack<CallContext> m_call_stack;
+
   void save_caller_saved_regs();
-  void restore_caller_saved_regs();
+  void restore_caller_saved_regs(const std::vector<std::string>& used_caller_saved);
   std::vector<std::string> get_used_callee_regs();
 
   void clear_func_data();
 
-  std::string get_size_prefix(uint64_t size);
+  std::string get_size_prefix(std::uint64_t size);
   std::string get_sized_register_name(const std::string& reg64_name,
-                                      uint64_t size);
+                                      std::uint64_t size);
   std::string operand_to_string(const IROperand& operand);
-  std::string get_sized_component(const IROperand& operand, uint64_t size);
+  std::string get_sized_component(const IROperand& operand, std::uint64_t size);
 
   void spill_register(const std::string& reg, int ir_reg,
-                      uint64_t old_reg_size);
-  std::string get_temp_x86_reg(uint64_t size);
+                      std::uint64_t old_reg_size);
+  std::string get_temp_x86_reg(std::uint64_t size);
   std::string get_x86_reg(const IR_Register& ir_reg);
   std::string get_mov_instr(const std::string& reg_64, const std::string& src,
-                            bool is_src_immediate, uint64_t src_size);
+                            bool is_src_immediate, std::uint64_t src_size);
   void emit_one_operand_memory_operation(const IROperand& s1,
                                          const IROperand& s2,
                                          const std::string& operation,
-                                         uint64_t size);
+                                         std::uint64_t size);
   void emit_one_operand_memory_operation(const std::string& s1_str,
                                          const std::string& s2_str,
                                          const std::string& operation,
-                                         uint64_t size);
+                                         std::uint64_t size);
   void emit(const std::string& instruction);
   void emit_label(const std::string& label_name);
 
