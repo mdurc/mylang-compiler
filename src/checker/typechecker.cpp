@@ -1,19 +1,22 @@
 #include "typechecker.h"
 
 #include <algorithm>
+#include <unordered_set>
 
 #include "../logging/diagnostic.h"
 #include "../parser/types.h"
 
 /* we utilize the poisoned nodes to stop checking and return ErrorType,
    without every logging new errors to avoid duplicate errors */
+/* every visited node should have a resolved type, if it is poisoned, it will be ErrorType */
 
-#define _assert(cond, msg)                                                   \
-  do {                                                                       \
-    if (!(cond)) {                                                           \
-      throw std::runtime_error(std::string("Internal TypeChecker Error: ") + msg); \
-    }                                                                        \
-  } while (false)
+#define _throw_internal(msg) throw std::runtime_error(std::string("Internal TypeChecker Error: ") + msg)
+#define _assert(cond, msg)  \
+  do {                      \
+    if (!(cond)) {          \
+      _throw_internal(msg); \
+    }                       \
+  } while (0)
 
 bool TypeChecker::is_integer_type(Type* type) const {
   if (!type || !type->is<Type::Named>()) return false;
@@ -45,8 +48,7 @@ TypeChecker::TypeChecker(Logger* logger, ArenaAllocator* arena)
       m_current_function_return_type(nullptr),
       m_in_loop(false) {}
 
-void TypeChecker::check_program(SymTab* symtab,
-                                const std::vector<AstPtr>& program_nodes) {
+void TypeChecker::check_program(SymTab* symtab, const std::vector<AstPtr>& program_nodes) {
   m_symtab = symtab;
   m_current_function_return_type = nullptr;
   m_in_loop = false;
@@ -64,21 +66,15 @@ void TypeChecker::check_program(SymTab* symtab,
 }
 
 Type* TypeChecker::get_expr_type(const ExprPtr& expr) {
-  if (!expr) {
-    m_logger->report(Diag::Fatal(Span{}, "Internal Error: Expression pointer is null"));
-    return nullptr;
-  }
-  expr->accept(*this); // should resolve its type
+  _assert(expr != nullptr, "ExprPtr should not be null (poisoned at least)");
+  expr->accept(*this); // resolve type
   return expr->expr_type;
 }
 
 bool TypeChecker::check_type_assignable(Type* target_type, Type* value_type, const Span& span) {
-  _assert(target_type && value_type,
-          "Both types when checking assignability should be non-null from the "
-          "parser or have already been inferred by the checker");
+  _assert(target_type && value_type, "assignable types should be non-null");
 
-  // if either side is poisoned, assume that this is assignable to avoid cascading errors
-  // silent propagation
+  // avoid cascading errors
   if (target_type->is<Type::ErrorType>() || value_type->is<Type::ErrorType>()) {
       return true;
   }
@@ -103,17 +99,15 @@ bool TypeChecker::check_type_assignable(Type* target_type, Type* value_type, con
   if (target_type->is<Type::Pointer>() && value_type->is<Type::Pointer>()) {
     const Type::Pointer& target_ptr = target_type->as<Type::Pointer>();
     const Type::Pointer& value_ptr = value_type->as<Type::Pointer>();
-    // ensure pointee types exist and make sure pointee types are exact match,
-    // along with mutability. This makes sense because types and mutability
-    // should not change, as we compare assignment operations to the decl type.
+    bool mut_compatible = target_ptr.is_pointee_mutable ? value_ptr.is_pointee_mutable : true;
     if (target_ptr.pointee && value_ptr.pointee &&
         *(target_ptr.pointee) == *(value_ptr.pointee) &&
-        target_ptr.is_pointee_mutable == value_ptr.is_pointee_mutable) {
+        mut_compatible) {
       return true;
     }
   }
 
-  // Otherwise we have found a type error on assignemnet
+  // otherwise we have found a type error on assignemnet
   m_logger->report(Diag::TypeMismatch(span, target_type->to_string(), value_type->to_string()));
   return false;
 }
@@ -121,11 +115,9 @@ bool TypeChecker::check_type_assignable(Type* target_type, Type* value_type, con
 bool TypeChecker::expect_specific_type(const ExprPtr& expr, const Type& expected_type_val) {
   Type* actual_type = get_expr_type(expr);
   if (!actual_type) return false;
-  if (actual_type->is<Type::ErrorType>()) return true; // silent propagation
 
-  if (*actual_type == expected_type_val) {
-    return true;
-  }
+  if (actual_type->is<Type::ErrorType>()) return true;
+  if (*actual_type == expected_type_val) return true;
 
   m_logger->report(Diag::TypeMismatch(expr->token->get_span(), expected_type_val.to_string(), actual_type->to_string()));
   return false;
@@ -181,31 +173,25 @@ void TypeChecker::visit(CharLiteralNode& node) {
 // == Identifier ==
 void TypeChecker::visit(IdentifierNode& node) {
   // The parser handles declaring all identifiers, so we just have to search it
-  Variable* var_symbol = m_symtab->lookup<Variable>(node.name, node.scope_id);
+  Variable* var_symbol = m_symtab->lookup<Variable>(node.name_str, node.scope_id);
 
   if (!var_symbol) {
-    m_logger->report(Diag::VariableNotFound(node.token->get_span(), std::string(node.name)));
+    m_logger->report(Diag::VariableNotFound(node.token->get_span(), std::string(node.name_str)));
     node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
     return;
   }
 
-  // further check for declaration-before-use check for variables.
-  // Functions are allowed to be used before declaration for now, though we can
-  // easily make them work like variables by removing the `if_function` we
-  // likely have to unify the symbol table construction system to make this
-  // check more robust, possibly by tracking the AST instruction number or
-  // something too, unsure yet, but this is somewhat okay for now.
+  // check for use-before-declaration (functions can do this though)
   bool is_function = var_symbol->type && var_symbol->type->is<Type::Function>();
-  // check if the declaration occurs after the usage of this identifier
   if (!is_function && var_symbol->span > node.token->get_span()) {
-    m_logger->report(Diag::Error(node.token->get_span(), "'" + std::string(node.name) + "' used before its declaration."));
+    m_logger->report(Diag::Error(node.token->get_span(), "'" + std::string(node.name_str) + "' used before its declaration."));
     node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
     return;
   }
 
   if (!var_symbol->type) {
     // This can happen if type inference failed for this variable earlier.
-    m_logger->report(Diag::Error(node.token->get_span(), "Type of variable '" + std::string(node.name) + "' could not be determined."));
+    m_logger->report(Diag::Error(node.token->get_span(), "Type of variable '" + std::string(node.name_str) + "' could not be determined."));
     node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
     return;
   }
@@ -221,21 +207,26 @@ void TypeChecker::visit(GroupedExprNode& node) {
   node.expr_type = get_expr_type(node.expression);
 }
 
+/* returns type if it is a mutable/assignable lvalue, otherwise nullptr */
 Type* TypeChecker::get_lvalue_type_if_mutable(const ExprPtr& expr) {
-  if (!expr) {
-    return nullptr;
-  }
+  _assert(expr != nullptr, "ExprPtr should not be null (poisoned at least)");
+
   if (auto grouped_node = dynamic_cast<GroupedExprNode*>(expr)) {
     return get_lvalue_type_if_mutable(grouped_node->expression);
-  } else if (auto ident_node = dynamic_cast<IdentifierNode*>(expr)) {
-    Variable* var_sym = m_symtab->lookup<Variable>(ident_node->name, ident_node->scope_id);
+  }
+
+  if (auto ident_node = dynamic_cast<IdentifierNode*>(expr)) {
+    Variable* var_sym = m_symtab->lookup<Variable>(ident_node->name_str, ident_node->scope_id);
     if (var_sym && var_sym->type &&
         (var_sym->modifier == BorrowState::MutablyOwned ||
          var_sym->modifier == BorrowState::MutablyBorrowed ||
          var_sym->is_return_var)) {
       return var_sym->type;
     }
-  } else if (auto deref_node = dynamic_cast<UnaryExprNode*>(expr)) {
+    return nullptr;
+  }
+
+  if (auto deref_node = dynamic_cast<UnaryExprNode*>(expr)) {
     if (deref_node->op_type == UnaryOperator::Dereference) {
       // For *p = ..., p must be ptr<mut T> for it to be mutable
       // The type of p (deref_lvalue->operand) must be ptr<mut T>.
@@ -245,7 +236,10 @@ Type* TypeChecker::get_lvalue_type_if_mutable(const ExprPtr& expr) {
         return operand_type->as<Type::Pointer>().pointee;
       }
     }
-  } else if (auto field_access_node = dynamic_cast<FieldAccessNode*>(expr)) {
+    return nullptr;
+  }
+
+  if (auto field_access_node = dynamic_cast<FieldAccessNode*>(expr)) {
     // For s.f or p->f, we need to check mutability of s or pointee of p.
     Type* object_type = get_expr_type(field_access_node->object);
     if (!object_type) {
@@ -263,7 +257,10 @@ Type* TypeChecker::get_lvalue_type_if_mutable(const ExprPtr& expr) {
         return get_expr_type(expr);
       }
     }
-  } else if (auto array_index_node = dynamic_cast<ArrayIndexNode*>(expr)) {
+    return nullptr;
+  }
+
+  if (auto array_index_node = dynamic_cast<ArrayIndexNode*>(expr)) {
     // Pointers: p[i] = ..., p must be ptr<mut T>
     Type* object_type = get_expr_type(array_index_node->object);
     if (object_type && object_type->is<Type::Pointer>() &&
@@ -275,16 +272,16 @@ Type* TypeChecker::get_lvalue_type_if_mutable(const ExprPtr& expr) {
     if (object_type && object_type->is<Type::Named>() &&
         object_type->as<Type::Named>().identifier == "string") {
       if (auto ident_node = dynamic_cast<IdentifierNode*>(array_index_node->object)) {
-        Variable* var_sym = m_symtab->lookup<Variable>(ident_node->name, ident_node->scope_id);
+        Variable* var_sym = m_symtab->lookup<Variable>(ident_node->name_str, ident_node->scope_id);
         if (var_sym && (var_sym->modifier == BorrowState::MutablyOwned ||
                         var_sym->modifier == BorrowState::MutablyBorrowed)) {
           return get_expr_type(expr);
         }
       }
     }
+    return nullptr;
   }
 
-  // otherwise it is not a mutable/assignable l-value, return null
   return nullptr;
 }
 
@@ -293,19 +290,14 @@ void TypeChecker::visit(AssignmentNode& node) {
   Type* lvalue_type = get_expr_type(node.lvalue);
   Type* rvalue_type = get_expr_type(node.rvalue);
 
-  if (!lvalue_type || !rvalue_type) {
-    // error already handled by get_expr_type, just return
+  if (!lvalue_type || !rvalue_type ||
+      lvalue_type->is<Type::ErrorType>() || rvalue_type->is<Type::ErrorType>()) {
+    node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
     return;
   }
 
-  // silent propagation
-  if (lvalue_type->is<Type::ErrorType>() || rvalue_type->is<Type::ErrorType>()) {
-      node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
-      return;
-  }
-
   // Check to make sure the L-value is assignable:
-  // mutable var, dereference of mutable ptr, field of struct
+  //   mutable var, dereference of mutable ptr, field of struct
   Type* mutable_lvalue_type = get_lvalue_type_if_mutable(node.lvalue);
   if (!mutable_lvalue_type) {
     m_logger->report(Diag::Error(node.lvalue->token->get_span(), "L-value is not assignable (not mutable or not a valid target)."));
@@ -331,12 +323,12 @@ void TypeChecker::visit(VariableDeclNode& node) {
   if (node.initializer) {
     initializer_expr_type = get_expr_type(node.initializer);
     if (!initializer_expr_type) {
-      // error was handled in get_expr_type, just return
+      node.name->expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
       return;
     }
   }
 
-  Variable* sym = m_symtab->lookup<Variable>(node.var_name->name, node.scope_id);
+  Variable* sym = m_symtab->lookup<Variable>(node.name->name_str, node.scope_id);
   _assert(sym, "Variable should've been declared in symtab by Parser.");
 
   if (var_declared_type) {
@@ -344,14 +336,14 @@ void TypeChecker::visit(VariableDeclNode& node) {
     if (initializer_expr_type && !initializer_expr_type->is<Type::ErrorType>()) {
       if (!check_type_assignable(var_declared_type, initializer_expr_type,
                                  node.initializer->token->get_span())) {
-        // Error already reported by check_type_assignable, just return
-        return;
+        // error already reported by check_type_assignable
+        // we don't need to return early, declared types should still be assigned
       }
     }
 
     // Resolve the types
     sym->type = var_declared_type;
-    node.var_name->expr_type = var_declared_type;
+    node.name->expr_type = var_declared_type;
   } else {
     // Type inference
     _assert(initializer_expr_type != nullptr,
@@ -359,10 +351,10 @@ void TypeChecker::visit(VariableDeclNode& node) {
     if (initializer_expr_type && !initializer_expr_type->is<Type::ErrorType>()) {
       // infer the type from the initializer and resolve with that type
       sym->type = initializer_expr_type;
-      node.var_name->expr_type = initializer_expr_type;
+      node.name->expr_type = initializer_expr_type;
     } else {
       sym->type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
-      node.var_name->expr_type = sym->type;
+      node.name->expr_type = sym->type;
     }
 
     // update the AST node's type field which was nullptr for `:=`
@@ -409,10 +401,7 @@ void TypeChecker::visit(ReadStmtNode& node) {
 void TypeChecker::visit(PrintStmtNode& node) {
   for (size_t i = 0; i < node.expressions.size(); ++i) {
     Type* expr_type = get_expr_type(node.expressions[i]);
-    if (!expr_type) {
-      // err already handled
-      return;
-    }
+    if (!expr_type) continue;
 
     // Anything except u0 can be printed for now
     if (!expr_type->is<Type::ErrorType>() &&
@@ -496,15 +485,14 @@ void TypeChecker::visit(ReturnStmtNode& node) {
 
   if (node.value) {
     // Return with a value: return <expr>;
+    Type* actual_return_type = get_expr_type(node.value);
+    if (!actual_return_type || actual_return_type->is<Type::ErrorType>()) return;
     if (*m_current_function_return_type == *u0_type) {
       m_logger->report(Diag::Error(node.value->token->get_span(), "Function declared to return 'u0' cannot return a value."));
       return;
     }
-    Type* actual_return_type = get_expr_type(node.value);
-    if (actual_return_type && !actual_return_type->is<Type::ErrorType>()) {
-      // make sure the type returned is correct
-      check_type_assignable(m_current_function_return_type, actual_return_type, node.value->token->get_span());
-    }
+    // make sure the type returned is correct
+    check_type_assignable(m_current_function_return_type, actual_return_type, node.value->token->get_span());
   } else {
     // Return without a value must be a part of a void function, else err
     if (!(*m_current_function_return_type == *u0_type)) {
@@ -528,6 +516,8 @@ void TypeChecker::visit(FunctionDeclNode& node) {
 
   // Type check the function body
   node.body->accept(*this);
+
+  // TODO: perform path analysis for return stmts
 
   /* confirm that this function exists in the symbol table */
   size_t scope = node.scope_id;
@@ -571,8 +561,7 @@ void TypeChecker::visit(BinaryOpExprNode& node) {
   Type* left_type = get_expr_type(node.left);
   Type* right_type = get_expr_type(node.right);
 
-  if (!left_type || !right_type) return;
-  if (left_type->is<Type::ErrorType>() || right_type->is<Type::ErrorType>()) {
+  if (!left_type || !right_type || left_type->is<Type::ErrorType>() || right_type->is<Type::ErrorType>()) {
       node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
       return;
   }
@@ -679,8 +668,7 @@ void TypeChecker::visit(BinaryOpExprNode& node) {
 // Unary Operation
 void TypeChecker::visit(UnaryExprNode& node) {
   Type* operand_type = get_expr_type(node.operand);
-  if (!operand_type) return;
-  if (operand_type->is<Type::ErrorType>()) {
+  if (!operand_type || operand_type->is<Type::ErrorType>()) {
     node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
     return;
   }
@@ -712,11 +700,7 @@ void TypeChecker::visit(UnaryExprNode& node) {
 
       if (!is_mut || get_lvalue_type_if_mutable(node.operand)) {
         Type storage(Type::Pointer(is_mut, operand_type), node.scope_id);
-
-        /* allocate on arena in case we declare in the symtab here */
-        char* mem = static_cast<char*>(m_arena->allocate(storage.to_string().size() + 1, 1));
-        std::strcpy(mem, storage.to_string().c_str());
-        std::string_view type_name(mem, storage.to_string().size());
+        std::string_view type_name = m_arena->make_string(storage.to_string());
 
         result_type = m_symtab->lookup<Type>(type_name, node.scope_id);
         if (!result_type) {
@@ -753,8 +737,7 @@ void TypeChecker::visit(UnaryExprNode& node) {
 void TypeChecker::visit(FunctionCallNode& node) {
   Type* callee_type = get_expr_type(node.callee);
 
-  if (!callee_type) return;
-  if (callee_type->is<Type::ErrorType>()) {
+  if (!callee_type || callee_type->is<Type::ErrorType>()) {
     node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
     return;
   }
@@ -785,8 +768,7 @@ void TypeChecker::visit(FunctionCallNode& node) {
     ArgPtr arg = node.arguments[i];
     Type* arg_t = arg->expression->expr_type;
 
-    if (!arg_t) return;
-    if (arg_t->is<Type::ErrorType>()) {
+    if (!arg_t || arg_t->is<Type::ErrorType>()) {
       node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
       return;
     }
@@ -830,8 +812,7 @@ void TypeChecker::visit(FunctionCallNode& node) {
 void TypeChecker::visit(FieldAccessNode& node) {
   Type* object_type = get_expr_type(node.object);
 
-  if (!object_type) return;
-  if (object_type->is<Type::ErrorType>()) {
+  if (!object_type || object_type->is<Type::ErrorType>()) {
     node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
     return;
   }
@@ -842,8 +823,7 @@ void TypeChecker::visit(FieldAccessNode& node) {
   // Auto-dereference pointers
   if (object_type->is<Type::Pointer>()) {
     base_object_type = object_type->as<Type::Pointer>().pointee;
-    // is_obj_ptr_to_mut =
-    // object_type->as<Type::Pointer>().is_pointee_mutable;
+    // is_obj_ptr_to_mut = object_type->as<Type::Pointer>().is_pointee_mutable;
     if (!base_object_type) {
       m_logger->report(Diag::Error(node.object->token->get_span(), "Cannot access field of a pointer to an unresolved or void type."));
       node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
@@ -862,16 +842,17 @@ void TypeChecker::visit(FieldAccessNode& node) {
 
   const std::string_view& name = base_object_type->as<Type::Named>().identifier;
   StructDeclPtr struct_decl = m_symtab->lookup_struct(name, base_object_type->get_scope_id());
+  _assert(struct_decl != nullptr, "Struct type should exist in symbol table");
 
   // Search for the field or method in the struct's fields
   for (const StructFieldPtr& field : struct_decl->fields) {
-    if (field->name->name == node.field->name) {
+    if (field->name->name_str == node.field->name_str) {
       node.expr_type = field->type;
       return;
     }
   }
 
-  m_logger->report(Diag::Error(node.field->token->get_span(), "Struct '" + std::string(name) + "' has no field named '" + std::string(node.field->name) + "'."));
+  m_logger->report(Diag::Error(node.field->token->get_span(), "Struct '" + std::string(name) + "' has no field named '" + std::string(node.field->name_str) + "'."));
   node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
 }
 
@@ -879,8 +860,7 @@ void TypeChecker::visit(ArrayIndexNode& node) {
   Type* object_type = get_expr_type(node.object);
   Type* index_type = get_expr_type(node.index);
 
-  if (!object_type || !index_type) return;
-  if (object_type->is<Type::ErrorType>() || index_type->is<Type::ErrorType>()) {
+  if (!object_type || !index_type || object_type->is<Type::ErrorType>() || index_type->is<Type::ErrorType>()) {
       node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
       return;
   }
@@ -916,43 +896,55 @@ void TypeChecker::visit(StructLiteralNode& node) {
   Type* struct_type = node.struct_decl->type;
   node.expr_type = struct_type;
 
-  if (!struct_type->is<Type::Named>()) {
-    m_logger->report(Diag::Fatal(node.token->get_span(), "Struct literal type is not a named type. Internal error."));
-    return;
-  }
+  _assert(struct_type->is<Type::Named>(), "Struct literal type should be Named");
 
   const std::string_view& name = struct_type->as<Type::Named>().identifier;
-  StructDeclPtr struct_decl = m_symtab->lookup_struct(name, struct_type->get_scope_id());
+  StructDeclPtr struct_decl = node.struct_decl;
 
   // Type check field initializers
+  bool error_occured = false;
+  std::unordered_set<std::string_view> initialized_fields;
   for (const StructFieldInitPtr& initializer : node.initializers) {
     // we do not resolve the field because it simply must be an identifier
-    // that matches with the field field names which we will check in a
-    // moment.
-
-    // resolve the value
+    // that matches with the field field name
     Type* value_type = get_expr_type(initializer->value);
-    if (!value_type || value_type->is<Type::ErrorType>()) continue;
-
-    auto itr = std::find_if(struct_decl->fields.begin(), struct_decl->fields.end(),
-                     [&](const StructFieldPtr& field) { return field->name->name == initializer->field->name; });
-
-    if (itr == struct_decl->fields.end()) {
-      m_logger->report(Diag::Error(initializer->field->token->get_span(),
-                             "Struct '" + std::string(name) + "' has no field named '" +
-                                  std::string(initializer->field->name) + "'."));
+    if (!value_type || value_type->is<Type::ErrorType>()) {
+      error_occured = true;
       continue;
     }
 
-    check_type_assignable((*itr)->type, value_type, initializer->value->token->get_span());
+    if (initialized_fields.count(initializer->field->name_str)) {
+      m_logger->report(Diag::Error(initializer->field->token->get_span(),
+          "Duplicate initialization of field '" + std::string(initializer->field->name_str) + "'."));
+      error_occured = true;
+    }
+    initialized_fields.insert(initializer->field->name_str);
+
+    auto itr = std::find_if(struct_decl->fields.begin(), struct_decl->fields.end(),
+                     [&](const StructFieldPtr& field) { return field->name->name_str == initializer->field->name_str; });
+
+    if (itr == struct_decl->fields.end()) {
+      error_occured = true;
+      m_logger->report(Diag::Error(initializer->field->token->get_span(),
+                             "Struct '" + std::string(name) + "' has no field named '" +
+                                  std::string(initializer->field->name_str) + "'."));
+      continue;
+    }
+
+    initializer->field->expr_type = (*itr)->type;
+
+    if (!check_type_assignable((*itr)->type, value_type, initializer->value->token->get_span())) {
+      error_occured = true;
+    }
   }
   // We currently allow for partial initialization of the named fields
+  if (error_occured) {
+    node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
+  }
 }
 
 void TypeChecker::visit(NewExprNode& node) {
-  _assert(node.type_to_allocate != nullptr,
-          "Parser should enforce NewExprNode's to be explicitly typed with the "
-          "type to be allocated");
+  _assert(node.type_to_allocate != nullptr, "Parser must provide type_to_allocate");
 
   /*
      Result is `ptr<[mut] type_to_allocate>`
@@ -975,8 +967,11 @@ void TypeChecker::visit(NewExprNode& node) {
   // The result of `new <T>[size]` is array of the above case
 
   bool is_prim_alloc = is_primitive_type(node.type_to_allocate);
-  if (!is_prim_alloc && !node.type_to_allocate->is<Type::Named>()) {
-    m_logger->report(Diag::Error(node.token->get_span(), "Allocation type must be a named type"));
+  bool is_valid_alloc_type = is_prim_alloc ||
+                             node.type_to_allocate->is<Type::Named>() ||
+                             node.type_to_allocate->is<Type::Pointer>();
+  if (!is_valid_alloc_type) {
+    m_logger->report(Diag::Error(node.token->get_span(), "Allocation type must be a primitive, struct, or pointer."));
     node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
     return;
   }
@@ -984,11 +979,7 @@ void TypeChecker::visit(NewExprNode& node) {
   // Find the pointer type in the symbol table (though it may not exist
   // because the parser doesn't declare types that are used/created by new)
   Type ptr_t(Type::Pointer(node.is_memory_mutable, node.type_to_allocate), node.scope_id);
-
-  /* allocate in arena for symtab declaration */
-  char* mem = static_cast<char*>(m_arena->allocate(ptr_t.to_string().size() + 1, 1));
-  std::strcpy(mem, ptr_t.to_string().c_str());
-  std::string_view name(mem, ptr_t.to_string().size());
+  std::string_view name = m_arena->make_string(ptr_t.to_string());
 
   Type* ptr_type = m_symtab->lookup<Type>(name, ptr_t.get_scope_id());
   if (!ptr_type) ptr_type = m_symtab->declare_type(name, m_arena->make<Type>(ptr_t), ptr_t.get_scope_id());
@@ -1000,7 +991,10 @@ void TypeChecker::visit(NewExprNode& node) {
     // this should handle if it is a struct literal expression, or regular
     // expression, due to dynamic binding/dispatch
     Type* spec_type = get_expr_type(node.allocation_specifier);
-    if (!spec_type || spec_type->is<Type::ErrorType>()) return;
+    if (!spec_type || spec_type->is<Type::ErrorType>()) {
+      node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
+      return;
+    }
 
     if (node.is_array_allocation) {
       // new <T>[size], size must be an integer type
@@ -1009,27 +1003,32 @@ void TypeChecker::visit(NewExprNode& node) {
         m_logger->report(Diag::TypeMismatch(
             node.allocation_specifier->token->get_span(), "i64",
             spec_type->to_string() + ". array size in new expression"));
+        node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
       }
     } else {
       // new <T>(constructor_arg)
       // just have to make sure that they are assignable
-      check_type_assignable(node.type_to_allocate, spec_type,
-                            node.allocation_specifier->token->get_span());
+      if (!check_type_assignable(node.type_to_allocate, spec_type,
+                            node.allocation_specifier->token->get_span())) {
+        node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
+      }
     }
   } else {
     // No allocation specifier, new <T>() or new <T>[]
     if (node.is_array_allocation) {
       m_logger->report(Diag::Error(node.token->get_span(),
                 "Array allocation 'new <T>[]' must have a size expression."));
+      node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
     }
 
     // else it is the default () constructor, which is only valid for structs
-    if (is_prim_alloc) {
+    else if (is_prim_alloc) {
       m_logger->report(Diag::Error(node.token->get_span(),
                     "Primitive type '" + node.type_to_allocate->to_string() +
                     "' cannot be default constructed with 'new()'. Provide "
                     "an initializer like 'new<" +
                     node.type_to_allocate->to_string() + ">(value)'."));
+      node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
     }
   }
 }
@@ -1038,20 +1037,22 @@ void TypeChecker::visit(SwitchStmtNode& node) {
   // resolve the expression itself and all the cases
   Type* switch_expr_type = get_expr_type(node.expression);
 
-  if (!switch_expr_type || switch_expr_type->is<Type::ErrorType>()) return;
-
-  // Check if switch expression type is comparable.
-  // Allow types that have an operator== override
-  if (switch_expr_type->is<Type::Function>() ||
-      (switch_expr_type->is<Type::Named>() &&
-       switch_expr_type->as<Type::Named>().identifier == "f64")) {
-    // Disallow switching on functions or floats for now due to complexity
-    m_logger->report(Diag::Error(node.expression->token->get_span(),
-                  "Switch expression cannot be of type '" +
-                  switch_expr_type->to_string() +
-                  "'. Only equatable types like integers, strings, "
-                  "pointers, bools allowed."));
-    return;
+  if (!switch_expr_type || switch_expr_type->is<Type::ErrorType>()) {
+    switch_expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
+  } else {
+    // Check if switch expression type is comparable.
+    // Allow types that have an operator== override
+    if (switch_expr_type->is<Type::Function>() ||
+        (switch_expr_type->is<Type::Named>() &&
+         switch_expr_type->as<Type::Named>().identifier == "f64")) {
+      // Disallow switching on functions or floats for now due to complexity
+      m_logger->report(Diag::Error(node.expression->token->get_span(),
+                    "Switch expression cannot be of type '" +
+                    switch_expr_type->to_string() +
+                    "'. Only equatable types like integers, strings, "
+                    "pointers, bools allowed."));
+      switch_expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
+    }
   }
 
   Type* prev_switch_expr_type = m_current_switch_expr_type;
@@ -1078,12 +1079,15 @@ void TypeChecker::visit(CaseNode& node) {
   if (node.value) {
     // not the 'default' case
     Type* case_value_type = get_expr_type(node.value);
-    if (case_value_type && m_current_switch_expr_type) {
-      check_type_assignable(m_current_switch_expr_type, case_value_type,
-                            node.value->token->get_span());
+    if (m_current_switch_expr_type && !m_current_switch_expr_type->is<Type::ErrorType>()) {
+      if (case_value_type && !case_value_type->is<Type::ErrorType>()) {
+        check_type_assignable(m_current_switch_expr_type, case_value_type,
+                              node.value->token->get_span());
+      }
     }
   }
   // check the contents of the case body
+  _assert(node.body, "case body should be non-null");
   node.body->accept(*this);
 }
 
@@ -1091,17 +1095,24 @@ void TypeChecker::visit(FreeStmtNode& node) {
   Type* expr_type = get_expr_type(node.expression);
   if (!expr_type || expr_type->is<Type::ErrorType>()) return;
 
-  // allow free on pointer, string, and struct types.
-  // strings that are concatenated must be freed manually as of now.
-  // structs allocate space on the heap, and also be manually freed as of now.
-  bool is_ptr = expr_type->is<Type::Pointer>();
+  if (expr_type->is<Type::Pointer>()) {
+    if (!expr_type->as<Type::Pointer>().is_pointee_mutable) {
+      m_logger->report(Diag::Error(node.expression->token->get_span(),
+            "Cannot 'free' an immutable pointer. Pointer must be 'ptr<mut T>'."));
+      return;
+    }
+  }
+
   bool is_string = expr_type->is<Type::Named>() &&
                    expr_type->as<Type::Named>().identifier == "string";
+  bool is_ptr = expr_type->is<Type::Pointer>();
+
   bool is_struct = false;
   if (expr_type->is<Type::Named>()) {
     StructDeclPtr struct_decl = m_symtab->lookup_struct(expr_type->as<Type::Named>().identifier, expr_type->get_scope_id());
     if (struct_decl != nullptr) is_struct = true;
   }
+
   if (!is_ptr && !is_string && !is_struct) {
     m_logger->report(Diag::TypeMismatch(
         node.expression->token->get_span(), "pointer, string, or struct type",
@@ -1112,7 +1123,7 @@ void TypeChecker::visit(FreeStmtNode& node) {
 
 void TypeChecker::visit(ExitStmtNode& node) {
   if (node.exit_code < 0) {
-    m_logger->report(Diag::Error(Span{}, "Expected error code of positive integer literal"));
+    m_logger->report(Diag::Error(node.token->get_span(), "Exit code must be a non-negative integer."));
   }
 }
 

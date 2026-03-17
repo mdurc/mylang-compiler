@@ -15,7 +15,7 @@ struct Diagnostic {
   Span span;
   std::string msg;
 
-  // on-demand conversion to string
+  /* on-demand conversion to string */
   std::string to_string() const;
 };
 
