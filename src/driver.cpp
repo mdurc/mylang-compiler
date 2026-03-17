@@ -39,8 +39,6 @@ static void assemble_and_link(const std::string& asm_code, const std::string& ou
   asm_out << asm_code;
   asm_out.close();
 
-  std::string runtime_obj = "/usr/local/bin/mycompiler_lib/runtime.o";
-
   std::string assemble_cmd = "nasm -f macho64 " + asm_path.string() + " -o " + obj_path.string();
   if (std::system(assemble_cmd.c_str()) != 0) {
     fs::remove(asm_path);
@@ -49,7 +47,7 @@ static void assemble_and_link(const std::string& asm_code, const std::string& ou
   }
 
   std::string link_cmd =
-      "ld " + obj_path.string() + " " + runtime_obj + " -o " + exe_path.string() +
+      "ld " + obj_path.string() + " -o " + exe_path.string() +
       " -macos_version_min 10.13 -e _start -lSystem -no_pie" +
       " -syslibroot $(xcrun --sdk macosx --show-sdk-path)";
 

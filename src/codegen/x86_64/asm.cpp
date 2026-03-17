@@ -1,6 +1,7 @@
 #include "asm.h"
 
 #include "../../parser/types.h"
+#include "../runtime/builtins.h"
 #include "../../util.h"
 
 static size_t get_align(size_t s) { return ((s + 15) & ~15); }
@@ -322,14 +323,17 @@ std::string X86_64CodeGenerator::generate_assembly(const std::vector<IRInstructi
   m_string_literals_data.clear();
   m_string_literal_to_label.clear();
 
-  // preamble
+  /*
+  // not necessary anymore to to automatic inclusion of all stdlib
+  // in the future perhaps we have an import system for stdlib
+
   m_out << "extern exit, string_length, print_string, print_char\n";
   m_out << "extern print_newline, print_uint, print_int\n";
   m_out << "extern read_char, read_word, parse_uint\n";
   m_out << "extern parse_int, string_equals, string_copy\n";
   m_out << "extern memcpy, malloc, free, clrscr, string_concat\n";
-
   m_out << "\n";
+  */
 
   m_out << "default rel\n";
   m_out << "global _start\n";
@@ -408,6 +412,9 @@ std::string X86_64CodeGenerator::generate_assembly(const std::vector<IRInstructi
     m_out << "section .bss\n";
     emit("global_vars resb " + std::to_string(get_align(m_global_var_alloc)));
   }
+
+  /* insert runtime stdlib */
+  m_out << "\n" << RUNTIME_ASM_CODE << "\n";
 
   return m_out.str();
 }
