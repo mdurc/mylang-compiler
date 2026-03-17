@@ -104,7 +104,7 @@ public:
 
   void visit(CharLiteralNode& node) override {
     print_indent();
-    uint64_t val = node.value;
+    std::uint64_t val = node.value;
     out << "Char('" << static_cast<char>(val) << "' : " << val << ")";
   }
 
@@ -120,7 +120,7 @@ public:
 
   void visit(IdentifierNode& node) override {
     print_indent();
-    out << "Ident(" << node.name << ")";
+    out << "Ident(" << node.name_str << ")";
   }
 
   void visit(BinaryOpExprNode& node) override {
@@ -302,7 +302,7 @@ public:
     print_indent();
     out << "Name:\n";
     indent++;
-    node.var_name->accept(*this);
+    node.name->accept(*this);
     indent--;
     out << ",\n";
     print_indent();
@@ -717,8 +717,8 @@ public:
     out << "],\n";
     print_indent();
     out << "ReturnType:";
-    if (node.return_type_name != std::nullopt) {
-      out << " (NamedVar:" << (*node.return_type_name)->name << ")";
+    if (node.retvar_name) {
+      out << " (NamedVar:" << node.retvar_name->name_str << ")";
     }
     out << '\n';
     indent++;

@@ -55,7 +55,7 @@ SymTab::SymTab(ArenaAllocator* arena) : m_current_scope(0) {
   m_scopes.emplace_back(0); // global scope
 
   // define the primitives in the language
-  declare_type("u0", arena->make<Type>(Type::Named("u0"), 0, 8), 0);
+  declare_type("u0", arena->make<Type>(Type::Named("u0"), 0, Type::PTR_SIZE), 0);
   declare_type("u8", arena->make<Type>(Type::Named("u8"), 0, 1), 0);
   declare_type("u16", arena->make<Type>(Type::Named("u16"), 0, 2), 0);
   declare_type("u32", arena->make<Type>(Type::Named("u32"), 0, 4), 0);
@@ -66,7 +66,7 @@ SymTab::SymTab(ArenaAllocator* arena) : m_current_scope(0) {
   declare_type("i64", arena->make<Type>(Type::Named("i64"), 0, 8), 0);
   declare_type("f64", arena->make<Type>(Type::Named("f64"), 0, 8), 0);
   declare_type("bool", arena->make<Type>(Type::Named("bool"), 0, 1), 0);
-  declare_type("string", arena->make<Type>(Type::Named("string"), 0), 0);
+  declare_type("string", arena->make<Type>(Type::Named("string"), 0, Type::PTR_SIZE), 0);
 }
 
 void SymTab::enter_scope() {
