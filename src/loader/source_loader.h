@@ -13,7 +13,7 @@ struct SourceFile {
   std::uint32_t id;
   std::string filepath;
   std::string content;
-  std::vector<size_t> line_offsets;
+  std::vector<size_t> line_offsets; // potentially for lsp access
 };
 
 class SourceLoader {

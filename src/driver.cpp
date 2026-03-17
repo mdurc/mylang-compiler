@@ -10,158 +10,24 @@
 #include <string>
 #include <vector>
 
+#include "memory/arena.h"
+#include "preprocessor/preprocessor.h"
+#include "checker/typechecker.h"
+#include "codegen/ir/ir_printer.h"
+#include "codegen/ir/ir_visitor.h"
+#include "codegen/x86_64/asm.h"
+#include "lexer/lexer.h"
+#include "loader/source_loader.h"
+#include "parser/parser.h"
+#include "parser/symtab.h"
 #include "json_export/json_exporter.h"
 
-#define _check_diags()                                \
-  do {                                                \
-    if (logger.num_fatals() || logger.num_errors()) { \
-      throw FatalError("");                           \
-    } else if (logger.num_warnings()) {               \
-      std::cerr << logger.get_diagnostic_str();       \
-      logger.clear_warnings();                        \
-    }                                                 \
-  } while (0)
-
-#define drive_print(func, input, output) \
-  if (output.empty()) {                  \
-    func(input, std::cout);              \
-  } else {                               \
-    std::ofstream out(output);           \
-    bool _ret = func(input, out);        \
-    out.close();                         \
-    return _ret;                         \
-  }
 
 namespace fs = std::filesystem;
+enum class TargetStage { TOKENS, AST, SYMTAB, IR, ASM, EXE, JSON };
+struct CompileAbort {}; // used to stop IR/asm generation if parser/checker finds errors
 
-bool drive(const std::string& arg, const std::string& input,
-           const std::string& output) {
-  if (arg == "--tokens") {
-    drive_print(compile_tokens, input, output);
-  } else if (arg == "--ast") {
-    drive_print(compile_ast, input, output);
-  } else if (arg == "--symtab") {
-    drive_print(compile_symtab, input, output);
-  } else if (arg == "--ir") {
-    drive_print(compile_ir, input, output);
-  } else if (arg == "--asm") {
-    drive_print(compile_asm, input, output);
-  } else if (arg == "--exe") {
-    if (output.empty()) throw std::runtime_error("Exe output file must exist");
-    return compile_exe(input, output);
-  } else if (arg == "--json") {
-    drive_print(compile_json, input, output);
-  } else if (arg == "--repl") {
-    run_repl();
-  }
-  return true;
-}
-
-bool compile_tokens(const std::string& filename, std::ostream& out) {
-  Logger logger;
-  Lexer lexer(&logger);
-  try {
-    std::vector<Token> tokens = lexer.tokenize_file(filename);
-    _check_diags();
-    print_tokens(tokens, out);
-  } catch (const FatalError&) {
-    std::cerr << "Error\n" << logger.get_diagnostic_str();
-    return false;
-  }
-  return true;
-}
-
-bool compile_ast(const std::string& filename, std::ostream& out) {
-  Logger logger;
-  Lexer lexer(&logger);
-  SymTab symtab;
-  Parser parser(&logger);
-  try {
-    std::vector<Token> tokens = lexer.tokenize_file(filename);
-    _check_diags();
-    std::vector<AstPtr> ast = parser.parse_program(&symtab, tokens);
-    _check_diags();
-    print_ast(ast, out);
-  } catch (const FatalError&) {
-    std::cerr << "Error\n" << logger.get_diagnostic_str();
-    return false;
-  }
-  return true;
-}
-
-bool compile_symtab(const std::string& filename, std::ostream& out) {
-  Logger logger;
-  Lexer lexer(&logger);
-  SymTab symtab;
-  Parser parser(&logger);
-  try {
-    std::vector<Token> tokens = lexer.tokenize_file(filename);
-    _check_diags();
-    parser.parse_program(&symtab, tokens);
-    _check_diags();
-    symtab.print(out);
-  } catch (const FatalError&) {
-    std::cerr << "Error\n" << logger.get_diagnostic_str();
-    return false;
-  }
-  return true;
-}
-
-bool compile_ir(const std::string& filename, std::ostream& out) {
-  Logger logger;
-  Lexer lexer(&logger);
-  SymTab symtab;
-  Parser parser(&logger);
-  TypeChecker type_checker(&logger);
-  IrVisitor ir_visitor(&symtab, &logger);
-  try {
-    std::vector<Token> tokens = lexer.tokenize_file(filename);
-    _check_diags();
-    std::vector<AstPtr> ast = parser.parse_program(&symtab, tokens);
-    _check_diags();
-    type_checker.check_program(&symtab, ast);
-    _check_diags();
-    ir_visitor.visit_all(ast);
-    _check_diags();
-    const std::vector<IRInstruction>& instrs = ir_visitor.get_instructions();
-    print_ir_instructions(instrs, out);
-  } catch (const FatalError&) {
-    std::cerr << "Error\n" << logger.get_diagnostic_str();
-    return false;
-  }
-  return true;
-}
-
-bool compile_asm(const std::string& filename, std::ostream& out) {
-  Logger logger;
-  Lexer lexer(&logger);
-  SymTab symtab;
-  Parser parser(&logger);
-  TypeChecker type_checker(&logger);
-  IrVisitor ir_visitor(&symtab, &logger);
-  X86_64CodeGenerator gen(&logger);
-  try {
-    std::vector<Token> tokens = lexer.tokenize_file(filename);
-    _check_diags();
-    std::vector<AstPtr> ast = parser.parse_program(&symtab, tokens);
-    _check_diags();
-    type_checker.check_program(&symtab, ast);
-    _check_diags();
-    ir_visitor.visit_all(ast);
-    _check_diags();
-    const std::vector<IRInstruction>& instrs = ir_visitor.get_instructions();
-    std::string asm_code = gen.generate(instrs, ir_visitor.is_main_defined());
-    _check_diags();
-    out << asm_code;
-  } catch (const FatalError&) {
-    std::cerr << "Error\n" << logger.get_diagnostic_str();
-    return false;
-  }
-  return true;
-}
-
-static void assemble_and_link(const std::string& asm_code,
-                              const std::string& output_exe) {
+static void assemble_and_link(const std::string& asm_code, const std::string& output_exe) {
   fs::path temp_dir = fs::temp_directory_path();
   std::string temp_prefix = "mycomp_" + std::to_string(getpid()) + "_" +
                             std::to_string(std::time(nullptr)) + "_";
@@ -175,18 +41,18 @@ static void assemble_and_link(const std::string& asm_code,
 
   std::string runtime_obj = "/usr/local/bin/mycompiler_lib/runtime.o";
 
-  std::string assemble_cmd =
-      "nasm -f macho64 " + asm_path.string() + " -o " + obj_path.string();
+  std::string assemble_cmd = "nasm -f macho64 " + asm_path.string() + " -o " + obj_path.string();
   if (std::system(assemble_cmd.c_str()) != 0) {
     fs::remove(asm_path);
     fs::remove(obj_path);
     throw std::runtime_error("Assembly failed");
   }
+
   std::string link_cmd =
-      "ld " + obj_path.string() + " " + runtime_obj + " -o " +
-      exe_path.string() +
+      "ld " + obj_path.string() + " " + runtime_obj + " -o " + exe_path.string() +
       " -macos_version_min 10.13 -e _start -lSystem -no_pie" +
       " -syslibroot $(xcrun --sdk macosx --show-sdk-path)";
+
   if (std::system(link_cmd.c_str()) != 0) {
     fs::remove(asm_path);
     fs::remove(obj_path);
@@ -197,58 +63,139 @@ static void assemble_and_link(const std::string& asm_code,
   fs::remove(obj_path);
 }
 
-bool compile_exe(const std::string& filename, const std::string& out_exe) {
+static bool run_pipeline(TargetStage stage, const std::string& input_file,
+                         std::ostream& out, const std::string& exe_out = "") {
   Logger logger;
-  Lexer lexer(&logger);
-  SymTab symtab;
-  Parser parser(&logger);
-  TypeChecker type_checker(&logger);
-  IrVisitor ir_visitor(&symtab, &logger);
-  X86_64CodeGenerator gen(&logger);
-  try {
-    std::vector<Token> tokens = lexer.tokenize_file(filename);
-    _check_diags();
-    std::vector<AstPtr> ast = parser.parse_program(&symtab, tokens);
-    _check_diags();
-    type_checker.check_program(&symtab, ast);
-    _check_diags();
-    ir_visitor.visit_all(ast);
-    _check_diags();
-    const std::vector<IRInstruction>& instrs = ir_visitor.get_instructions();
-    std::string asm_code = gen.generate(instrs, ir_visitor.is_main_defined());
-    _check_diags();
-    assemble_and_link(asm_code, out_exe);
-  } catch (const FatalError&) {
-    std::cerr << "Error\n" << logger.get_diagnostic_str();
+  SourceLoader loader(&logger);
+
+  std::uint32_t file_id = loader.load_file(input_file);
+  if (file_id == 0) {
+    std::cerr << logger.get_diagnostic_str();
     return false;
   }
-  return true;
-}
 
-bool compile_json(const std::string& filename, std::ostream& out) {
-  Logger logger;
-  Lexer lexer(&logger);
-  SymTab symtab;
-  Parser parser(&logger);
-  TypeChecker type_checker(&logger);
+  ArenaAllocator arena;
+  Lexer lexer(&logger, file_id);
+  Preprocessor preprocessor(&logger, &loader);
+  SymTab symtab(&arena);
+  Parser parser(&logger, &arena);
+  TypeChecker type_checker(&logger, &arena);
+  IrVisitor ir_visitor(&symtab, &logger);
+  X86_64CodeGenerator codegen(&logger);
+
+  // diagnostic-driven success (no abort)
+  auto check_diags = [&]() {
+    if (stage == TargetStage::JSON) return; // report LSP errors later
+    if (logger.num_fatals() || logger.num_errors()) throw CompileAbort();
+    if (logger.num_warnings()) {
+      std::cerr << logger.get_diagnostic_str();
+      logger.clear_warnings();
+    }
+  };
+
   std::vector<Token> tokens;
   std::vector<AstPtr> ast;
-  IrVisitor ir_visitor(&symtab, &logger);
-  X86_64CodeGenerator gen(&logger);
+
   try {
-    tokens = lexer.tokenize_file(filename);
+    // lexical analysis + preprocessing
+    std::string_view source = loader.get_source(file_id);
+    std::vector<Token> raw_tokens = lexer.tokenize(source);
+    check_diags();
+
+    tokens = preprocessor.process(raw_tokens);
+    check_diags();
+
+    if (stage == TargetStage::TOKENS) { Token::print_tokens(tokens, out); return true; }
+
+    // syntax analysis
     ast = parser.parse_program(&symtab, tokens);
+    check_diags();
+
+    if (stage == TargetStage::AST) { print_ast(ast, out); return true; }
+    if (stage == TargetStage::SYMTAB) { symtab.print(out); return true; }
+
+    // semantic analysis
     type_checker.check_program(&symtab, ast);
+    check_diags();
+
+    // intermediate generation
     ir_visitor.visit_all(ast);
-    const std::vector<IRInstruction>& instrs = ir_visitor.get_instructions();
-    std::string asm_code = gen.generate(instrs, ir_visitor.is_main_defined());
-    // don't check the diags, leave it to the json output
-  } catch (const FatalError&) {
-    // do nothing, let the json output the diagnostics
+    check_diags();
+    if (stage == TargetStage::IR) { print_ir_instructions(ir_visitor.get_instructions(), out); return true; }
+
+    // ASM generation
+    std::string asm_code = codegen.generate(ir_visitor.get_instructions(), ir_visitor.is_main_defined());
+    check_diags();
+    if (stage == TargetStage::ASM) { out << asm_code; return true; }
+
+    // assembly and linking
+    if (stage == TargetStage::EXE) {
+      assemble_and_link(asm_code, exe_out);
+      return true;
+    }
+
+    // LSP export
+    if (stage == TargetStage::JSON) {
+      JsonExporter exporter(&symtab, &logger, &ast);
+      out << exporter.export_to_json() << "\n";
+      return true;
+    }
+  } catch (const CompileAbort&) {
+    if (stage == TargetStage::JSON) {
+      JsonExporter exporter(&symtab, &logger, &ast);
+      out << exporter.export_to_json() << "\n";
+      return true;
+    }
+    std::cerr << "Compilation aborted\n" << logger.get_diagnostic_str();
+    return false;
+
+  } catch (const std::runtime_error& internal_error) {
+    if (stage == TargetStage::JSON) {
+      JsonExporter exporter(&symtab, &logger, &ast);
+      out << exporter.export_to_json() << "\n";
+      return true;
+    }
+    std::cerr << "CRITICAL ERROR\n" << logger.get_diagnostic_str();
+    return false;
+  } catch (const std::exception& e) {
+    logger.report(Diag::Fatal(Span{}, std::string("Unhandled System Exception: ") + e.what()));
+    if (stage == TargetStage::JSON) {
+      JsonExporter exporter(&symtab, &logger, &ast);
+      out << exporter.export_to_json() << "\n";
+      return true;
+    }
+    std::cerr << "CRITICAL ERROR\n" << logger.get_diagnostic_str();
+    return false;
   }
-  JsonExporter json_exporter(&symtab, &logger, &ast);
-  out << json_exporter.export_to_json() << std::endl;
-  return true; // always return true for json output
+  return false;
+}
+
+bool drive(const std::string& arg, const std::string& input, const std::string& output) {
+  if (arg == "--repl") { run_repl(); return true; }
+
+  TargetStage stage;
+  if (arg == "--tokens") stage = TargetStage::TOKENS;
+  else if (arg == "--ast") stage = TargetStage::AST;
+  else if (arg == "--symtab") stage = TargetStage::SYMTAB;
+  else if (arg == "--ir") stage = TargetStage::IR;
+  else if (arg == "--asm") stage = TargetStage::ASM;
+  else if (arg == "--exe") stage = TargetStage::EXE;
+  else if (arg == "--json") stage = TargetStage::JSON;
+  else return false;
+
+  if (stage == TargetStage::EXE) {
+    if (output.empty()) throw std::runtime_error("Exe output file must exist");
+    return run_pipeline(stage, input, std::cout, output);
+  }
+
+  if (output.empty()) {
+    return run_pipeline(stage, input, std::cout);
+  } else {
+    std::ofstream out(output);
+    bool ret = run_pipeline(stage, input, out);
+    out.close();
+    return ret;
+  }
 }
 
 // == Repl implementations: ==
@@ -276,110 +223,73 @@ void run_repl() {
   bool in_multiline = false;
 
   while (true) {
-    if (!in_multiline) {
-      std::cout << ">>> ";
-    } else {
-      std::cout << "... ";
-    }
+    std::cout << (!in_multiline ? ">>> " : "... ");
 
-    if (!std::getline(std::cin, line)) {
-      break; // EOF
-    }
+    if (!std::getline(std::cin, line)) break; // EOF
 
     bool auto_run = line.empty() && !lines.empty() && in_multiline;
 
-    if (line == "exit" || line == "quit") {
-      break;
-    } else if (line == "help") {
-      std::cout << "Commands:" << std::endl;
-      std::cout << "  exit, quit - Exit the REPL" << std::endl;
-      std::cout << "  help - Show this help" << std::endl;
-      std::cout << "  clear - Clear the current input" << std::endl;
-      std::cout << "  tokens - Show tokens for current input" << std::endl;
-      std::cout << "  ast - Show AST for current input" << std::endl;
-      std::cout << "  ir - Show IR for current input" << std::endl;
-      std::cout << "  asm - Show assembly for current input" << std::endl;
-      std::cout << "  run - Execute the current input" << std::endl;
-      std::cout << std::endl;
-      std::cout << "Type your code and press Enter twice to execute."
-                << std::endl;
+    if (line == "exit" || line == "quit") break;
+
+    if (line == "help") {
+      std::cout << "Commands:\n"
+                << "  exit, quit - Exit the REPL\n"
+                << "  help       - Show this help\n"
+                << "  clear      - Clear the current input\n"
+                << "  tokens     - Show tokens for current input\n"
+                << "  ast        - Show AST for current input\n"
+                << "  ir         - Show IR for current input\n"
+                << "  asm        - Show assembly for current input\n"
+                << "  run        - Execute the current input\n\n"
+                << "Type your code and press Enter twice to execute.\n";
       continue;
-    } else if (line == "clear") {
+    }
+
+    if (line == "clear") {
       lines.clear();
       in_multiline = false;
-      std::cout << "Input cleared." << std::endl;
+      std::cout << "Input cleared.\n";
       continue;
-    } else if (line == "tokens") {
+    }
+
+    if (line == "tokens" || line == "ast" || line == "ir" || line == "asm") {
       if (lines.empty()) {
-        std::cout << "No input to tokenize." << std::endl;
+        std::cout << "No input to compile.\n";
         continue;
       }
       std::string temp_input = make_temp(join_lines(lines));
-      drive("--tokens", temp_input, "");
+      drive("--" + line, temp_input, "");
       std::remove(temp_input.c_str());
       continue;
-    } else if (line == "ast") {
+    }
+
+    if (line == "run" || auto_run) {
       if (lines.empty()) {
-        std::cout << "No input to parse." << std::endl;
+        std::cout << "No input to execute.\n";
         continue;
       }
-      std::string temp_input = make_temp(join_lines(lines));
-      drive("--ast", temp_input, "");
-      std::remove(temp_input.c_str());
-      continue;
-    } else if (line == "ir") {
-      if (lines.empty()) {
-        std::cout << "No input to compile." << std::endl;
-        continue;
-      }
-      std::string temp_input = make_temp(join_lines(lines));
-      drive("--ir", temp_input, "");
-      std::remove(temp_input.c_str());
-      continue;
-    } else if (line == "asm") {
-      if (lines.empty()) {
-        std::cout << "No input to compile." << std::endl;
-        continue;
-      }
-      std::string temp_input = make_temp(join_lines(lines));
-      drive("--asm", temp_input, "");
-      std::remove(temp_input.c_str());
-      continue;
-    } else if (line == "run" || auto_run) {
-      if (lines.empty()) {
-        std::cout << "No input to execute." << std::endl;
-        continue;
-      }
+
       std::string pid = std::to_string(getpid());
       std::string temp_exe = "/tmp/repl_temp_" + pid + ".tmp.exe";
-
       std::string temp_input = make_temp(join_lines(lines));
-      bool success = drive("--exe", temp_input, temp_exe);
 
-      if (success) {
-        // then we can run the produced executable
+      if (drive("--exe", temp_input, temp_exe)) {
         int result = std::system(temp_exe.c_str());
-        if (result != 0) {
-          std::cout << "Program exited with code " << result << std::endl;
-        }
+        if (result != 0) std::cout << "Program exited with code " << result << "\n";
         std::remove(temp_exe.c_str());
       }
 
       std::remove(temp_input.c_str());
-
       if (auto_run) {
         lines.clear();
         in_multiline = false;
       }
-
       continue;
     }
 
-    // check for empty line
     if (!line.empty()) {
       lines.push_back(line);
       in_multiline = true;
-      continue;
     }
   }
 }

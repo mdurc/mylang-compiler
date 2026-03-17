@@ -637,9 +637,7 @@ void TypeChecker::visit(BinaryOpExprNode& node) {
         result_type = bool_type;
       break;
     default:
-      m_logger->report(Diag::Fatal(node.token->get_span(),
-                             "Internal Error: Unsupported binary operator '" +
-                                 std::string(node.token->get_lexeme()) + "'."));
+      _assert(false, "Unsupported binary operator '" + std::string(node.token->get_lexeme()) + "'.");
       break;
   }
 
@@ -713,7 +711,7 @@ void TypeChecker::visit(UnaryExprNode& node) {
       }
       break;
     default:
-      m_logger->report(Diag::Fatal(node.token->get_span(), "Internal Error: Unsupported unary operator."));
+      _assert(false, "Unsupported unary operator '" + std::string(node.token->get_lexeme()) + "'.");
       break;
   }
   if (!result_type) {

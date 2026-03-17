@@ -640,10 +640,7 @@ StmtPtr Parser::parse_error_stmt() {
   const Token* str_tok = current();
   _consume(TokenType::STRING_LITERAL);
 
-  if (!str_tok->is_literal()) {
-    m_logger->report(Diag::Error(str_tok->get_span(), "Internal Error: Expected string literal token to have string data"));
-    throw ParsePanic();
-  }
+  _assert(str_tok->is_literal(), "string literal token to have string data");
   const std::string& msg = str_tok->get_string_val();
 
   _consume(TokenType::SEMICOLON);

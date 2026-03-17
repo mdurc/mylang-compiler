@@ -4,7 +4,7 @@
   do {                                                    \
     if (!(cond)) {                                        \
       m_logger->report(Diag::Fatal(Span{},                \
-            std::string("Internal Error: ") + msg));      \
+            std::string("Internal: ") + msg));            \
       throw std::runtime_error(msg); /* compiler crash */ \
     }                                                     \
   } while (0)
