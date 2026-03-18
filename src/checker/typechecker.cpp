@@ -521,7 +521,9 @@ void TypeChecker::visit(FunctionDeclNode& node) {
   }
 
   // Type check the function body
-  node.body->accept(*this);
+  if (node.body) { /* !node.is_extern */
+    node.body->accept(*this);
+  }
 
   // TODO: perform path analysis for return stmts
 

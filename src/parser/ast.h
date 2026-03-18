@@ -393,15 +393,16 @@ public:
 
 class FunctionDeclNode : public AstNode {
 public:
+  bool is_extern;
   IdentPtr name;
   std::vector<ParamPtr> params;
   IdentPtr retvar_name; /* optional for u0 return type */
   Type* return_type;
-  BlockPtr body;
-  FunctionDeclNode(const Token* tok, size_t sc, IdentPtr name,
+  BlockPtr body; /* nullptr if this is an extern function */
+  FunctionDeclNode(const Token* tok, size_t sc, bool is_ext, IdentPtr name,
                    std::vector<ParamPtr> ps, IdentPtr rt_n,
                    Type* rt, BlockPtr b)
-      : AstNode(tok, sc), name(name), params(std::move(ps)),
+      : AstNode(tok, sc), is_extern(is_ext), name(name), params(std::move(ps)),
         retvar_name(rt_n), return_type(rt), body(b) {}
   void accept(Visitor& v) override;
 };

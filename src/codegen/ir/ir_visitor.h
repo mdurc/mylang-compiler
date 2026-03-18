@@ -24,7 +24,8 @@ public:
   // variable helpers to make sure that we take scopes into account + shadowing
   bool var_exists(std::string_view name, size_t scope_id);
   const IR_Variable& get_var(std::string_view name, size_t scope_id);
-  const IR_Variable* add_var(std::string_view name, size_t scope_id, bool is_func_decl = false);
+  const IR_Variable* add_var(std::string_view name, size_t scope_id,
+                              bool is_func_decl = false, bool is_extern = false);
 
   void visit(PoisonExprNode& node) override;
   void visit(PoisonStmtNode& node) override;

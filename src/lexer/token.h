@@ -13,6 +13,7 @@
 enum class TokenType {
   // Keywords:
   FUNC,     // func
+  EXTERN,   // extern
   IF,       // if
   ELSE,     // else
   FOR,      // for

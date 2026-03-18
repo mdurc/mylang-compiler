@@ -87,7 +87,10 @@ std::string X86_64CodeGenerator::operand_to_string(const IROperand& operand) {
       _assert(underscore_pos != std::string::npos, "underscore should exist in func name");
 
       std::string raw_func_name = var_name.substr(0, underscore_pos);
-      return raw_func_name == "main" ? raw_func_name : "_" + raw_func_name;
+      if (raw_func_name == "main" || ir_var.is_extern) {
+        return raw_func_name;
+      }
+      return "_" + raw_func_name;
     }
 
     std::uint64_t var_size = ir_var.size;

@@ -98,7 +98,7 @@ AstPtr Parser::parse_toplevel_declaration() {
   try {
     if (match(TokenType::STRUCT)) {
       return parse_struct_decl();
-    } else if (match(TokenType::FUNC)) {
+    } else if (match(TokenType::FUNC) || match(TokenType::EXTERN)) {
       return parse_function_decl();
     } else {
       return parse_statement();
@@ -184,7 +184,14 @@ StructFieldPtr Parser::parse_struct_field() {
 
 // Functions
 // <FunctionDecl> ::= 'func' Identifier '(' <Params>? ')' <ReturnType>? <Block>
+// <FunctionDecl> ::= 'extern' 'func' Identifier '(' <Params>? ')' <ReturnType>?;
 FuncDeclPtr Parser::parse_function_decl() {
+  bool is_ext = false;
+  if (match(TokenType::EXTERN)) {
+    is_ext = true;
+    advance();
+  }
+
   const Token* func_tok = current();
   _consume(TokenType::FUNC);
 
@@ -197,7 +204,7 @@ FuncDeclPtr Parser::parse_function_decl() {
 
   std::vector<ParamPtr> params_vec;
   std::pair<IdentPtr, Type*> return_t = {nullptr, nullptr};
-  BlockPtr body_block;
+  BlockPtr body_block = nullptr;
 
   m_symtab->enter_scope();
   try {
@@ -218,7 +225,11 @@ FuncDeclPtr Parser::parse_function_decl() {
     }
     _assert(return_t.second != nullptr, "func return type should be non-null");
 
-    body_block = parse_block(false);
+    if (is_ext) {
+      _consume(TokenType::SEMICOLON);
+    } else {
+      body_block = parse_block(false);
+    }
   } catch (const ParsePanic&) {
     m_symtab->exit_scope();
     throw;
@@ -250,7 +261,7 @@ FuncDeclPtr Parser::parse_function_decl() {
     throw ParsePanic();
   }
 
-  return _alloc(FunctionDeclNode, func_tok, m_symtab->current_scope(), name_ident,
+  return _alloc(FunctionDeclNode, func_tok, m_symtab->current_scope(), is_ext, name_ident,
               std::move(params_vec), return_t.first, return_t.second, body_block);
 }
 

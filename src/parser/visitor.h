@@ -736,8 +736,14 @@ public:
     indent--;
     out << ",\n";
     print_indent();
-    out << "Body:\n";
-    node.body->accept(*this);
+    if (node.body) {
+      out << "Body:\n";
+      node.body->accept(*this);
+    } else {
+      /* is_extern */
+      _assert_nolog(node.is_extern, "function decl body is null, but not an extern function?");
+      out << "Extern implementation\n";
+    }
     out << "\n";
     indent--;
     print_indent();

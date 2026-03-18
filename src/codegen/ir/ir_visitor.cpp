@@ -34,7 +34,7 @@ void IrVisitor::visit_all(const std::vector<AstPtr>& ast) {
         m_main_function_defined = true;
       }
       // add it as a variable so that function calls can find it's identifier
-      add_var(func_name, func_decl->scope_id, true);
+      add_var(func_name, func_decl->scope_id, true, func_decl->is_extern);
     }
   }
 
@@ -72,11 +72,12 @@ const IR_Variable& IrVisitor::get_var(std::string_view name, size_t scope_id) {
   return *m_vars.find(IR_Variable(make_ir_var_name(var), size));
 }
 
-const IR_Variable* IrVisitor::add_var(std::string_view name, size_t scope_id, bool is_func_decl) {
+const IR_Variable* IrVisitor::add_var(std::string_view name, size_t scope_id,
+                                      bool is_func_decl, bool is_extern) {
   Variable* var = m_symtab->lookup<Variable>(name, scope_id);
   if (var_exists(name, scope_id)) _assert(false, "var already exists: " + std::string(name));
   std::uint64_t size = var->type->get_byte_size();
-  auto itr = m_vars.insert(IR_Variable(make_ir_var_name(var), size, is_func_decl));
+  auto itr = m_vars.insert(IR_Variable(make_ir_var_name(var), size, is_func_decl, is_extern));
   return &(*itr.first);
 }
 
@@ -514,6 +515,8 @@ void IrVisitor::visit(BlockNode& node) {
 }
 
 void IrVisitor::visit(FunctionDeclNode& node) {
+  if (node.is_extern) return; // it is already in asm runtime-library
+
   std::string original_func_name = std::string(node.name->name_str);
   std::string func_ir_name = original_func_name;
 

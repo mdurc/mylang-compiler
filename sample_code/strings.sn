@@ -1,10 +1,47 @@
+extern func print_char(c: u8);
+extern func string_length(s: string) returns (len: i64);
+
+/*
+// this the old-way of utilizing the builtin runtime asm procedures
+//  that aren't implemented as keywords of the compiler
+func print_char(c: u8) {
+  asm {
+    mov BYTE[rbp - 1], dil
+    movzx rdi, BYTE[rbp - 1]
+    call print_char
+    call print_newline
+  };
+}
+*/
+
+/* Output:
+  Chars of string: hellobye (len: 8)
+    z[0] -> h -> 104
+    z[1] -> e -> 101
+    z[2] -> l -> 108
+    z[3] -> l -> 108
+    z[4] -> o -> 111
+    z[5] -> b -> 98
+    z[6] -> y -> 121
+    z[7] -> e -> 101
+  104: h --> 8th character in the alphabet
+  101: e --> 5th character in the alphabet
+  108: l --> 12th character in the alphabet
+  111: o --> 15th character in the alphabet
+  Two: 2
+*/
+
+/* ********************** */
+
 // strings and chars:
 x : string = "hello";
 y : string = "bye";
 z : string = x + y;
-print "Chars of string: ", z, "\n";
+print "Chars of string: ", z, " (len: ", string_length(z), ")\n";
 for (mut i := 0; i < 8; i = i + 1) {
-  print "  z[", i, "] -> ", z[i], "\n";
+  print "  z[", i, "] -> ";
+  print_char(z[i]);
+  print " -> ", z[i], "\n";
 }
 free z;
 
@@ -14,11 +51,14 @@ e : u8 = 'e';
 l : u8 = a[2];
 o : u8 = a[4];
 
-print h, ": ", h - 104, "\n";
-print e, ": ", e - 101, "\n";
-print l, ": ", l - 108, "\n";
-print l, ": ", l - 108, "\n";
-print o, ": ", o - 111, "\n";
+func helper(c: u8) {
+  print c, ": "; print_char(c); print " --> ", c - 'a' + 1, "th character in the alphabet\n";
+}
 
-three : u8 = '3' - '0';
-print three, "\n";
+helper(h);
+helper(e);
+helper(l);
+helper(o);
+
+two : u8 = '3' - '1';
+print "Two: ", two, "\n";
