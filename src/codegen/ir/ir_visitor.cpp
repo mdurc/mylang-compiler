@@ -318,12 +318,10 @@ void IrVisitor::visit_addrof(const ExprPtr& op, const IR_Register& dst) {
 IR_Register IrVisitor::compute_struct_field_addr(const ExprPtr& object, std::string_view field_name) {
   Type* obj_type = object->expr_type;
   Type* struct_type = nullptr;
-  bool is_ptr = false;
 
   // type of the base is either a struct or pointer to a struct
   if (obj_type->is<Type::Pointer>()) {
     struct_type = obj_type->as<Type::Pointer>().pointee;
-    is_ptr = true;
   } else {
     struct_type = obj_type;
   }
@@ -348,16 +346,8 @@ IR_Register IrVisitor::compute_struct_field_addr(const ExprPtr& object, std::str
   _assert(found, "Struct field not found");
 
   // get base address of struct
-  IROperand base_addr_op;
-  if (is_ptr) {
-    object->accept(*this); // it points to base addr
-    base_addr_op = m_last_expr_operand;
-  } else {
-    // if it's a value type, we must get its location in memory
-    IR_Register temp_base = m_ir_gen.new_temp_reg();
-    visit_addrof(object, temp_base);
-    base_addr_op = temp_base;
-  }
+  object->accept(*this); // it points to base addr
+  IROperand  base_addr_op = m_last_expr_operand;
 
   // final address: base + offset
   IR_Register addr_reg = m_ir_gen.new_temp_reg();
