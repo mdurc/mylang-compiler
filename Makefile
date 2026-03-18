@@ -46,7 +46,7 @@ $(BUILD_DIR)/%.o: src/%.cpp
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # test workflow
-TFILE = test.sn
+TFILE = tfile.sn
 update_test: $(PROGRAM)
 	mkdir -p $(BUILD_DIR)
 	./$(PROGRAM) \
@@ -68,7 +68,7 @@ test: update_test compile_test_asm
 
 clean:
 	rm -rf $(MYLIB)
-	rm -f $(TFILE).* a.out
+	rm -f $(TFILE).* $(TFILE) a.out
 
 .PHONY: all clean update_test compile_test_asm test
 -include $(PROGRAM_OBJS:.o=.d)
