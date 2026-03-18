@@ -17,7 +17,7 @@ Purely for learning purposes and to build upon the experience that I've gotten s
     - With a corresponding logger system for LSP support
 - Being able to print the state of the various modules within the compilation process (for testing and debugging).
 
-### OS Support & Dependencies
+### OS Support & Dependencies & Building
 I am developing on an Apple M1 (14.8.3). As of now I haven't done extensive cross-compatibility with other machines, although this is a future task.
 
 **Build Dependencies:**
@@ -27,7 +27,6 @@ I am developing on an Apple M1 (14.8.3). As of now I haven't done extensive cros
 - `ld` (macOS linker)
 - `cmake` (for snapshot-testing suite only)
 
-### Building & Usage
 Compile the project using the root Makefile:
 ```bash
 make
