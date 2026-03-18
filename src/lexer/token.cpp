@@ -45,7 +45,7 @@ std::ostream& operator<<(std::ostream& out, const Token& token) {
         [&literal_stream](auto&& arg) {
           using T = std::decay_t<decltype(arg)>;
           if constexpr (std::is_same_v<T, std::string>) {
-          literal_stream << escape_string(arg);
+          /* literal_stream << escape_string(arg); */ // we don't need to repeat it
           } else if constexpr (!std::is_same_v<T, std::monostate>) {
           literal_stream << arg;
           }

@@ -33,7 +33,7 @@ private:
 
   void handle_define(const std::vector<Token>& tokens, size_t& i);
   void handle_include(const std::vector<Token>& tokens, size_t& i, std::vector<Token>& output);
-  std::string find_include_file(std::string_view include_name);
+  std::string find_include_file(std::string_view include_name, std::uint32_t current_file_id);
 };
 
 #endif // PREPROCESSOR_PREPROCESSOR_H

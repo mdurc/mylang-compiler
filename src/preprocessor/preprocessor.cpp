@@ -43,7 +43,7 @@ std::vector<Token> Preprocessor::process(const std::vector<Token>& raw_tokens) {
 void Preprocessor::handle_define(const std::vector<Token>& tokens, size_t& i) {
   std::uint32_t directive_row = tokens[i].get_span().row;
   i += 2;
-  if (i >= tokens.size() || tokens[i].get_type() != TokenType::IDENTIFIER) {
+  if (i >= tokens.size() || tokens[i].get_type() == TokenType::EOF_TOK || tokens[i].get_type() != TokenType::IDENTIFIER) {
     m_logger->report(Diag::Error(tokens[i-1].get_span(), "Expected macro name after #define"));
     return;
   }
@@ -53,7 +53,7 @@ void Preprocessor::handle_define(const std::vector<Token>& tokens, size_t& i) {
 
   // collect all tokens that are on the exact same row
   std::vector<Token> replacement_tokens;
-  while (i < tokens.size() && tokens[i].get_span().row == directive_row) {
+  while (i < tokens.size() && tokens[i].get_type() != TokenType::EOF_TOK && tokens[i].get_span().row == directive_row) {
     replacement_tokens.push_back(tokens[i]);
     i++;
   }
@@ -63,14 +63,16 @@ void Preprocessor::handle_define(const std::vector<Token>& tokens, size_t& i) {
 
 void Preprocessor::handle_include(const std::vector<Token>& tokens, size_t& i, std::vector<Token>& output) {
   std::uint32_t directive_row = tokens[i].get_span().row;
+  std::uint32_t current_file_id = tokens[i].get_span().file_id;
+
   i += 2;
-  if (i >= tokens.size() || tokens[i].get_type() != TokenType::STRING_LITERAL) {
+  if (i >= tokens.size() || tokens[i].get_type() == TokenType::EOF_TOK || tokens[i].get_type() != TokenType::STRING_LITERAL) {
     m_logger->report(Diag::Error(tokens[i-1].get_span(), "Expected string literal after #include"));
     return;
   }
 
   std::string include_name = tokens[i].get_string_val();
-  std::string full_path = find_include_file(include_name);
+  std::string full_path = find_include_file(include_name, current_file_id);
   if (full_path.empty()) {
     m_logger->report(Diag::Error(tokens[i].get_span(), "Could not resolve include file: " + include_name));
     return;
@@ -90,17 +92,34 @@ void Preprocessor::handle_include(const std::vector<Token>& tokens, size_t& i, s
   Lexer lexer(m_logger, file_id);
   std::vector<Token> raw_included_tokens = lexer.tokenize(m_loader->get_source(file_id));
   std::vector<Token> processed_included_tokens = process(raw_included_tokens);
+
+  /* remove trailing EOF token */
+  if (!processed_included_tokens.empty() && processed_included_tokens.back().get_type() == TokenType::EOF_TOK) {
+    processed_included_tokens.pop_back();
+  }
+
   output.insert(output.end(), processed_included_tokens.begin(), processed_included_tokens.end());
   m_processing_files.erase(file_id);
 
   // consume any remaining tokens on the #include line
-  while (i < tokens.size() && tokens[i].get_span().row == directive_row) {
+  while (i < tokens.size() && tokens[i].get_type() != TokenType::EOF_TOK && tokens[i].get_span().row == directive_row) {
     i++;
   }
   i--;
 }
 
-std::string Preprocessor::find_include_file(std::string_view include_name) {
+std::string Preprocessor::find_include_file(std::string_view include_name, std::uint32_t current_file_id) {
+  // first try to find via relative path
+  std::string_view current_filepath = m_loader->get_filepath(current_file_id);
+  if (!current_filepath.empty()) {
+    std::filesystem::path current_dir = std::filesystem::path(current_filepath).parent_path();
+    std::filesystem::path relative_path = current_dir / include_name;
+    if (std::filesystem::exists(relative_path) && std::filesystem::is_regular_file(relative_path)) {
+      return relative_path.string();
+    }
+  }
+
+  // otherwise, standard include path
   for (const std::string& path : m_include_path) {
     std::filesystem::path full_path = std::filesystem::path(path) / include_name;
     if (std::filesystem::exists(full_path) && std::filesystem::is_regular_file(full_path)) {
