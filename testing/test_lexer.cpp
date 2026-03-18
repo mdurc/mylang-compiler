@@ -36,3 +36,8 @@ TEST(LexerTests, LexerStdin) {
   ApprovalTests::Approvals::verify(
       generate_compiler_output("--tokens", "./samples/stdin.sn"));
 }
+
+TEST(LexerTests, LexerEmpty) {
+  ApprovalTests::Approvals::verify(
+      generate_compiler_output("--tokens", "./samples/empty.sn"));
+}

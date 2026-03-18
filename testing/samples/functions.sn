@@ -8,17 +8,21 @@ func bar () returns (z: i32) {
 }
 
 func foo_2(mut x: i32, imm y: i32, take z: i32) {
-  print "hi";
+  if (x == 1) {
+    print "hi\n";
+  } else {
+    print "bye\n";
+  }
   // return; // empty return is valid for u0 return type
 }
 
 // function type:
-x : func(mut:i32, i32, take:i32)->u0 = foo_2;
+x : func(mut: i32, i32, take:i32)->u0 = foo_2;
 
 z := 10;
 
-mut a := 1;
-mut b := 2;
-x(a, 2, z); // will perform a copy on z
+mut a : i32 = 1;
+mut b : i32 = 2;
 
+x(a, 2, z); // will perform a copy on z
 x(b, 2, give z); // transfer ownership of z

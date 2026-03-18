@@ -1,0 +1,13 @@
+---- Generated Ast ----
+AsmBlock(
+  Body: """
+  mov rdi , 15
+  call print_int
+  """
+)
+PrintStmt(
+  String("\n")
+)
+ErrorStmt(Message: "err msg
+")
+-----------------------

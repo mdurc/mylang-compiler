@@ -37,3 +37,8 @@ TEST(x86GenTests, x86GenStdin) {
   ApprovalTests::Approvals::verify(
       generate_compiler_output("--asm", "./samples/stdin.sn"));
 }
+
+TEST(x86GenTests, x86GenEmpty) {
+  ApprovalTests::Approvals::verify(
+      generate_compiler_output("--asm", "./samples/empty.sn"));
+}

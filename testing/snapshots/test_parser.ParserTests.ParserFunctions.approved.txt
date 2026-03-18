@@ -1,0 +1,165 @@
+---- Generated Ast ----
+FunctionDecl(
+  Name:
+    Ident(foo),
+  Params: [
+  ],
+  ReturnType: (NamedVar:z)
+    {i32} Type::Named(i32),
+  Body:
+  Block([
+    ExpressionStmt(
+      Assignment(
+        LValue:
+          Ident(z),
+        RValue:
+          Int(18)
+      )
+    )
+  ])
+)
+FunctionDecl(
+  Name:
+    Ident(bar),
+  Params: [
+  ],
+  ReturnType: (NamedVar:z)
+    {i32} Type::Named(i32),
+  Body:
+  Block([
+    ReturnStmt(
+      Int(5)
+    )
+  ])
+)
+FunctionDecl(
+  Name:
+    Ident(foo_2),
+  Params: [
+    Param(Modifier: MutablyBorrowed,
+      Name:
+        Ident(x),
+      Type:
+        {i32} Type::Named(i32)
+    ),
+    Param(Modifier: ImmutablyBorrowed,
+      Name:
+        Ident(y),
+      Type:
+        {i32} Type::Named(i32)
+    ),
+    Param(Modifier: ImmutablyOwned,
+      Name:
+        Ident(z),
+      Type:
+        {i32} Type::Named(i32)
+    )
+  ],
+  ReturnType:
+    {u0} Type::Named(u0),
+  Body:
+  Block([
+    IfStmt(
+      Condition:
+        BinaryOp(==,
+          Ident(x),
+          Int(1)
+        ),
+      ThenBranch:
+      Block([
+        PrintStmt(
+          String("hi\n")
+        )
+      ]),
+      ElseBranch:
+      Block([
+        PrintStmt(
+          String("bye\n")
+        )
+      ])
+    )
+  ])
+)
+VariableDecl(Mutable: false,
+  Name:
+    Ident(x),
+  Type:
+    {func(mut: i32, imm: i32, take imm: i32)->u0} Type::Function(
+      Params: [
+        Modifier: MutablyBorrowed
+        Type:
+          {i32} Type::Named(i32)
+        ),
+        Modifier: ImmutablyBorrowed
+        Type:
+          {i32} Type::Named(i32)
+        ),
+        Modifier: ImmutablyOwned
+        Type:
+          {i32} Type::Named(i32)
+        )
+      ],
+      Return Type:
+        {u0} Type::Named(u0)
+    )
+  Initializer:
+    Ident(foo_2)
+)
+VariableDecl(Mutable: false,
+  Name:
+    Ident(z),
+  Type: inferred
+  Initializer:
+    Int(10)
+)
+VariableDecl(Mutable: true,
+  Name:
+    Ident(a),
+  Type:
+    {i32} Type::Named(i32)
+  Initializer:
+    Int(1)
+)
+VariableDecl(Mutable: true,
+  Name:
+    Ident(b),
+  Type:
+    {i32} Type::Named(i32)
+  Initializer:
+    Int(2)
+)
+ExpressionStmt(
+  FunctionCall(
+    Callee:
+      Ident(x),
+    Arguments: [
+      Argument(IsGive: false,
+        Ident(a)
+      ),
+      Argument(IsGive: false,
+        Int(2)
+      ),
+      Argument(IsGive: false,
+        Ident(z)
+      )
+    ]
+  )
+)
+ExpressionStmt(
+  FunctionCall(
+    Callee:
+      Ident(x),
+    Arguments: [
+      Argument(IsGive: false,
+        Ident(b)
+      ),
+      Argument(IsGive: false,
+        Int(2)
+      ),
+      Argument(IsGive: true,
+        Ident(z)
+      )
+    ]
+  )
+)
+-----------------------

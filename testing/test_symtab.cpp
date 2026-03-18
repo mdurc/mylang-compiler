@@ -37,3 +37,8 @@ TEST(SymTabTests, SymTabStdin) {
   ApprovalTests::Approvals::verify(
       generate_compiler_output("--symtab", "./samples/stdin.sn"));
 }
+
+TEST(SymTabTests, SymTabEmpty) {
+  ApprovalTests::Approvals::verify(
+      generate_compiler_output("--symtab", "./samples/empty.sn"));
+}

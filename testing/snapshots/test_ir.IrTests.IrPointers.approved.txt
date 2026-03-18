@@ -1,0 +1,42 @@
+--- IR Instructions ---
+_foo
+	BeginFunc
+	x_1 = _param 0
+	Return
+_L0:
+	EndFunc
+	p_foo_0 = foo_0
+	BeginLCallPrep
+	PushArg 1
+	LCall foo_0
+	BeginLCallPrep
+	PushArg 2
+	LCall p_foo_0
+	x_0 = 3
+	_t0 = AddrOf x_0
+	px_0 = _t0
+	_t1 = AddrOf x_0
+	py_0 = _t1
+	_t2 = py_0
+	*(_t2) = 15
+	px_0 = 0
+	_t3 = AddrOf x_0
+	px_0 = _t3
+	pz_0 = 0
+	_t4 = AllocArray 8, 3
+	pz_0 = _t4
+	_t6 = 0 * 8
+	_t5 = pz_0 + _t6
+	*(_t5) = 30
+	_t8 = 1 * 8
+	_t7 = pz_0 + _t8
+	*(_t7) = 60
+	_t10 = 2 * 8
+	_t9 = pz_0 + _t10
+	*(_t9) = 90
+	Free pz_0
+	pz_0 = 0
+	_t11 = Alloc 8, 32
+	pz_0 = _t11
+	Free pz_0
+-----------------------

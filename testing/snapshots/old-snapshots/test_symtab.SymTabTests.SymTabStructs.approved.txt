@@ -1,0 +1,35 @@
+Symbol Table State:
+Current Scope ID: 0
+Total Scopes: 3
+
+Scope ID: 0
+  Scope (parent: 0)
+  Symbols:
+    Empty: type Empty
+    Point: type Point
+    bool: type bool
+    c: var c (type: Empty, scope: 0, modifier: imm)
+    f64: type f64
+    i16: type i16
+    i32: type i32
+    i64: type i64
+    i8: type i8
+    origin: var origin (type: ?, scope: 0, modifier: mut)
+    p: var p (type: Empty, scope: 0, modifier: imm)
+    string: type string
+    u0: type u0
+    u16: type u16
+    u32: type u32
+    u64: type u64
+    u8: type u8
+    x_o: var x_o (type: i64, scope: 0, modifier: mut)
+    y_o: var y_o (type: i64, scope: 0, modifier: mut)
+
+Scope ID: 1
+  Scope (parent: 0)
+  Symbols:
+    x: var x (type: i64, scope: 1, modifier: mut)
+    y: var y (type: i64, scope: 1, modifier: mut)
+
+Scope ID: 2
+  Scope (parent: 0)

@@ -37,3 +37,8 @@ TEST(IrTests, IrStdin) {
   ApprovalTests::Approvals::verify(
       generate_compiler_output("--ir", "./samples/stdin.sn"));
 }
+
+TEST(IrTests, IrEmpty) {
+  ApprovalTests::Approvals::verify(
+      generate_compiler_output("--ir", "./samples/empty.sn"));
+}

@@ -1,0 +1,48 @@
+Symbol Table State:
+Current Scope ID: 0
+Total Scopes: 8
+
+Scope ID: 0
+  Scope (parent: 0)
+  Symbols:
+    bool: type bool
+    condition: var condition (type: bool, scope: 0, modifier: imm)
+    f64: type f64
+    i16: type i16
+    i32: type i32
+    i64: type i64
+    i8: type i8
+    string: type string
+    u0: type u0
+    u16: type u16
+    u32: type u32
+    u64: type u64
+    u8: type u8
+    x: var x (type: i32, scope: 0, modifier: mut)
+
+Scope ID: 1
+  Scope (parent: 0)
+
+Scope ID: 2
+  Scope (parent: 0)
+
+Scope ID: 3
+  Scope (parent: 0)
+
+Scope ID: 4
+  Scope (parent: 0)
+  Symbols:
+    i: var i (type: ?, scope: 4, modifier: mut)
+
+Scope ID: 5
+  Scope (parent: 4)
+
+Scope ID: 6
+  Scope (parent: 0)
+  Symbols:
+    z: var z (type: ?, scope: 6, modifier: imm)
+
+Scope ID: 7
+  Scope (parent: 0)
+  Symbols:
+    x: var x (type: ?, scope: 7, modifier: mut)

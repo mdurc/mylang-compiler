@@ -37,3 +37,8 @@ TEST(ParserTests, ParserStdin) {
   ApprovalTests::Approvals::verify(
       generate_compiler_output("--ast", "./samples/stdin.sn"));
 }
+
+TEST(ParserTests, ParserEmpty) {
+  ApprovalTests::Approvals::verify(
+      generate_compiler_output("--ast", "./samples/empty.sn"));
+}

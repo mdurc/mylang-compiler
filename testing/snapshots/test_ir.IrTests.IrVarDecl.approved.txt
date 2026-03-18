@@ -1,0 +1,14 @@
+--- IR Instructions ---
+	x_0 = 0
+	y_0 = 3
+	z_0 = 5
+	a_0 = 10
+	b_0 = "hello"
+	BeginLCallPrep
+	PushArg "hello"
+	_t0 = LCall string_copy
+	copy_0 = _t0
+	c_0 = 3
+	d_0 = 2
+	x_0 = 13
+-----------------------
