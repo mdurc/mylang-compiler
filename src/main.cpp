@@ -52,6 +52,7 @@ int main(int argc, char** argv) {
       break;
     }
 
+    // std::cerr << "arg: " << arg << ", to " << infile << " -> " << outfile << "\n";
     if (!drive(arg, infile, outfile)) {
       return EXIT_FAILURE;
     }

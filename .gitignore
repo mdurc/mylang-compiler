@@ -1,4 +1,7 @@
 build/
 vendor/
 .DS_Store
-./a.out
+a.out
+compiler_build_files/
+test.sn
+test.sn.*

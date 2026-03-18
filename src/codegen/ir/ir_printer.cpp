@@ -34,7 +34,7 @@ void print_ir_operand(const IROperand& operand, std::ostream& out) {
   } else if (std::holds_alternative<IR_Label>(operand)) {
     print_ir_label(std::get<IR_Label>(operand), out);
   } else if (std::holds_alternative<std::string>(operand)) {
-    out << "\"" << std::get<std::string>(operand) << "\"";
+    out << "\"" << escape_string(std::get<std::string>(operand)) << "\"";
   } else if (std::holds_alternative<IR_ParameterSlot>(operand)) {
     print_ir_parameter_slot(std::get<IR_ParameterSlot>(operand), out);
   }

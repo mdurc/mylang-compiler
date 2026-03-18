@@ -45,29 +45,29 @@ $(BUILD_DIR)/%.o: src/%.cpp
 	mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-clean:
-	rm -rf $(MYLIB)
-	rm -f asm-test.sn.asm asm-test.sn.exe a.out
-
 # test workflow
-TEST_SN_FILE = asm-test.sn
-TEST_ASM_FILE = $(TEST_SN_FILE).asm
-TEST_EXE_FILE = $(TEST_SN_FILE).exe
-
-update_test_asm: $(PROGRAM)
+TFILE = test.sn
+update_test: $(PROGRAM)
 	mkdir -p $(BUILD_DIR)
-	./$(PROGRAM) $(TEST_SN_FILE) --asm $(TEST_ASM_FILE)
+	./$(PROGRAM) \
+	--tokens $(TFILE) $(TFILE).tokens \
+	--ast $(TFILE) $(TFILE).ast \
+	--symtab $(TFILE) $(TFILE).symtab \
+	--ir $(TFILE) $(TFILE).ir \
+	--asm $(TFILE) $(TFILE).asm \
+	--exe $(TFILE) $(TFILE).exe
 
 compile_test_asm:
-	nasm -f macho64 $(TEST_ASM_FILE) -o $(BUILD_DIR)/test_main.o
-	ld $(BUILD_DIR)/test_main.o -o $(TEST_EXE_FILE) \
-	-macos_version_min 10.13 \
-	-e _start \
-	-lSystem \
-	-no_pie \
+	nasm -f macho64 $(TFILE).asm -o $(BUILD_DIR)/test_main.o
+	ld $(BUILD_DIR)/test_main.o -o $(TFILE).exe \
+	-macos_version_min 10.13 -e _start -lSystem -no_pie \
 	-syslibroot $(shell xcrun --sdk macosx --show-sdk-path)
 
-test: update_test_asm compile_test_asm
-	./$(TEST_EXE_FILE)
+test: update_test compile_test_asm
+	./$(TFILE).exe
 
-.PHONY: all clean update_test_asm compile_test_asm test
+clean:
+	rm -rf $(MYLIB)
+	rm -f $(TFILE).* a.out
+
+.PHONY: all clean update_test compile_test_asm test

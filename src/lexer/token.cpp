@@ -2,6 +2,7 @@
 
 #include <iomanip>
 #include <sstream>
+#include "../util.h"
 
 bool is_basic_type(TokenType type) {
   switch (type) {
@@ -43,8 +44,10 @@ std::ostream& operator<<(std::ostream& out, const Token& token) {
     std::visit(
         [&literal_stream](auto&& arg) {
           using T = std::decay_t<decltype(arg)>;
-          if constexpr (!std::is_same_v<T, std::monostate>) {
-            literal_stream << arg;
+          if constexpr (std::is_same_v<T, std::string>) {
+          literal_stream << escape_string(arg);
+          } else if constexpr (!std::is_same_v<T, std::monostate>) {
+          literal_stream << arg;
           }
         },
         token.m_literal_value);

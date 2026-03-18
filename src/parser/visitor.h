@@ -6,6 +6,7 @@
 #include <string>
 
 #include "ast.h"
+#include "../util.h"
 
 class Visitor {
 public:
@@ -100,7 +101,7 @@ public:
 
   void visit(StringLiteralNode& node) override {
     print_indent();
-    out << "String(\"" << node.value << "\")";
+    out << "String(\"" << escape_string(node.value) << "\")";
   }
 
   void visit(CharLiteralNode& node) override {
