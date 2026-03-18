@@ -47,7 +47,7 @@ $(BUILD_DIR)/%.o: src/%.cpp
 
 clean:
 	rm -rf $(MYLIB)
-	rm -f asm-test.sn.asm asm-test.sn.exe
+	rm -f asm-test.sn.asm asm-test.sn.exe a.out
 
 # test workflow
 TEST_SN_FILE = asm-test.sn
