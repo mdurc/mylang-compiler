@@ -592,9 +592,12 @@ void X86_64CodeGenerator::handle_assign(const IRInstruction& instr) {
   std::string dst_str = get_sized_component(dst, instr.size);
   std::string src_str = get_sized_component(src, instr.size);
 
+  bool is_func_decl = std::holds_alternative<IR_Variable>(src) &&
+                      std::get<IR_Variable>(src).is_func_decl;
+  bool is_string_literal = std::holds_alternative<std::string>(src);
+
   // case for if the source is a function, where destination is a func ptr
-  if (std::holds_alternative<IR_Variable>(src) &&
-      std::get<IR_Variable>(src).is_func_decl) {
+  if (is_func_decl || is_string_literal) {
     std::string temp = get_temp_x86_reg(Type::PTR_SIZE);
     emit("lea " + temp + ", [rel " + src_str + "]");
     src_str = temp;
@@ -1023,7 +1026,8 @@ void X86_64CodeGenerator::handle_load(const IRInstruction& instr) {
          " ; store to memory dest");
   } else {
     // direct load to register
-    emit(get_mov_instr(dst_str, deref_src, false, instr.size) + " ; performing load");
+    std::string dst_reg_64 = operand_to_string(dst); // full 64-bit name so that mov_instr will zero-extend
+    emit(get_mov_instr(dst_reg_64, deref_src, false, instr.size) + " ; performing load");
   }
 }
 
