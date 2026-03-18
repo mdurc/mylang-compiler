@@ -1,3 +1,26 @@
+/*
+Output:
+  foo(ptr point):
+    created new point and put in *ptr: (*p).x: 2, (*p).y: 15
+    modified (*p).x: 3
+  foo(&mut a) yields -> a.x: 3, a.y: 15
+
+  bar(ref point):
+    set p.x to 36 and p.y to 19
+  bar(b) where b is a Point{0,0} yields -> b.x: 36, b.y: 19
+
+  took the string and modified it to: ai
+  gave the string and after it is still: hi
+  modified string h[1] = 'b': hb
+
+  Final:
+  3
+  15
+  36
+  19
+  hb
+*/
+
 struct Point {
   x : i64,
   y : i64

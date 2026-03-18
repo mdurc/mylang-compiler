@@ -1,5 +1,5 @@
 func main() {
-  n : i32 = 1000;
+  n : i32 = 30;
   mut i : i32 = 1;
   while (i <= n) {
     if (i % 15 == 0) {

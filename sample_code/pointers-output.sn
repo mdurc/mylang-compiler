@@ -1,3 +1,27 @@
+/*
+Output:
+  Running foo_1
+  1
+  2
+  3
+  Running foo_1
+  4
+  5
+  6
+  [*px, x] = 3, 3
+  *py = 15;
+  [*py, *px, x] = 15, 15, 15
+  Null(addr): 0
+  Address: 4294971573
+  15
+  15
+  15
+  30
+  60
+  90
+  32
+*/
+
 func foo(x: i32, y: i32, z: i32) {
   print "Running foo_1\n";
   print x, "\n";

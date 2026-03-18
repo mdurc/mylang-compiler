@@ -1,3 +1,8 @@
+/*
+Output:
+  0ok1ok23ok456789
+*/
+
 mut i := 0;
 while (i < 10) {
   print i;
@@ -19,3 +24,4 @@ for (mut x : i32 = 5; x < 10; x = x + 1) {
   continue;
   print x;
 }
+print "\n";

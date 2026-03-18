@@ -1,8 +1,8 @@
 #define MAX_SIZE (300 + 14)
-#define GREETING "Hello, World!\n"
+#define GREETING "greeting"
 #define int i64
-#include "sample_code/modules/module.sn" // assumed to be ran from src directory
+#include "module.sn"
 
-mut x: i64 = MAX_SIZE + MAX_SIZE;
+mut x: int = MAX_SIZE + MAX_SIZE;
 print x, "\n";
-print GREETING, GREETING;
+print GREETING, "\n", GREETING, "\n";

@@ -1,3 +1,22 @@
+/*
+Output:
+  160
+  1
+  2
+  3
+  4
+  5
+  6
+  7
+  8
+  9
+  10
+  1
+  0
+  1
+  0
+*/
+
 func foo(a: i32, b: bool) returns (z: i32) {
   i : i32 = a + 13;
   z = 1;
@@ -33,4 +52,4 @@ func tar (a:i64, b:i64, c:i32, d:i64, e:i64,
 print foo(3, true), "\n";
 x : i32 = 9;
 tar(1, 2, 3, 4, 5, 6, 7, 8, x, 10);
-bar(true,true,true,true,true,true,true,false, true, false);
+bar(true,true,true,true,true,true,true,false,true,false);

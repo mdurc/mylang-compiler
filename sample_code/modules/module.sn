@@ -1,1 +1,1 @@
-print "this is from a separate file\n";
+print "from module\n";

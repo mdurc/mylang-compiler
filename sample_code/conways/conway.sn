@@ -102,7 +102,7 @@ func main() {
   mut current: ptr<mut i64> = grid_a;
   mut next: ptr<mut i64> = grid_b;
 
-  for (mut gen: i64 = 0; gen < 500; gen = gen + 1) {
+  for (mut gen: i64 = 0; gen < 100; gen = gen + 1) {
     asm { call clrscr };
     print "Generation ", gen, "\n";
     print_grid(current);
