@@ -62,7 +62,7 @@ public:
   virtual void visit(StructDeclNode& node) = 0;
 };
 
-void print_ast(const AstPtr& node, std::ostream& out);
+void print_ast_node(const AstPtr& node, std::ostream& out);
 void print_ast(const std::vector<AstPtr>& nodes, std::ostream& out);
 
 class AstPrinter : public Visitor {

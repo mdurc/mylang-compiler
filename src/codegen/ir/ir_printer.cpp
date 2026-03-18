@@ -46,14 +46,14 @@ void print_ir_instruction(const IRInstruction& instr, std::ostream& out) {
     _assert_nolog(instr.result.has_value(),
                   "label instruction must have a result value");
     print_ir_operand(instr.result.value(), out);
-    out << ":" << std::endl;
+    out << ":\n";
     return;
   }
 
   if (instr.opcode == IROpCode::BEGIN_FUNC) {
     _assert_nolog(instr.result.has_value(), "begin func must have a result value");
     print_ir_operand(instr.result.value(), out);
-    out << std::endl;
+    out << "\n";
   }
 
   out << "\t";
@@ -224,17 +224,17 @@ void print_ir_instruction(const IRInstruction& instr, std::ostream& out) {
       break;
   }
 
-  out << std::endl;
+  out << "\n";
 }
 
 void print_ir_instructions(const std::vector<IRInstruction>& instructions,
                            std::ostream& out) {
-  out << "--- IR Instructions ---" << std::endl;
+  out << "--- IR Instructions ---\n";
   if (instructions.empty()) {
-    out << "(No instructions generated)" << std::endl;
+    out << "(No instructions generated)\n";
   }
   for (const IRInstruction& instr : instructions) {
     print_ir_instruction(instr, out);
   }
-  out << "-----------------------" << std::endl;
+  out << "-----------------------\n";
 }

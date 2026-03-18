@@ -109,16 +109,19 @@ void AstPrinter::print_type(const Type& type) {
   }
 }
 
-void print_ast(const AstPtr& node, std::ostream& out) {
+void print_ast_node(const AstPtr& node, std::ostream& out) {
   AstPrinter printer(out);
   node->accept(printer);
-  out << std::endl;
+  out << "\n";
 }
 
 void print_ast(const std::vector<AstPtr>& nodes, std::ostream& out) {
+  out << "---- Generated Ast ----\n";
   AstPrinter printer(out);
   for (const AstPtr& node : nodes) {
     node->accept(printer);
-    out << std::endl;
+    out << "\n";
   }
+  if (nodes.empty()) out << "(No ast nodes)\n";
+  out << "-----------------------\n";
 }

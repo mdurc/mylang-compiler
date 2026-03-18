@@ -2,7 +2,7 @@ CC = g++
 MYLIB = compiler_build_files
 PROGRAM = $(MYLIB)/mycompiler
 BUILD_DIR = $(MYLIB)/build
-CFLAGS = -std=c++20 -Wall -Wextra -g
+CFLAGS = -std=c++20 -Wall -Wextra -g -MMD -MP
 
 # sources
 LEXER_SRCS = src/lexer/lexer.cpp \
@@ -71,3 +71,4 @@ clean:
 	rm -f $(TFILE).* a.out
 
 .PHONY: all clean update_test compile_test_asm test
+-include $(PROGRAM_OBJS:.o=.d)
