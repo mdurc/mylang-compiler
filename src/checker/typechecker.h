@@ -27,6 +27,7 @@ public:
   void visit(NullLiteralNode& node) override;
   void visit(IdentifierNode& node) override;
   void visit(AssignmentNode& node) override;
+  void visit(ImplicitCastNode& node) override;
   void visit(BinaryOpExprNode& node) override;
   void visit(UnaryExprNode& node) override;
   void visit(FunctionCallNode& node) override;
@@ -80,6 +81,7 @@ private:
 
   /* type compatibility and error reporting helpers */
   bool check_type_assignable(Type* target_type, Type* value_type, const Span& span);
+  void try_apply_implicit_cast(ExprPtr& expr, Type* target_type);
   bool expect_specific_type(const ExprPtr& expr, const Type& expected_type_val);
   bool expect_boolean_type(const ExprPtr& expr);
 

@@ -408,6 +408,25 @@ void IrVisitor::visit(AssignmentNode& node) {
   m_last_expr_operand = rval_op;
 }
 
+void IrVisitor::visit(ImplicitCastNode& node) {
+  node.expression->accept(*this);
+  IROperand src_op = m_last_expr_operand;
+  Type* dst_type = node.target_type;
+
+  std::uint64_t dst_size = dst_type->get_byte_size();
+
+  // if it's a literal, just change the size
+  if (std::holds_alternative<IR_Immediate>(src_op)) {
+    IR_Immediate imm = std::get<IR_Immediate>(src_op);
+    m_last_expr_operand = IR_Immediate(imm.val, dst_size);
+    return;
+  }
+
+  IR_Register dest_reg = m_ir_gen.new_temp_reg();
+  m_ir_gen.emit_assign(dest_reg, src_op, dst_size);
+  m_last_expr_operand = dest_reg;
+}
+
 void IrVisitor::visit(GroupedExprNode& node) { node.expression->accept(*this); }
 
 void IrVisitor::visit(ExpressionStatementNode& node) {

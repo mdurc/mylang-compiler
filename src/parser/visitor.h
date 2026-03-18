@@ -23,6 +23,7 @@ public:
   virtual void visit(NullLiteralNode&) = 0;
   virtual void visit(IdentifierNode& node) = 0;
   virtual void visit(AssignmentNode& node) = 0;
+  virtual void visit(ImplicitCastNode& node) = 0;
   virtual void visit(BinaryOpExprNode& node) = 0;
   virtual void visit(UnaryExprNode& node) = 0;
   virtual void visit(FunctionCallNode& node) = 0;
@@ -351,6 +352,14 @@ public:
     indent--;
     print_indent();
     out << ")";
+  }
+
+  void visit(ImplicitCastNode& node) override {
+    out << "ImplicitCastNode(to: " << node.target_type->to_string() << ")\n";
+    indent++;
+    print_indent();
+    node.expression->accept(*this);
+    indent--;
   }
 
   void visit(BlockNode& node) override {

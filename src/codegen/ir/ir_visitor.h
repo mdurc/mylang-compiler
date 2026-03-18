@@ -38,6 +38,7 @@ public:
   void visit(NullLiteralNode& node) override;
   void visit(IdentifierNode& node) override;
   void visit(AssignmentNode& node) override;
+  void visit(ImplicitCastNode& node) override;
   void visit(BinaryOpExprNode& node) override;
 
   void visit_addrof(const ExprPtr& op, const IR_Register& dst);

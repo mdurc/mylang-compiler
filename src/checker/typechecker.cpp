@@ -298,9 +298,24 @@ void TypeChecker::visit(AssignmentNode& node) {
   _assert(lvalue_type && *lvalue_type == *mutable_lvalue_type, "L-value type should be mutable_lvalue_type during assignment check");
 
   if (check_type_assignable(lvalue_type, rvalue_type, node.rvalue->token->get_span())) {
+    try_apply_implicit_cast(node.rvalue, lvalue_type);
     node.expr_type = lvalue_type;
   } else {
     node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
+  }
+}
+
+void TypeChecker::visit(ImplicitCastNode& node) { node.expression->accept(*this); }
+void TypeChecker::try_apply_implicit_cast(ExprPtr& expr, Type* target_type) {
+  Type* src_type = expr->expr_type;
+  if (!src_type || src_type->is<Type::ErrorType>()) return;
+  if (*src_type == *target_type) return;
+
+  // only integer upcasting logic for now
+  if (is_integer_type(src_type) && is_integer_type(target_type)) {
+    if (src_type->get_byte_size() != target_type->get_byte_size()) {
+      expr = m_arena->make<ImplicitCastNode>(expr->token, expr->scope_id, expr, target_type);
+    }
   }
 }
 
@@ -323,10 +338,10 @@ void TypeChecker::visit(VariableDeclNode& node) {
   if (var_declared_type) {
     // Explicit type declaration
     if (initializer_expr_type && !initializer_expr_type->is<Type::ErrorType>()) {
-      if (!check_type_assignable(var_declared_type, initializer_expr_type,
+      if (check_type_assignable(var_declared_type, initializer_expr_type,
                                  node.initializer->token->get_span())) {
-        // error already reported by check_type_assignable
-        // we don't need to return early, declared types should still be assigned
+        /* try to make it an implicit case */
+        try_apply_implicit_cast(node.initializer, var_declared_type);
       }
     }
 
@@ -481,7 +496,9 @@ void TypeChecker::visit(ReturnStmtNode& node) {
       return;
     }
     // make sure the type returned is correct
-    check_type_assignable(m_current_function_return_type, actual_return_type, node.value->token->get_span());
+    if (check_type_assignable(m_current_function_return_type, actual_return_type, node.value->token->get_span())) {
+      try_apply_implicit_cast(node.value, m_current_function_return_type);
+    }
   } else {
     // Return without a value must be a part of a void function, else err
     if (!(*m_current_function_return_type == *u0_type)) {
@@ -562,12 +579,30 @@ void TypeChecker::visit(BinaryOpExprNode& node) {
   Type* string_type = m_symtab->lookup<Type>("string", 0);
   Type* null_type = m_symtab->lookup<Type>("u0", 0);
 
+  // unify integer types (if they are integer/float types)
+  Type* numeric_resolved = nullptr;
+  if (is_integer_type(left_type) && is_integer_type(right_type)) {
+    if (left_type->get_byte_size() > right_type->get_byte_size()) {
+      try_apply_implicit_cast(node.right, left_type);
+      right_type = left_type;
+    } else if (left_type->get_byte_size() < right_type->get_byte_size()) {
+      try_apply_implicit_cast(node.left, right_type);
+      left_type = right_type;
+    }
+    numeric_resolved = left_type; /* == right_type */
+  } else if (is_numeric_type(left_type) && is_numeric_type(right_type)) {
+    if (!(*left_type == *f64_type && *right_type == *f64_type)) {
+      m_logger->report(Diag::Error(node.token->get_span(), "floats cannot be casted with other numerics"));
+      node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
+      return;
+    }
+    numeric_resolved = f64_type;
+  }
+
   switch (node.op_type) {
     case BinOperator::Plus:
-      if (is_integer_type(left_type) && is_integer_type(right_type))
-        result_type = i64_type;
-      else if (is_numeric_type(left_type) && is_numeric_type(right_type))
-        result_type = f64_type;
+      if (numeric_resolved)
+        result_type = numeric_resolved;
       else if ((*left_type == *string_type && *right_type == *string_type))
         result_type = string_type;
 
@@ -579,10 +614,8 @@ void TypeChecker::visit(BinaryOpExprNode& node) {
       break;
 
     case BinOperator::Minus:
-      if (is_integer_type(left_type) && is_integer_type(right_type))
-        result_type = i64_type;
-      else if (is_numeric_type(left_type) && is_numeric_type(right_type))
-        result_type = f64_type;
+      if (numeric_resolved)
+        result_type = numeric_resolved;
 
       // Pointer subtraction: ptr<T> - ptr<T> -> i64
       else if (left_type->is<Type::Pointer>() &&
@@ -595,22 +628,17 @@ void TypeChecker::visit(BinaryOpExprNode& node) {
 
     case BinOperator::Multiply:
     case BinOperator::Divide:
-      if (is_integer_type(left_type) && is_integer_type(right_type))
-        result_type = i64_type;
-      else if (is_numeric_type(left_type) && is_numeric_type(right_type))
-        result_type = f64_type;
+      if (numeric_resolved) result_type = numeric_resolved;
       break;
     case BinOperator::Modulo:
       if (is_integer_type(left_type) && is_integer_type(right_type))
-        result_type = i64_type;
+        result_type = numeric_resolved;
       break;
 
     case BinOperator::Equal:
     case BinOperator::NotEqual:
-      // General equality: types must be the same, or one is ptr and other is
-      // null
-      if (*left_type == *right_type ||
-          (is_numeric_type(left_type) && is_numeric_type(right_type)))
+      // General equality: types must be the same, or one is ptr and other is null
+      if (*left_type == *right_type || numeric_resolved)
         result_type = bool_type;
       else if (left_type->is<Type::Pointer>() && *right_type == *null_type)
         result_type = bool_type;
@@ -623,8 +651,8 @@ void TypeChecker::visit(BinaryOpExprNode& node) {
     case BinOperator::GreaterThan:
     case BinOperator::GreaterEqual:
       // Ordered comparison: types must be same numeric or pointer types
-      // (excluding null for direct < >)
-      if ((is_numeric_type(left_type) && is_numeric_type(right_type)) ||
+      //  (excluding null for direct < >)
+      if (numeric_resolved ||
           (left_type->is<Type::Pointer>() && right_type->is<Type::Pointer>() &&
            *left_type == *right_type)) {
         result_type = bool_type;
@@ -636,6 +664,7 @@ void TypeChecker::visit(BinaryOpExprNode& node) {
       if ((*left_type == *bool_type && *right_type == *bool_type))
         result_type = bool_type;
       break;
+
     default:
       _assert(false, "Unsupported binary operator '" + std::string(node.token->get_lexeme()) + "'.");
       break;
@@ -769,6 +798,8 @@ void TypeChecker::visit(FunctionCallNode& node) {
     if (!check_type_assignable(param_type, arg_t, span)) {
       node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
       return;
+    } else {
+      try_apply_implicit_cast(node.arguments[i]->expression, param_type);
     }
 
     if (param_info.modifier == BorrowState::MutablyBorrowed &&
@@ -919,6 +950,8 @@ void TypeChecker::visit(StructLiteralNode& node) {
 
     if (!check_type_assignable((*itr)->type, value_type, initializer->value->token->get_span())) {
       error_occured = true;
+    } else {
+      try_apply_implicit_cast(initializer->value, (*itr)->type);
     }
   }
   // We currently allow for partial initialization of the named fields
@@ -995,6 +1028,8 @@ void TypeChecker::visit(NewExprNode& node) {
       if (!check_type_assignable(node.type_to_allocate, spec_type,
                             node.allocation_specifier->token->get_span())) {
         node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
+      } else {
+        try_apply_implicit_cast(node.allocation_specifier, node.type_to_allocate);
       }
     }
   } else {
@@ -1065,8 +1100,10 @@ void TypeChecker::visit(CaseNode& node) {
     Type* case_value_type = get_expr_type(node.value);
     if (m_current_switch_expr_type && !m_current_switch_expr_type->is<Type::ErrorType>()) {
       if (case_value_type && !case_value_type->is<Type::ErrorType>()) {
-        check_type_assignable(m_current_switch_expr_type, case_value_type,
-                              node.value->token->get_span());
+        if (check_type_assignable(m_current_switch_expr_type, case_value_type,
+                              node.value->token->get_span())) {
+          try_apply_implicit_cast(node.value, m_current_switch_expr_type);
+        }
       }
     }
   }
