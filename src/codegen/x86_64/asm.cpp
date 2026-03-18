@@ -592,8 +592,14 @@ void X86_64CodeGenerator::handle_assign(const IRInstruction& instr) {
   IROperand dst = instr.result.value();
   IROperand src = instr.operands[0];
 
-  std::string dst_str = get_sized_component(dst, instr.size);
-  std::string src_str = get_sized_component(src, instr.size);
+  std::uint64_t dst_size = instr.size;
+  std::uint64_t src_size = dst_size;
+  if (std::holds_alternative<IR_Variable>(src)) {
+    src_size = std::get<IR_Variable>(src).size;
+  }
+
+  std::string dst_str = get_sized_component(dst, dst_size);
+  std::string src_str = get_sized_component(src, src_size);
 
   bool is_func_decl = std::holds_alternative<IR_Variable>(src) &&
                       std::get<IR_Variable>(src).is_func_decl;
@@ -609,15 +615,21 @@ void X86_64CodeGenerator::handle_assign(const IRInstruction& instr) {
   if (dst_str.back() == ']' && src_str.back() == ']') {
     // Memory to memory assignment
     std::string temp = get_temp_x86_reg(Type::PTR_SIZE);
-    emit(get_mov_instr(temp, src_str, false, instr.size));
-    emit("mov " + dst_str + ", " + get_sized_register_name(temp, instr.size));
+    emit(get_mov_instr(temp, src_str, false, src_size));
+    emit("mov " + dst_str + ", " + get_sized_register_name(temp, dst_size));
   } else if (std::holds_alternative<IR_Register>(dst)) {
     // Register destination, expression -> reg
     std::string reg_64 = get_x86_reg(std::get<IR_Register>(dst));
-    emit(get_mov_instr(reg_64, src_str, is_imm(src), instr.size));
+    emit(get_mov_instr(reg_64, src_str, is_imm(src), src_size));
   } else {
     // reg/imm -> memory
-    emit("mov " + dst_str + ", " + src_str);
+    if (src_size < dst_size && !is_imm(src)) {
+      std::string temp = get_temp_x86_reg(Type::PTR_SIZE);
+      emit(get_mov_instr(temp, src_str, false, src_size));
+      emit("mov " + dst_str + ", " + get_sized_register_name(temp, dst_size));
+    } else {
+      emit("mov " + dst_str + ", " + src_str);
+    }
   }
 }
 
