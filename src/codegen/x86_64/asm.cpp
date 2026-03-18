@@ -883,10 +883,15 @@ void X86_64CodeGenerator::handle_push_arg(const IRInstruction& instr) {
   }
 
   // handle stack arguments (args beyond the first 6), note it requires QWORD sz
-  std::string temp = get_temp_x86_reg(Type::PTR_SIZE);
   std::string src_str = get_sized_component(src, arg_size);
-  emit(get_mov_instr(temp, src_str, is_imm(src), instr.size));
-  ctx.arg_instrs.push_back("push " + temp + " ; pushing arg to stack");
+
+  // right now it should be save to use RAX, no potential clobbering
+  std::string mov = get_mov_instr("rax", src_str, is_imm(src), instr.size);
+
+  size_t boundary_idx = ctx.current_args_passed;
+  auto it = ctx.arg_instrs.begin() + boundary_idx;
+  it = ctx.arg_instrs.insert(it, mov);
+  ctx.arg_instrs.insert(it + 1, "push rax ; pushing arg to stack");
   ctx.stack_args_size += Type::PTR_SIZE; // we must push 8 bytes
 }
 
@@ -902,10 +907,14 @@ void X86_64CodeGenerator::save_caller_saved_regs() {
     }
   }
 
+  std::vector<std::string> pushes;
   for (const std::string& reg : regs_to_save) {
-    ctx.arg_instrs.push_back("push " + reg + " ; saving caller-saved register " + reg);
+    pushes.push_back("push " + reg + " ; saving caller-saved register " + reg);
     ctx.used_caller_saved.push_back(reg);
   }
+  // insert at beginning so caller-saved registers don't offset stack args
+  ctx.arg_instrs.insert(ctx.arg_instrs.begin(), pushes.begin(), pushes.end());
+
 }
 
 void X86_64CodeGenerator::restore_caller_saved_regs(const std::vector<std::string>& used_caller_saved) {
@@ -936,8 +945,8 @@ void X86_64CodeGenerator::handle_lcall(const IRInstruction& instr) {
   CallContext ctx = m_call_stack.top();
   m_call_stack.pop();
 
-  for (const std::string& instr : ctx.arg_instrs) {
-    emit(instr);
+  for (const std::string& arg_instr : ctx.arg_instrs) {
+    emit(arg_instr);
   }
 
   // special handling for read_word
