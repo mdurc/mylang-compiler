@@ -797,18 +797,29 @@ void TypeChecker::visit(FunctionCallNode& node) {
         "can occur for it");
 
     const Span& span = node.arguments[i]->expression->token->get_span();
-    if (!check_type_assignable(param_type, arg_t, span)) {
-      node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
-      return;
-    } else {
-      try_apply_implicit_cast(node.arguments[i]->expression, param_type);
-    }
 
-    if (param_info.modifier == BorrowState::MutablyBorrowed &&
-        !get_lvalue_type_if_mutable(node.arguments[i]->expression)) {
-      m_logger->report(Diag::Error(span, "Argument for 'mut' parameter must be a mutable l-value."));
-      node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
-      return;
+    if (param_info.modifier == BorrowState::MutablyBorrowed) {
+      if (!get_lvalue_type_if_mutable(node.arguments[i]->expression)) {
+        m_logger->report(Diag::Error(span, "Argument for 'mut' parameter must be a mutable l-value."));
+        node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
+        return;
+      }
+      // implicit cast is not allowed, they must be the same type
+      if (!(*param_type == *arg_t)) {
+        m_logger->report(Diag::Error(span, "Type mismatch for 'mut' parameter: expected exactly '" +
+                                            param_type->to_string() + "', got '" + arg_t->to_string() +
+                                            "'. Implicit casting is not allowed for mutable references."));
+        node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
+        return;
+      }
+    } else {
+      // standard passing, implicit cast is allowed
+      if (!check_type_assignable(param_type, arg_t, span)) {
+        node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
+        return;
+      } else {
+        try_apply_implicit_cast(node.arguments[i]->expression, param_type);
+      }
     }
 
     if (arg->is_give) {
