@@ -60,11 +60,11 @@ x = 13; // assignment using = (we cannot use := because it will re-declare the v
     ```
 - **Loop Control**: `break` and `continue` are supported within `for` and `while` loops.
 
-### Functions
+### Functions & Externs
 
 Functions are top-level declarations.
 
-- **Declaration**:
+- **Standard Declaration**:
     ```
     func add(a: i64, b: i64) returns (sum: i64) {
       return a + b;
@@ -72,6 +72,17 @@ Functions are top-level declarations.
     foo : func(i64, i64)->i64 = add; // first class function
     ```
 - **Return Values**: Functions can return a single value. The return variable (`sum`) must be declared in the signature and is implicitly available within the function body. A `return` statement can be used for an early exit. If no `return` is used, the final value of the named return variable is returned. Functions without a `returns` clause implicitly return `u0`.
+
+- **External Functions**:
+    - Use the `extern` keyword to declare a function signature without a body. This allows the compiler to type-check calls to functions that will be provided by the linker (e.g., from the x86_64 runtime library).
+    - See `sample_code/strings.sn` for an example
+
+    ```mylang
+    extern func print_char(c: u8);
+    extern func string_length(str: string) returns (len: i64);
+    extern func malloc(size: i64) returns (ptr: ptr<mut u0>);
+    ```
+
 - **Parameters and Ownership**:
     - `imm` (default): Immutable borrow. The argument is passed by reference, but cannot be modified.
     - `mut`: Mutable borrow. The argument is passed by reference and can be modified. The passed variable must be mutable.

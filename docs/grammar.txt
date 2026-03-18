@@ -7,7 +7,7 @@
 <StructFields>         ::= <StructField> ( ',' <StructField> )*
 <StructField>           ::= Identifier ':' <Type>
 
-<FunctionDecl>          ::= 'func' Identifier '(' <Params>? ')' <ReturnType>? <Block>
+<FunctionDecl>          ::= ('extern')? 'func' Identifier '(' <Params>? ')' <ReturnType>? ( <Block> | ';' )
 <Params>                ::= <Param> ( ',' <Param> )*
 <Param>                 ::= <FunctionParamPrefix>? Identifier ':' <Type>
 <ReturnType>            ::= 'returns' '(' Identifier ':' <Type> ')'
