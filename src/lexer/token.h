@@ -99,6 +99,7 @@ enum class TokenType {
   ARROW,         // ->
 
   UNKNOWN,
+  EOF_TOK,
 };
 
 std::string token_type_to_string(TokenType type);

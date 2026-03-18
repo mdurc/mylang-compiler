@@ -153,6 +153,7 @@ std::string token_type_to_string(TokenType type) {
     case TokenType::ARROW: return "ARROW";
 
     case TokenType::UNKNOWN: return "UNKNOWN";
+    case TokenType::EOF_TOK: return "END_OF_FILE";
     default: return "UNHANDLED_TOKEN_TYPE";
   }
 }

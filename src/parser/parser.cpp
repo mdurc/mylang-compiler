@@ -16,38 +16,36 @@ struct ParsePanic : public std::runtime_error {
 #define _alloc(_type, ...) m_arena->make<_type>(__VA_ARGS__)
 
 // == Movement Operations through Tokens ==
-/* retrives the current token at m_pos, otherwise panics */
+/* retrives the current token at m_pos, guarded by EOF_TOK */
 const Token* Parser::current() {
-  if (m_pos < m_tokens.size()) {
-    return &m_tokens[m_pos];
-  }
-  m_logger->report(Diag::Error(m_tokens.back().get_span(), "Attempting to access current position when out of bounds"));
-  throw ParsePanic();
+  return &m_tokens[m_pos];
 }
 
-/* return token at the m_pos in the parser and then increment pos, otherwise panic */
+/* return token at the m_pos in the parser and then increment pos */
 const Token* Parser::advance() {
-  if (m_pos < m_tokens.size()) {
-    return &m_tokens[m_pos++];
-  }
-  m_logger->report(Diag::Error(m_tokens.back().get_span(), "Attempting to access current position and advance when out of bounds"));
-  throw ParsePanic();
+  const Token* curr = current();
+  if (curr->get_type() != TokenType::EOF_TOK) m_pos++;
+  return curr;
 }
 
-/* consume an expected type character at current position and increment position, otherwise panic */
+/* consume an expected type character at current position and increment position */
 bool Parser::consume(TokenType type) {
-  if (match(type)) {
-    advance();
-    return true;
-  }
   const Token* curr = current();
-  m_logger->report(Diag::ExpectedToken(curr->get_span(), token_type_to_string(type), token_type_to_string(curr->get_type())));
-  return false;
+  if (curr->get_type() != type) {
+    if (curr->get_type() == TokenType::EOF_TOK) {
+      m_logger->report(Diag::Error(curr->get_span(), "Unexpected end of file"));
+    } else {
+      m_logger->report(Diag::ExpectedToken(curr->get_span(), token_type_to_string(type), token_type_to_string(curr->get_type())));
+    }
+    return false;
+  }
+  advance();
+  return true;
 }
 
 /* check if the type of the Token at m_pos of the parser equals type */
 bool Parser::match(TokenType type) const {
-  return m_pos < m_tokens.size() && m_tokens[m_pos].get_type() == type;
+  return m_tokens[m_pos].get_type() == type;
 }
 
 /* check if the next token (if any) is the passed argument */
@@ -62,6 +60,7 @@ bool Parser::peek_next(TokenType type) const {
 bool Parser::is_sync_point(const Token* tok) const {
   if (!tok) return false;
   switch (tok->get_type()) {
+    case TokenType::EOF_TOK:
     case TokenType::FUNC:
     case TokenType::IF:
     case TokenType::STRUCT:
@@ -76,7 +75,8 @@ bool Parser::is_sync_point(const Token* tok) const {
 }
 
 void Parser::synchronize() {
-  while (m_pos < m_tokens.size() && !is_sync_point(current())) {
+  while (current()->get_type() != TokenType::EOF_TOK) {
+    if (is_sync_point(current())) return;
     advance();
   }
 }
@@ -87,7 +87,7 @@ std::vector<AstPtr> Parser::parse_program(SymTab* symtab, const std::vector<Toke
   m_pos = 0;
   m_root.clear();
 
-  while (m_pos < m_tokens.size()) {
+  while (!match(TokenType::EOF_TOK)) {
     m_root.push_back(parse_toplevel_declaration());
   }
 
@@ -671,7 +671,7 @@ BlockPtr Parser::parse_block(bool create_scope) {
   if (create_scope) m_symtab->enter_scope();
   try {
     _consume(TokenType::LBRACE);
-    while (!match(TokenType::RBRACE) && m_pos < m_tokens.size()) {
+    while (!match(TokenType::EOF_TOK) && !match(TokenType::RBRACE)) {
       statements_vec.push_back(parse_statement());
     }
     _consume(TokenType::RBRACE);
@@ -696,7 +696,7 @@ StmtPtr Parser::parse_asm_block() {
 
   bool is_first = true;
   int brace_level = 1;
-  while (m_pos < m_tokens.size()) {
+  while (!match(TokenType::EOF_TOK)) {
     const Token* current_tok = current();
     TokenType current_type = current_tok->get_type();
 
@@ -730,8 +730,8 @@ StmtPtr Parser::parse_asm_block() {
     advance();
   }
 
-  if (brace_level != 0 || m_pos >= m_tokens.size()) {
-    m_logger->report(Diag::ExpectedToken(current()->get_span(), "}", "<none>"));
+  if (brace_level != 0) {
+    m_logger->report(Diag::ExpectedToken(current()->get_span(), "}", "EOF"));
     throw ParsePanic();
   }
 

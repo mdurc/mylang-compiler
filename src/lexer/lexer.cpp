@@ -45,6 +45,11 @@ std::vector<Token> Lexer::tokenize(std::string_view source) {
     m_start = m_pos;
     scan_token();
   }
+
+  m_start = m_pos;
+  m_start_col = m_col;
+  add_token(TokenType::EOF_TOK);
+
   return m_tokens;
 }
 
