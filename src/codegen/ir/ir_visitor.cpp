@@ -748,6 +748,8 @@ void IrVisitor::visit(PrintStmtNode& node) {
     IR_Label print_func_lbl = get_runtime_print_call(expr_type);
 
     m_ir_gen.emit_begin_lcall_prep();
+    // load file descriptor for print (1: stdout)
+    m_ir_gen.emit_push_arg(IR_Immediate(1, Type::PTR_SIZE), Type::PTR_SIZE);
     m_ir_gen.emit_push_arg(val_op, expr_type->get_byte_size());
     m_ir_gen.emit_lcall(std::nullopt, print_func_lbl, 0);
   }
@@ -894,9 +896,11 @@ void IrVisitor::visit(ErrorStmtNode& node) {
   m_last_expr_operand = temp_reg;
 
   m_ir_gen.emit_begin_lcall_prep();
+  // load file descriptor for print (2: stderr)
+  m_ir_gen.emit_push_arg(IR_Immediate(2, Type::PTR_SIZE), Type::PTR_SIZE);
   m_ir_gen.emit_push_arg(temp_reg, Type::PTR_SIZE);
   m_ir_gen.emit_lcall(std::nullopt, IR_Label("print_string"), 0);
-  m_ir_gen.emit_exit(1);
+  // m_ir_gen.emit_exit(1);
 }
 
 void IrVisitor::visit(FloatLiteralNode&) { unimpl("FloatLiteralNode"); }

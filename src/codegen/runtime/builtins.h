@@ -28,26 +28,28 @@ string_length:
 .end:
 	ret
 
-; rdi <- address of null-terminated string
-; prints to stdout
+; rdi <- file descriptor (1 stdout, 2 stderr)
+; rsi <- address of null-terminated string
 print_string:
+  push rdi          ; save fd
+  push rsi          ; save addr
+  mov rdi, rsi      ; prep arg for strlen
 	call string_length
-	mov rdx, rax
-	mov rsi, rdi
-	mov rdi, 1
+	mov rdx, rax      ; store length
+  pop rsi
+  pop rdi
 
 	; mov rax, 1
   mov rax, 0x2000004
 	syscall
 	ret
 
-; rdi <- char code
-; prints to stdout
+; rdi <- file descriptor
+; rsi <- char code
 print_char:
-	push rdi	; push it to the stack so we can get the address
+	push rsi	    ; push it to the stack so we can get the address
 	mov rsi, rsp	; start at this address, treating it as a string
-	mov rdi, 1
-	mov rdx, 1
+  mov rdx, 1    ; strlen of 1
 
 	; mov rax, 1	; sys_write the char that is now a string
   mov rax, 0x2000004
@@ -55,87 +57,88 @@ print_char:
 	add rsp, 8	; restore the address
 	ret
 
-; prints newline (0x0A) to stdout
+; rdi <- file descriptor
+; prints newline (0x0A) to fd
 print_newline:
-	mov rdi, 1
-
-	push 0x0A	; get rsi to point to an address with 0x0A content.
+	push 0x0A	    ; get rsi to point to an address with 0x0A content.
 	mov rsi, rsp	; alternative to having a newline buffer in .data.
+	mov rdx, 1    ; 1 byte for char
 
-	mov rdx, 1
 	; mov rax, 1
   mov rax, 0x2000004
 	syscall
 	add rsp, 8	; undo the 0x0A push
 	ret
 
-; rdi <- unsigned 64-bit integer
-; prints in decimal format to stdout
+; rdi <- file descriptor
+; rsi <- unsigned 64-bit integer
+; prints in decimal format to fd
 print_uint:
 	; converts integer into a null-term string, passed to print_string
 	sub rsp, 32	; the max number of digits of uint64_t is ~20
-	mov rsi, rsp
-	add rsi, 31	; get to the highest byte, last char (little endian)
-	mov byte[rsi], 0; plant the null terminator
-; rdi <- value to convert
-; rsi <- current position (starting at null-terminator)
+	mov r8, rsp
+	add r8, 31	    ; get to the highest byte, last char (little endian)
+	mov byte[r8], 0 ; plant the null terminator
+  mov rax, rsi
+; rax <- value to convert
+; r8 <- current position (starting at null-terminator)
 .convert:
-	mov rax, rdi	; dividend low part
+  ; rax is the dividend low part
 	xor rdx, rdx	; dividend high part
-	mov rcx, 10	; divisor
-	div rcx		; [rax]/10, quotient := rax, remainder := rdx
+	mov rcx, 10	  ; divisor
+	div rcx		    ; [rax]/10, quotient := rax, remainder := rdx
 	add dl, 0x30	; add '0' char to remainder byte for ascii value
-	dec rsi		; decrease to the next valid space in the stack buffer
-	mov [rsi], dl
-	mov rdi, rax	; update value to convert with new value before looping
-	test rdi, rdi
+	dec r8        ; decrease to the next valid space in the stack buffer
+	mov [r8], dl
+	test rax, rax
 	jnz .convert
 
-	mov rdi, rsi	; setup arg, pointer to start of string
+  ; fd arg is still in rdi
+	mov rsi, r8   ; setup arg, pointer to start of string
 	call print_string
-	add rsp, 32	; restore the stack
+	add rsp, 32   ; restore the stack
 	ret
 
-; rdi <- signed 64-bit integer
-; prints in decimal format to stdout
+; rdi <- file descriptor
+; rsi <- signed 64-bit integer
+; prints in decimal format to fd
 print_int:
 	; converts integer into a null-term string, passed to print_string
-	sub rsp, 32	; arbitrary large buffer size
-	mov rsi, rsp
-	add rsi, 31	; get to the highest byte, last char (little endian)
-	mov byte[rsi], 0; plant the null terminator
+	sub rsp, 32       ; arbitrary large buffer size
+	mov r8, rsp
+	add r8, 31        ; get to the highest byte, last char (little endian)
+	mov byte[r8], 0   ; plant the null terminator
 
-	mov rax, rdi	; save the original value
+  mov rax, rsi      ; value to convert
 
-	xor r8, r8	; set sign flag to zero
-	cmp rdi, 0
+	xor r9, r9        ; set sign flag to zero
+	cmp rsi, 0
 	jge .convert
 
-	neg rdi
-	mov r8, 1	; set sign flag to one
-	jmp .convert
-; rdi <- value to convert
-; rsi <- current position (starting at null-terminator)
-; r8 <- sign flag, 0=positive, 1=negative
+	neg rax   ; make positive for conversion
+	mov r9, 1	; set sign flag to one
+; rax <- value to convert
+; r8 <- current position (starting at null-terminator)
+; r9 <- sign flag, 0=positive, 1=negative
 .convert:
-	mov rax, rdi	; dividend low part
+  ; rax is the dividend low part
 	xor rdx, rdx	; dividend high part
-	mov rcx, 10	; divisor
-	div rcx		; [rax]/10, quotient := rax, remainder := rdx
+	mov rcx, 10	  ; divisor
+	div rcx		    ; [rax]/10, quotient := rax, remainder := rdx
 	add dl, 0x30	; add '0' char to remainder byte for ascii value
-	dec rsi		; decrease to the next valid space in the stack buffer
-	mov [rsi], dl
-	mov rdi, rax	; update value to convert with new value before looping
-	test rdi, rdi
-	jnz .convert
+	dec r8        ; decrease to the next valid space in the stack buffer
+	mov [r8], dl
+	test rax, rax
+  jnz .convert
 
 	; add '-' if the number was negative
-	test r8, r8
+	test r9, r9
 	jz .done
-	dec rsi
-	mov byte[rsi], 0x2D ; '-' char
+	dec r8
+	mov byte[r8], 0x2D ; '-' char
 .done:
-	mov rdi, rsi
+  ; rdi already has fd
+	mov rsi, r8
 	call print_string
 	add rsp, 32	; restore the stack
 	ret
@@ -379,21 +382,21 @@ free:
   syscall
   jmp .end
   .err:
-  mov rdi, free_err
+  mov rdi, 2        ; arg for stderr
+  mov rsi, free_err ; arg for src string
   call print_string
   .end:
   ret
 
+; clears the screen via ANSI escape codes
 clrscr:
-  ; I tried to make this have no side effects, so that the user can somewhat
-  ; safely run `asm { call clrscr };`, as I don't want to have that in the lang
   push rdi
   push rsi
   push rdx
   push rax
   mov rax, 0x2000004
-  mov rdi, 1
-  mov rsi, clr_scr ; load address to rsi
+  mov rdi, 1        ; fd hardcoded for stdout
+  mov rsi, clr_scr  ; load address to rsi
   mov rdx, 7
   syscall
   pop rax
