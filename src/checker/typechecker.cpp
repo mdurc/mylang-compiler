@@ -489,14 +489,14 @@ void TypeChecker::visit(ReturnStmtNode& node) {
 
   if (node.value) {
     // Return with a value: return <expr>;
-    Type* actual_return_type = get_expr_type(node.value);
-    if (!actual_return_type || actual_return_type->is<Type::ErrorType>()) return;
+    Type* code = get_expr_type(node.value);
+    if (!code || code->is<Type::ErrorType>()) return;
     if (*m_current_function_return_type == *u0_type) {
       m_logger->report(Diag::Error(node.value->token->get_span(), "Function declared to return 'u0' cannot return a value."));
       return;
     }
     // make sure the type returned is correct
-    if (check_type_assignable(m_current_function_return_type, actual_return_type, node.value->token->get_span())) {
+    if (check_type_assignable(m_current_function_return_type, code, node.value->token->get_span())) {
       try_apply_implicit_cast(node.value, m_current_function_return_type);
     }
   } else {
@@ -1155,14 +1155,33 @@ void TypeChecker::visit(FreeStmtNode& node) {
   // array vs not array deallocation will be up to the user.
 }
 
+void TypeChecker::visit(ErrorStmtNode& node) {
+  for (size_t i = 0; i < node.expressions.size(); ++i) {
+    Type* expr_type = get_expr_type(node.expressions[i]);
+    if (!expr_type) continue;
+
+    // same as PrintStmtNode here
+    if (!expr_type->is<Type::ErrorType>() &&
+        expr_type->is<Type::Named>() &&
+        expr_type->as<Type::Named>().identifier == "u0") {
+      m_logger->report(Diag::Warning(node.expressions[i]->token->get_span(), "Printing a 'u0' (void) value is not allowed."));
+    }
+  }
+}
+
 void TypeChecker::visit(ExitStmtNode& node) {
-  if (node.exit_code < 0) {
-    m_logger->report(Diag::Error(node.token->get_span(), "Exit code must be a non-negative integer."));
+  if (!node.exit_code) return; /* default exit code */
+  Type* code = get_expr_type(node.exit_code);
+  if (!code || code->is<Type::ErrorType>()) return;
+  Type* u8_type = m_symtab->lookup<Type>("u8", 0);
+  if (check_type_assignable(u8_type, code, node.exit_code->token->get_span())) {
+    try_apply_implicit_cast(node.exit_code, u8_type);
+  } else {
+    m_logger->report(Diag::Error(node.token->get_span(), "Exit code must be able to implicitly cast to u8 type."));
   }
 }
 
 // No type checking needed for these two
-void TypeChecker::visit(ErrorStmtNode&) {}
 void TypeChecker::visit(AsmBlockNode&) {}
 void TypeChecker::visit(StructFieldInitializerNode& node) {
   // just resolve the value it has, and then caller from StructLiteralNode

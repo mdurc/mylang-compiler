@@ -27,10 +27,10 @@ void IrGenerator::emit_return() {
   m_instructions.emplace_back(IROpCode::RETURN);
 }
 
-void IrGenerator::emit_exit(int exit_code) {
+void IrGenerator::emit_exit(IROperand exit_operand, std::uint64_t sz /* should be u8 */) {
   m_instructions.emplace_back(
       IROpCode::EXIT, std::nullopt,
-      std::vector<IROperand>{IR_Immediate(exit_code, 8)});
+      std::vector<IROperand>{exit_operand}, sz);
 }
 
 void IrGenerator::emit_assign(IROperand dst, IROperand src, std::uint64_t size) {

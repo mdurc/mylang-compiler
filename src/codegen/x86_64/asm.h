@@ -100,7 +100,7 @@ private:
   void handle_end_preamble();
   void handle_end_func(bool is_exit);
   void handle_return(const IRInstruction& instr);
-  void handle_exit(int code);
+  void handle_exit(const IRInstruction& instr);
 
   void handle_assign(const IRInstruction& instr);
   void handle_load(const IRInstruction& instr);

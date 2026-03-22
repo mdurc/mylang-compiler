@@ -1,6 +1,7 @@
 CC = g++
 MYLIB = compiler_build_files
-PROGRAM = $(MYLIB)/mycompiler
+BINARY = mycompiler
+PROGRAM = $(MYLIB)/$(BINARY)
 BUILD_DIR = $(MYLIB)/build
 CFLAGS = -std=c++20 -Wall -Wextra -g -MMD -MP
 
@@ -45,6 +46,10 @@ $(BUILD_DIR)/%.o: src/%.cpp
 	mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+install: $(PROGRAM)
+	mkdir -p ~/.local/bin
+	cp $(PROGRAM) ~/.local/bin/$(BINARY)
+
 # test workflow
 TFILE = tfile.sn
 update_test: $(PROGRAM)
@@ -70,5 +75,5 @@ clean:
 	rm -rf $(MYLIB)
 	rm -f $(TFILE).* $(TFILE) a.out
 
-.PHONY: all clean update_test compile_test_asm test
+.PHONY: all clean update_test compile_test_asm test install
 -include $(PROGRAM_OBJS:.o=.d)

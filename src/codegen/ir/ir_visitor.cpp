@@ -784,7 +784,15 @@ void IrVisitor::visit(ArrayIndexNode& node) {
 }
 
 void IrVisitor::visit(ExitStmtNode& node) {
-  m_ir_gen.emit_exit(node.exit_code);
+  if (node.exit_code) {
+    node.exit_code->accept(*this);
+    _assert(node.exit_code->expr_type, "Types should be resolved by Typechecker");
+    m_ir_gen.emit_exit(m_last_expr_operand,
+        node.exit_code->expr_type->get_byte_size());
+  } else {
+    /* default exit code of 0 */
+    m_ir_gen.emit_exit(IR_Immediate(0, Type::PTR_SIZE), Type::PTR_SIZE);
+  }
 }
 
 void IrVisitor::visit(SwitchStmtNode& node) {
@@ -890,17 +898,23 @@ void IrVisitor::visit(FreeStmtNode& node) {
   m_ir_gen.emit_free(ptr_to_free_op);
 }
 
+// same as PrintStmtNode but printing with fd = 2
 void IrVisitor::visit(ErrorStmtNode& node) {
-  IR_Register temp_reg = m_ir_gen.new_temp_reg();
-  m_ir_gen.emit_assign(temp_reg, node.message_content, Type::PTR_SIZE);
-  m_last_expr_operand = temp_reg;
+  for (size_t i = 0; i < node.expressions.size(); ++i) {
+    node.expressions[i]->accept(*this);
+    IROperand val_op = m_last_expr_operand;
 
-  m_ir_gen.emit_begin_lcall_prep();
-  // load file descriptor for print (2: stderr)
-  m_ir_gen.emit_push_arg(IR_Immediate(2, Type::PTR_SIZE), Type::PTR_SIZE);
-  m_ir_gen.emit_push_arg(temp_reg, Type::PTR_SIZE);
-  m_ir_gen.emit_lcall(std::nullopt, IR_Label("print_string"), 0);
-  // m_ir_gen.emit_exit(1);
+    Type* expr_type = node.expressions[i]->expr_type;
+    _assert(expr_type, "ErrorPrint expression must have a type from typechecker");
+
+    IR_Label print_func_lbl = get_runtime_print_call(expr_type);
+
+    m_ir_gen.emit_begin_lcall_prep();
+    // load file descriptor for print (2: stderr)
+    m_ir_gen.emit_push_arg(IR_Immediate(2, Type::PTR_SIZE), Type::PTR_SIZE);
+    m_ir_gen.emit_push_arg(val_op, expr_type->get_byte_size());
+    m_ir_gen.emit_lcall(std::nullopt, print_func_lbl, 0);
+  }
 }
 
 void IrVisitor::visit(FloatLiteralNode&) { unimpl("FloatLiteralNode"); }

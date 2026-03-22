@@ -339,16 +339,17 @@ public:
 
 class ErrorStmtNode : public StatementNode {
 public:
-  std::string message_content;
-  ErrorStmtNode(const Token* tok, size_t sc, std::string msg)
-      : StatementNode(tok, sc), message_content(std::move(msg)) {}
+  std::vector<ExprPtr> expressions;
+  ErrorStmtNode(const Token* tok, size_t sc, std::vector<ExprPtr> expr)
+      : StatementNode(tok, sc), expressions(std::move(expr)) {}
   void accept(Visitor& v) override;
 };
 
 class ExitStmtNode : public StatementNode {
 public:
-  int exit_code;
-  ExitStmtNode(const Token* tok, size_t sc, int code)
+  /* to be type checked to 1-byte integer */
+  ExprPtr exit_code; /* nullptr for default exit value */
+  ExitStmtNode(const Token* tok, size_t sc, ExprPtr code)
       : StatementNode(tok, sc), exit_code(code) {}
   void accept(Visitor& v) override;
 };

@@ -44,8 +44,8 @@
 <BreakStmt>             ::= 'break'
 <ContinueStmt>          ::= 'continue'
 <FreeStmt>              ::= 'free' '[]'? <Expr>
-<ErrorStmt>             ::= 'error' String
-<ExitStmt>              ::= 'exit' Integer
+<ErrorStmt>             ::= 'error' <Expr> ( ',' <Expr> )*
+<ExitStmt>              ::= 'exit' <Expr>?
 
 <Expr>                  ::= <AssignmentExpr>
 <AssignmentExpr>        ::= <LogicalOrExpr> ( '=' <AssignmentExpr> )?

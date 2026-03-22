@@ -427,12 +427,7 @@ void X86_64CodeGenerator::handle_instruction(const IRInstruction& instr) {
     case IROpCode::BEGIN_FUNC: handle_begin_func(instr); break;
     case IROpCode::RETURN: handle_return(instr); break;
     case IROpCode::END_FUNC: handle_end_func(false); break;
-    case IROpCode::EXIT:
-      _assert(!instr.operands.empty(), "exit operand should have an exit code");
-      _assert(std::holds_alternative<IR_Immediate>(instr.operands[0]),
-              "exit code should be an immediate");
-      handle_exit(std::get<IR_Immediate>(instr.operands[0]).val);
-      break;
+    case IROpCode::EXIT: handle_exit(instr); break;
     case IROpCode::ASSIGN: handle_assign(instr); break;
     case IROpCode::LOAD: handle_load(instr); break;
     case IROpCode::STORE: handle_store(instr); break;
@@ -565,12 +560,12 @@ void X86_64CodeGenerator::handle_end_func(bool is_exit) {
 }
 
 // fills 32-bit edi and calls exit
-void X86_64CodeGenerator::handle_exit(int code) {
-  if (code == 0) {
-    emit("xor edi, edi");
-  } else {
-    emit("mov edi, " + std::to_string(code));
-  }
+void X86_64CodeGenerator::handle_exit(const IRInstruction& instr) {
+  _assert(!instr.operands.empty(), "exit instruction must have an operand, if none is provided in source"
+                                   "the IR should provide the default of zero");
+  IROperand op = instr.operands[0];
+  std::string exit_code = get_sized_component(op, instr.size);
+  emit(get_mov_instr("rdi", exit_code, is_imm(op), instr.size) + " ; set exit code");
   emit("call exit");
 }
 

@@ -643,34 +643,33 @@ StmtPtr Parser::parse_free_stmt() {
   return _alloc(FreeStmtNode, free_tok, m_symtab->current_scope(), is_array, expr);
 }
 
-// <ErrorStmt> ::= 'Error' String
+// <ErrorStmt> ::= 'error' <Expr> ( ',' <Expr> )*
 StmtPtr Parser::parse_error_stmt() {
   const Token* error_tok = current();
   _consume(TokenType::ERROR_KW);
 
-  const Token* str_tok = current();
-  _consume(TokenType::STRING_LITERAL);
-
-  _assert(str_tok->is_literal(), "string literal token to have string data");
-  const std::string& msg = str_tok->get_string_val();
-
+  std::vector<ExprPtr> exprs;
+  do {
+    exprs.push_back(parse_expression());
+  } while (match(TokenType::COMMA) && advance());
   _consume(TokenType::SEMICOLON);
 
-  return _alloc(ErrorStmtNode, error_tok, m_symtab->current_scope(), msg);
+  return _alloc(ErrorStmtNode, error_tok, m_symtab->current_scope(), std::move(exprs));
 }
 
-// <ExitStmt> ::= 'exit' (1 | 0)
+// <ExitStmt> ::= 'exit' <Expr>?
 StmtPtr Parser::parse_exit_stmt() {
   const Token* exit_tok = current();
   _consume(TokenType::EXIT_KW);
 
-  const Token* int_tok = current();
-  _consume(TokenType::INT_LITERAL);
+  // same as ReturnStmt
+  ExprPtr value = nullptr;
+  if (!match(TokenType::SEMICOLON)) {
+    value = parse_expression();
+  }
   _consume(TokenType::SEMICOLON);
 
-  _assert(int_tok->is_literal(), "exit stmt token should be an integer");
-
-  return _alloc(ExitStmtNode, exit_tok, m_symtab->current_scope(), int_tok->get_int_val());
+  return _alloc(ExitStmtNode, exit_tok, m_symtab->current_scope(), value);
 }
 
 // <Block> ::= '{' <Stmt>* '}'

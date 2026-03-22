@@ -1,0 +1,12 @@
+/*
+ * test with: ./a.out > out.txt
+ *            ./a.out 2> out.txt
+ */
+
+func main() returns (rc: u8) {
+  print "this goes to stdout\n", ":)\n";
+  error "ERROR to stderr\n", "another line\n";
+  foo: u32 = -8;
+  exit (foo + 7); /* exits with code -1 --> 255 */
+  exit; /* defaults to exit 0 (though this line is never reached */
+}

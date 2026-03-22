@@ -576,12 +576,30 @@ public:
 
   void visit(ErrorStmtNode& node) override {
     print_indent();
-    out << "ErrorStmt(Message: \"" << node.message_content << "\")";
+    out << "ErrorStmt(\n";
+    indent++;
+    for (size_t i = 0; i < node.expressions.size(); ++i) {
+      node.expressions[i]->accept(*this);
+      out << "\n";
+    }
+    indent--;
+    print_indent();
+    out << ")";
   }
 
   void visit(ExitStmtNode& node) override {
     print_indent();
-    out << "ExitStmt(exit code: " << node.exit_code << ")";
+    if (node.exit_code) {
+      out << "ExitStmt(\n";
+      indent++;
+      node.exit_code->accept(*this);
+      indent--;
+      out << "\n";
+      print_indent();
+      out << ")";
+    } else {
+      out << "ExitStmt(defaults to 0)";
+    }
   }
 
   void visit(AsmBlockNode& node) override {

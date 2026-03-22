@@ -18,7 +18,7 @@ public:
   void emit_end_func();
   void emit_return(IROperand return_val, std::uint64_t return_size);
   void emit_return();
-  void emit_exit(int exit_code);
+  void emit_exit(IROperand exit_operand, std::uint64_t sz /* should be u8 */);
 
   /* Assignment and Data */
   void emit_assign(IROperand dst, IROperand src, std::uint64_t size);

@@ -167,9 +167,13 @@ static void collect_hover(const AstPtr& node, json& hover, const SymTab* symtab)
       collect_hover(free_stmt->expression, hover, symtab);
     }
   } else if (auto err = dynamic_cast<const ErrorStmtNode*>(node)) {
-    // no sub-nodes
+    for (const ExprPtr& e : err->expressions) {
+      collect_hover(e, hover, symtab);
+    }
   } else if (auto exit = dynamic_cast<const ExitStmtNode*>(node)) {
-    // no sub-nodes
+    if (exit->exit_code) {
+      collect_hover(exit->exit_code, hover, symtab);
+    }
   } else if (auto asmblk = dynamic_cast<const AsmBlockNode*>(node)) {
     // no sub-nodes
   } else if (auto struct_field = dynamic_cast<const StructFieldNode*>(node)) {
