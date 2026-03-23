@@ -361,6 +361,10 @@ std::string X86_64CodeGenerator::generate_assembly(const std::vector<IRInstructi
 
   handle_begin_func(IRInstruction(IROpCode::BEGIN_FUNC, IR_Label("_start"), {}));
 
+  m_current_func_stack_offset += 16;
+  emit("mov [rbp-8], rdi ; save argc");
+  emit("mov [rbp-16], rsi ; save argv");
+
   // emit the top level instructions only, within _start procedure
   m_handling_top_level = true;
   for (const IRInstruction& instr : top_level) {
@@ -369,22 +373,13 @@ std::string X86_64CodeGenerator::generate_assembly(const std::vector<IRInstructi
   m_handling_top_level = false;
 
   if (is_main_defined) {
+    emit("mov rdi, [rbp-8] ; restore argc -> 1st arg for main");
+    emit("mov rsi, [rbp-16] ; restore argv -> 2nd arg for main");
     emit("call main");
     emit("mov rdi, rax ; main's return value as exit code");
   } else {
     emit("mov rdi, 0 ; default exit code");
   }
-  if (is_main_defined) {
-    // argc and argv are provided in the stack frame of _start
-    //  but we have to offset due to handle_begin_func of _start pushing rbp
-    emit("mov rdi, [rbp+8] ; argc -> 1st arg for main");
-    emit("lea rsi, [rbp+16] ; argv -> 2nd arg for main");
-    emit("call main");
-    emit("mov rdi, rax ; main's return value as exit code");
-  } else {
-    emit("mov rdi, 0 ; default exit code");
-  }
-
 
   handle_end_func(true);
 
