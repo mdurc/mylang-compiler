@@ -374,6 +374,17 @@ std::string X86_64CodeGenerator::generate_assembly(const std::vector<IRInstructi
   } else {
     emit("mov rdi, 0 ; default exit code");
   }
+  if (is_main_defined) {
+    // argc and argv are provided in the stack frame of _start
+    //  but we have to offset due to handle_begin_func of _start pushing rbp
+    emit("mov rdi, [rbp+8] ; argc -> 1st arg for main");
+    emit("lea rsi, [rbp+16] ; argv -> 2nd arg for main");
+    emit("call main");
+    emit("mov rdi, rax ; main's return value as exit code");
+  } else {
+    emit("mov rdi, 0 ; default exit code");
+  }
+
 
   handle_end_func(true);
 

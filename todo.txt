@@ -3,7 +3,8 @@ I want to keep the builtin-features of the language to a minimum. After adding t
 Core language builtins:
 - [x] Bitwise operators (&, |, ^, <<, >>)
   - [x] shouldn't be too much extra implementation; will likely come in handy
-- [ ] Command line arguments for input and output file input.
+- [x] Command line arguments for input and output file input.
+  - a lot simpler than I thought! they are added from _start, and we can use the extern print_string to print each char*
 - [ ] Explicit Type Casting
   - [ ] need to design the syntax for this as well
   - [ ] should just be a modification of the implicit casting
