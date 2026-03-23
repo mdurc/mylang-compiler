@@ -5,6 +5,7 @@ This compiler is a complete rewrite of a previous attempt, designed from the gro
 - [Syntax](docs/syntax.md)
 - [Architecture](docs/architecture.md)
 - [Testing](docs/testing.md)
+- [Todo](todo.txt)
 
 ### Motives
 Purely for learning purposes and to build upon the experience that I've gotten since the last time that I tried to build a compiler. Hopefully this can eventually be designed well enough to self-host. There are still some unimplemented complex features, and has not been tested too extensibly in large programs, however it's still usable.

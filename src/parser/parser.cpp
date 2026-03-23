@@ -778,12 +778,48 @@ ExprPtr Parser::parse_logic_or() {
 
 // <LogicalAndExpr> ::= <EqualityExpr> ( 'and' <EqualityExpr> )*
 ExprPtr Parser::parse_logic_and() {
-  ExprPtr expr = parse_equality();
+  ExprPtr expr = parse_bitwise_or();
   while (match(TokenType::AND)) {
+    const Token* op_tok = advance();
+    ExprPtr right = parse_bitwise_or();
+    expr = _alloc(BinaryOpExprNode, op_tok, m_symtab->current_scope(),
+                BinOperator::LogicalAnd, expr, right);
+  }
+  return expr;
+}
+
+// <BitwiseOrExpr> ::= <BitwiseXorExpr> ( '|' <BitwiseXorExpr> )*
+ExprPtr Parser::parse_bitwise_or() {
+  ExprPtr expr = parse_bitwise_xor();
+  while (match(TokenType::PIPE)) {
+    const Token* op_tok = advance();
+    ExprPtr right = parse_bitwise_xor();
+    expr = _alloc(BinaryOpExprNode, op_tok, m_symtab->current_scope(),
+                BinOperator::BitwiseOr, expr, right);
+  }
+  return expr;
+}
+
+// <BitwiseXorExpr> ::= <BitwiseAndExpr> ( '^' <BitwiseAndExpr> )*
+ExprPtr Parser::parse_bitwise_xor() {
+  ExprPtr expr = parse_bitwise_and();
+  while (match(TokenType::CARET)) {
+    const Token* op_tok = advance();
+    ExprPtr right = parse_bitwise_and();
+    expr = _alloc(BinaryOpExprNode, op_tok, m_symtab->current_scope(),
+                BinOperator::BitwiseXor, expr, right);
+  }
+  return expr;
+}
+
+// <BitwiseAndExpr> ::= <EqualityExpr> ( '&' <EqualityExpr> )*
+ExprPtr Parser::parse_bitwise_and() {
+  ExprPtr expr = parse_equality();
+  while (match(TokenType::AMPERSAND)) { // Note: Lexer already has AMPERSAND
     const Token* op_tok = advance();
     ExprPtr right = parse_equality();
     expr = _alloc(BinaryOpExprNode, op_tok, m_symtab->current_scope(),
-                BinOperator::LogicalAnd, expr, right);
+                BinOperator::BitwiseAnd, expr, right);
   }
   return expr;
 }
@@ -804,7 +840,7 @@ ExprPtr Parser::parse_equality() {
 
 // <RelationalExpr> ::= <AdditiveExpr> ( ( '<' | '>' | '<=' | '>=' ) <AdditiveExpr> )*
 ExprPtr Parser::parse_relational() {
-  ExprPtr expr = parse_additive();
+  ExprPtr expr = parse_shift();
   while (match(TokenType::LANGLE) || match(TokenType::RANGLE) ||
          match(TokenType::LESS_EQUAL) || match(TokenType::GREATER_EQUAL)) {
     const Token* op_tok = advance();
@@ -821,6 +857,20 @@ ExprPtr Parser::parse_relational() {
       }
     }
 
+    ExprPtr right = parse_shift();
+    expr = _alloc(BinaryOpExprNode, op_tok, m_symtab->current_scope(), op, expr, right);
+  }
+  return expr;
+}
+
+// <ShiftExpr> ::= <AdditiveExpr> ( ( '<<' | '>>' ) <AdditiveExpr> )*
+ExprPtr Parser::parse_shift() {
+  ExprPtr expr = parse_additive();
+  while (match(TokenType::LESS_LESS) || match(TokenType::GREATER_GREATER)) {
+    const Token* op_tok = advance();
+    BinOperator op = (op_tok->get_type() == TokenType::LESS_LESS)
+                         ? BinOperator::ShiftLeft
+                         : BinOperator::ShiftRight;
     ExprPtr right = parse_additive();
     expr = _alloc(BinaryOpExprNode, op_tok, m_symtab->current_scope(), op, expr, right);
   }

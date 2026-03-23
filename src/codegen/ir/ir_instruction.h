@@ -31,6 +31,12 @@ enum class IROpCode {
   OR,
   NOT, // NOT is unary (dest, src), AND/OR are binary (dest, src1, src2)
 
+  BIT_AND,
+  BIT_OR,
+  BIT_XOR,
+  SHL,
+  SHR,
+
   // Comparison (dest = src1 op src2) -> result is bool (0 or 1)
   CMP_EQ,
   CMP_NE,

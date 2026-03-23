@@ -73,8 +73,12 @@ private:
   ExprPtr parse_assignment();
   ExprPtr parse_logic_or();
   ExprPtr parse_logic_and();
+  ExprPtr parse_bitwise_or();
+  ExprPtr parse_bitwise_xor();
+  ExprPtr parse_bitwise_and();
   ExprPtr parse_equality();
   ExprPtr parse_relational();
+  ExprPtr parse_shift();
   ExprPtr parse_additive();
   ExprPtr parse_multiplicative();
   ExprPtr parse_unary();

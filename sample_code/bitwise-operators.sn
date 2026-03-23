@@ -1,0 +1,67 @@
+func test_old_ops() {
+  print "--- Old Operations ---\n";
+  mut a := 10;
+  mut b := 3;
+
+  print "10 + 3 = ", a + b, "\n";
+  print "10 - 3 = ", a - b, "\n";
+  print "10 * 3 = ", a * b, "\n";
+  print "10 / 3 = ", a / b, "\n";
+  print "10 % 3 = ", a % b, "\n";
+
+  if (a > b and a != 0) {
+    print "Logical AND and Relational ops working!\n";
+  }
+}
+
+func test_bitwise_ops() {
+  print "\n--- New Bitwise Operations ---\n";
+  // 5 = 0101 in binary
+  // 3 = 0011 in binary
+  mut x := 5;
+  mut y := 3;
+
+  print "5 | 3 = ", x | y, "\n";     // Expected: 7  (0111)
+  print "5 & 3 = ", x & y, "\n";     // Expected: 1  (0001)
+  print "5 ^ 3 = ", x ^ y, "\n";     // Expected: 6  (0110)
+
+  mut z := 1;
+  print "1 << 3 = ", z << 3, "\n";   // Expected: 8
+  print "8 >> 2 = ", 8 >> 2, "\n";   // Expected: 2
+}
+
+func test_precedence() {
+  print "\n--- Precedence Test ---\n";
+
+  // Shift lower than Additive: 1 << (1 + 2) => 1 << 3 => 8
+  print "1 << 1 + 2 = ", 1 << 1 + 2, "\n";
+
+  // Bitwise OR lower than AND: (3 & 1) | 2 => 1 | 2 => 3
+  print "3 & 1 | 2 = ", 3 & 1 | 2, "\n";
+
+  // XOR vs AND: 3 ^ (1 & 1) => 3 ^ 1 => 2
+  print "3 ^ 1 & 1 = ", 3 ^ 1 & 1, "\n";
+}
+
+func test_pointers_vs_bitwise() {
+  print "\n--- Pointer Address-Of vs Bitwise AND ---\n";
+
+  mut val := 42; // 42 = 101010 in binary
+  mut mask := 15; // 15 = 001111 in binary
+
+  // Unary Address-Of (should be parsed by parse_unary)
+  mut p : ptr<mut i64> = &mut val;
+
+  print "Value from dereferenced pointer: ", *p, "\n"; // Expected: 42
+
+  // Binary Bitwise AND (should be parsed by parse_bitwise_and)
+  print "42 & 15 = ", val & mask, "\n"; // Expected: 10 (001010)
+}
+
+func main() returns (code: u8) {
+  test_old_ops();
+  test_bitwise_ops();
+  test_precedence();
+  test_pointers_vs_bitwise();
+  return 0;
+}

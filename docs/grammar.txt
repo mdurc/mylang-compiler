@@ -49,10 +49,15 @@
 
 <Expr>                  ::= <AssignmentExpr>
 <AssignmentExpr>        ::= <LogicalOrExpr> ( '=' <AssignmentExpr> )?
+
 <LogicalOrExpr>         ::= <LogicalAndExpr> ( 'or' <LogicalAndExpr> )*
-<LogicalAndExpr>        ::= <EqualityExpr> ( 'and' <EqualityExpr> )*
+<LogicalAndExpr>        ::= <BitwiseOrExpr> ( 'and' <BitwiseOrExpr> )*
+<BitwiseOrExpr>         ::= <BitwiseXorExpr> ( '|' <BitwiseXorExpr> )*
+<BitwiseXorExpr>        ::= <BitwiseAndExpr> ( '^' <BitwiseAndExpr> )*
+<BitwiseAndExpr>        ::= <EqualityExpr> ( '&' <EqualityExpr> )*
 <EqualityExpr>          ::= <RelationalExpr> ( ( '==' | '!=' ) <RelationalExpr> )*
-<RelationalExpr>        ::= <AdditiveExpr> ( ( '<' | '>' | '<=' | '>=' ) <AdditiveExpr> )*
+<RelationalExpr>        ::= <ShiftExpr> ( ( '<' | '>' | '<=' | '>=' ) <ShiftExpr> )*
+<ShiftExpr>             ::= <AdditiveExpr> ( ( '<<' | '>>' ) <AdditiveExpr> )*
 <AdditiveExpr>          ::= <MultiplicativeExpr> ( ( '+' | '-') <MultiplicativeExpr> )*
 <MultiplicativeExpr>    ::= <UnaryExpr> ( ( '*' | '/' | '%' ) <UnaryExpr> )*
 <UnaryExpr>             ::= ( '&' <TypePrefix>? | '*' | '!' | '-') <UnaryExpr> | <PostfixExpr>

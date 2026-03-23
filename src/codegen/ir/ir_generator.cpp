@@ -105,6 +105,26 @@ void IrGenerator::emit_log_or(IR_Register dst, IROperand s1, IROperand s2,
                               size);
 }
 
+void IrGenerator::emit_bit_and(IR_Register dst, IROperand s1, IROperand s2, std::uint64_t size) {
+  m_instructions.emplace_back(IROpCode::BIT_AND, dst, std::vector<IROperand>{s1, s2}, size);
+}
+
+void IrGenerator::emit_bit_or(IR_Register dst, IROperand s1, IROperand s2, std::uint64_t size) {
+  m_instructions.emplace_back(IROpCode::BIT_OR, dst, std::vector<IROperand>{s1, s2}, size);
+}
+
+void IrGenerator::emit_bit_xor(IR_Register dst, IROperand s1, IROperand s2, std::uint64_t size) {
+  m_instructions.emplace_back(IROpCode::BIT_XOR, dst, std::vector<IROperand>{s1, s2}, size);
+}
+
+void IrGenerator::emit_shl(IR_Register dst, IROperand s1, IROperand s2, std::uint64_t size) {
+  m_instructions.emplace_back(IROpCode::SHL, dst, std::vector<IROperand>{s1, s2}, size);
+}
+
+void IrGenerator::emit_shr(IR_Register dst, IROperand s1, IROperand s2, std::uint64_t size) {
+  m_instructions.emplace_back(IROpCode::SHR, dst, std::vector<IROperand>{s1, s2}, size);
+}
+
 void IrGenerator::emit_cmp_eq(IR_Register dst, IROperand s1, IROperand s2,
                               std::uint64_t size) {
   m_instructions.emplace_back(IROpCode::CMP_EQ, dst,

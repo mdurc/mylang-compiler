@@ -667,6 +667,18 @@ void TypeChecker::visit(BinaryOpExprNode& node) {
         result_type = bool_type;
       break;
 
+    case BinOperator::BitwiseAnd:
+    case BinOperator::BitwiseOr:
+    case BinOperator::BitwiseXor:
+    case BinOperator::ShiftLeft:
+    case BinOperator::ShiftRight:
+      if (is_integer_type(left_type) && is_integer_type(right_type)) {
+        result_type = numeric_resolved;
+      } else {
+        m_logger->report(Diag::Error(node.token->get_span(), "Bitwise operators require integer types."));
+      }
+      break;
+
     default:
       _assert(false, "Unsupported binary operator '" + std::string(node.token->get_lexeme()) + "'.");
       break;

@@ -114,6 +114,7 @@ private:
   void handle_logical_not(const IRInstruction& instr);
   void handle_logical_and_or(const IRInstruction& instr,
                              const std::string& op_mnemonic);
+  void handle_shift(const std::string& x86_instr, const IRInstruction& instr);
 
   void handle_cmp(const IRInstruction& instr); // For all CMP_XX
   void handle_cmp_str_eq(const IRInstruction& instr);

@@ -2,7 +2,6 @@
 
 #include <iomanip>
 #include <sstream>
-#include "../util.h"
 
 bool is_basic_type(TokenType type) {
   switch (type) {
@@ -142,6 +141,8 @@ std::string token_type_to_string(TokenType type) {
     case TokenType::STAR: return "STAR";
     case TokenType::EQUAL: return "EQUAL";
     case TokenType::AMPERSAND: return "AMPERSAND";
+    case TokenType::PIPE: return "PIPE";
+    case TokenType::CARET: return "CARET";
     case TokenType::MODULO: return "MODULO";
 
     // compound operators
@@ -150,6 +151,8 @@ std::string token_type_to_string(TokenType type) {
     case TokenType::BANG_EQUAL: return "BANG_EQUAL";
     case TokenType::LESS_EQUAL: return "LESS_EQUAL";
     case TokenType::GREATER_EQUAL: return "GREATER_EQUAL";
+    case TokenType::LESS_LESS: return "LESS_LESS";
+    case TokenType::GREATER_GREATER: return "GREATER_GREATER";
     case TokenType::ARROW: return "ARROW";
 
     case TokenType::UNKNOWN: return "UNKNOWN";

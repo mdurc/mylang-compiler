@@ -38,6 +38,13 @@ public:
   void emit_log_and(IR_Register dst, IROperand s1, IROperand s2, std::uint64_t size);
   void emit_log_or(IR_Register dst, IROperand s1, IROperand s2, std::uint64_t size);
 
+  /* bitwise operations */
+  void emit_bit_and(IR_Register dst, IROperand s1, IROperand s2, std::uint64_t size);
+  void emit_bit_or(IR_Register dst, IROperand s1, IROperand s2, std::uint64_t size);
+  void emit_bit_xor(IR_Register dst, IROperand s1, IROperand s2, std::uint64_t size);
+  void emit_shl(IR_Register dst, IROperand s1, IROperand s2, std::uint64_t size);
+  void emit_shr(IR_Register dst, IROperand s1, IROperand s2, std::uint64_t size);
+
   /* Comparison */
   void emit_cmp_eq(IR_Register dst, IROperand s1, IROperand s2, std::uint64_t size);
   void emit_cmp_ne(IR_Register dst, IROperand s1, IROperand s2, std::uint64_t size);

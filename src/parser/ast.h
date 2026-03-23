@@ -33,7 +33,9 @@ enum BinOperator {
   Modulo,   LessEqual,
   Multiply, LogicalAnd,
   Equal,    LogicalOr,
-  NotEqual,
+  NotEqual, BitwiseAnd,
+  BitwiseOr, BitwiseXor,
+  ShiftLeft, ShiftRight
 };
 
 enum UnaryOperator { Negate, LogicalNot, Dereference, AddressOf, AddressOfMut };

@@ -239,6 +239,21 @@ void IrVisitor::visit(BinaryOpExprNode& node) {
     case BinOperator::Modulo:
       m_ir_gen.emit_mod(dest_reg, left_op, right_op, op_size);
       break;
+    case BinOperator::BitwiseAnd:
+      m_ir_gen.emit_bit_and(dest_reg, left_op, right_op, op_size);
+      break;
+    case BinOperator::BitwiseOr:
+      m_ir_gen.emit_bit_or(dest_reg, left_op, right_op, op_size);
+      break;
+    case BinOperator::BitwiseXor:
+      m_ir_gen.emit_bit_xor(dest_reg, left_op, right_op, op_size);
+      break;
+    case BinOperator::ShiftLeft:
+      m_ir_gen.emit_shl(dest_reg, left_op, right_op, op_size);
+      break;
+    case BinOperator::ShiftRight:
+      m_ir_gen.emit_shr(dest_reg, left_op, right_op, op_size);
+      break;
     default:
       _assert(false, "Unhandled binary operator in IR generation");
       break;

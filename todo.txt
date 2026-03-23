@@ -1,0 +1,26 @@
+I want to keep the builtin-features of the language to a minimum. After adding the necessary builtins, we can use the language to build complex modules such as dynamic arrays, etc, much like in a C program.
+
+Core language builtins:
+- [x] Bitwise operators (&, |, ^, <<, >>)
+  - [x] shouldn't be too much extra implementation; will likely come in handy
+- [ ] Command line arguments for input and output file input.
+- [ ] Explicit Type Casting
+  - [ ] need to design the syntax for this as well
+  - [ ] should just be a modification of the implicit casting
+  - [ ] for primitive types and ptr/struct types
+- [ ] Raw memory (void*) and sizeof<T> operations
+  - [ ] this should allow for an arena allocated module to be implemented
+  - [ ] determine syntax for sizeof operation
+  - [ ] compiler should resolve struct sizes at compile-time;
+- [ ] Global/static variables?
+  - [ ] This may already work fine, as long as different modules/files can have their own static/global data, with some exposed API
+- [ ] Forward declarations (improve the extern keyword to work for user-defined functions, not just the implemented ASM procedures)
+  - [ ] Do we need a way to forward declare a struct/enum type? Or can we just put them in headers and require the user to track the order of declarations.
+- [ ] Proper header files with some sort of guard
+- [ ] Enums/Tagged Unions for AST and token stream
+
+Standard library to build (instead of adding them into the core-language, we can derive these):
+- [ ] String lib that tracks length/capacity, and performs common string operations
+- [ ] vector, map, arena, etc...
+- [ ] Subprocess / System Command Execution (fork()/system()/exec() to call nasm, ld, etc)
+  - [ ] File IO for reading and parsing, outputting files, etc.

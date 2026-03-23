@@ -447,6 +447,11 @@ void X86_64CodeGenerator::handle_instruction(const IRInstruction& instr) {
     case IROpCode::NOT: handle_logical_not(instr); break;
     case IROpCode::AND: handle_logical_and_or(instr, "and"); break;
     case IROpCode::OR: handle_logical_and_or(instr, "or"); break;
+    case IROpCode::BIT_AND: handle_prim_binop("and", instr); break;
+    case IROpCode::BIT_OR: handle_prim_binop("or", instr); break;
+    case IROpCode::BIT_XOR: handle_prim_binop("xor", instr); break;
+    case IROpCode::SHL: handle_shift("shl", instr); break;
+    case IROpCode::SHR: handle_shift("shr", instr); break;
     case IROpCode::LABEL: handle_label(instr); break;
     case IROpCode::GOTO: handle_goto(instr); break;
     case IROpCode::IF_Z: handle_if_z(instr); break;
@@ -628,7 +633,7 @@ void X86_64CodeGenerator::handle_assign(const IRInstruction& instr) {
   }
 }
 
-// handles: 'add', 'sub', 'imul'
+// handles: 'add', 'sub', 'imul', 'xor', (bitwise)'and'
 void X86_64CodeGenerator::handle_prim_binop(const std::string& x86_instr,
                                             const IRInstruction& instr) {
   _assert(std::holds_alternative<IR_Register>(instr.result.value()),
@@ -772,6 +777,34 @@ void X86_64CodeGenerator::handle_logical_and_or(
 
   emit(get_mov_instr(dst_reg, src1_str, is_imm(instr.operands[0]), instr.size));
   emit(op_mnemonic + " " + dst_str + ", " + src2_str);
+}
+
+void X86_64CodeGenerator::handle_shift(const std::string& x86_instr, const IRInstruction& instr) {
+  _assert(std::holds_alternative<IR_Register>(instr.result.value()),
+      x86_instr + " instructions must have a register as the destination");
+
+  IROperand dst_op = instr.result.value();
+  std::string dst_reg = get_x86_reg(std::get<IR_Register>(dst_op));
+  std::string dst_str = get_sized_register_name(dst_reg, instr.size);
+
+  std::string src1_str = get_sized_component(instr.operands[0], instr.size);
+  emit(get_mov_instr(dst_reg, src1_str, is_imm(instr.operands[0]), instr.size));
+  if (is_imm(instr.operands[1])) {
+    std::string shift_amt = std::to_string(std::get<IR_Immediate>(instr.operands[1]).val);
+    emit(x86_instr + " " + dst_str + ", " + shift_amt);
+  } else {
+    bool rcx_pushed = false; /* shift must be in CL register; push to avoid clobbering */
+    if (dst_reg != "rcx") { // Don't push if our destination IS rcx
+      emit("push rcx");
+      rcx_pushed = true;
+    }
+    std::string shift_amt_str = get_sized_component(instr.operands[1], instr.size);
+    emit(get_mov_instr("rcx", shift_amt_str, false, instr.size) + " ; load shift amount into rcx");
+    emit(x86_instr + " " + dst_str + ", cl");
+    if (rcx_pushed) {
+      emit("pop rcx");
+    }
+  }
 }
 
 void X86_64CodeGenerator::handle_cmp(const IRInstruction& instr) {

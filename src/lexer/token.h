@@ -89,15 +89,19 @@ enum class TokenType {
   STAR,      // *
   EQUAL,     // =
   AMPERSAND, // &
+  PIPE,      // |
+  CARET,     // ^
   MODULO,    // %
 
   // Compound operators:
-  WALRUS,        // :=
-  EQUAL_EQUAL,   // ==
-  BANG_EQUAL,    // !=
-  LESS_EQUAL,    // <=
-  GREATER_EQUAL, // >=
-  ARROW,         // ->
+  WALRUS,          // :=
+  EQUAL_EQUAL,     // ==
+  BANG_EQUAL,      // !=
+  LESS_EQUAL,      // <=
+  GREATER_EQUAL,   // >=
+  LESS_LESS,       // <<
+  GREATER_GREATER, // >>
+  ARROW,           // ->
 
   UNKNOWN,
   EOF_TOK,
