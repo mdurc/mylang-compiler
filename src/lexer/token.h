@@ -37,6 +37,7 @@ enum class TokenType {
   GIVE,     // give
   PTR,      // ptr
   NEW,      // new
+  CAST,     // cast
   FREE,     // free
   ASM,      // asm
   ERROR_KW, // error

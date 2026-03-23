@@ -6,9 +6,10 @@ argv[1] = hello
 argv[2] = world!
 */
 
-extern func print_string(fd: u64, s: ptr<imm u8>); /* from ASM runtime lib to print raw string */
+extern func print_string(fd: i64, s: ptr<imm u8>); /* from ASM runtime lib to print raw string */
 
-func main(argc: i64, argv: ptr<ptr<imm u8>>) returns (rc: u8) {
+func main(argc: i64, argv: ptr<string>) returns (rc: u8) {
+// func main(argc: i64, argv: ptr<ptr<imm u8> >) returns (rc: u8) {
   print "argc = ", argc, "\n";
   for (mut i := 0; i < argc; i = i + 1) {
     print "argv[", i, "] = ";

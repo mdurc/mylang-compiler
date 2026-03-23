@@ -69,11 +69,13 @@
                           | '(' <Expr> ')'
                           | <StructLiteral>
                           | <NewExpr>
+                          | <CastExpr>
 
 <PrimitiveLiteral>      ::= Integer | Float | String | Bool | 'null'
 
 <StructLiteral>         ::= Identifier '{' ( Identifier '=' <Expr> ( ',' Identifier '=' <Expr> )* )? '}'
 <NewExpr>               ::= 'new' '<' <TypePrefix>? <Type> '>' ( '[' <Expr> ']' | '(' (<StructLiteral> | <Expr>)? ')' )
+<CastExpr>              ::= 'cast' '<' <Type> '>' '(' <Expr> ')'
 
 <Args>                  ::= <Arg> ( ',' <Arg> )*
 <Arg>                   ::= 'give'? <Expr>

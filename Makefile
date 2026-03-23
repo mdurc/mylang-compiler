@@ -50,6 +50,9 @@ install: $(PROGRAM)
 	mkdir -p ~/.local/bin
 	cp $(PROGRAM) ~/.local/bin/$(BINARY)
 
+uninstall:
+	rm -f ~/.local/bin/$(BINARY)
+
 # test workflow
 TFILE = tfile.sn
 update_test: $(PROGRAM)
@@ -73,7 +76,7 @@ test: update_test compile_test_asm
 
 clean:
 	rm -rf $(MYLIB)
-	rm -f $(TFILE).* $(TFILE) a.out
+	rm -f $(TFILE).* a.out
 
-.PHONY: all clean update_test compile_test_asm test install
+.PHONY: all clean update_test compile_test_asm test install uninstall
 -include $(PROGRAM_OBJS:.o=.d)

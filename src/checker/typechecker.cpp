@@ -34,6 +34,12 @@ bool TypeChecker::is_primitive_type(Type* type) const {
          type->as<Type::Named>().identifier == "bool";
 }
 
+bool TypeChecker::is_pointer_like(Type* type) const {
+  if (!type) return false;
+  return type->is<Type::Pointer>() ||
+         (type->is<Type::Named>() && type->as<Type::Named>().identifier == "string");
+}
+
 TypeChecker::TypeChecker(Logger* logger, ArenaAllocator* arena)
     : m_logger(logger),
       m_arena(arena),
@@ -75,7 +81,7 @@ bool TypeChecker::check_type_assignable(Type* target_type, Type* value_type, con
   }
 
   // allow assigning 'null' to any pointer type
-  if (target_type->is<Type::Pointer>() && value_type->is<Type::Named>() &&
+  if (is_pointer_like(target_type) && value_type->is<Type::Named>() &&
       value_type->as<Type::Named>().identifier == "u0") {
     return true;
   }
@@ -92,6 +98,15 @@ bool TypeChecker::check_type_assignable(Type* target_type, Type* value_type, con
     if (target_ptr.pointee && value_ptr.pointee &&
         *(target_ptr.pointee) == *(value_ptr.pointee) &&
         mut_compatible) {
+      return true;
+    }
+  }
+  /* allow implicit assignment from 'string' to 'ptr<imm u8>' or 'ptr<mut u8>' */
+  else if (target_type->is<Type::Pointer>() && value_type->is<Type::Named>() &&
+           value_type->as<Type::Named>().identifier == "string") {
+    const Type::Pointer& target_ptr = target_type->as<Type::Pointer>();
+    if (target_ptr.pointee && target_ptr.pointee->is<Type::Named>() &&
+        target_ptr.pointee->as<Type::Named>().identifier == "u8") {
       return true;
     }
   }
@@ -316,6 +331,44 @@ void TypeChecker::try_apply_implicit_cast(ExprPtr& expr, Type* target_type) {
     if (src_type->get_byte_size() != target_type->get_byte_size()) {
       expr = m_arena->make<ImplicitCastNode>(expr->token, expr->scope_id, expr, target_type);
     }
+  }
+}
+
+void TypeChecker::visit(ExplicitCastNode& node) {
+  Type* src_type = get_expr_type(node.expression);
+  if (!src_type || src_type->is<Type::ErrorType>()) {
+    node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
+    return;
+  }
+
+  Type* dst_type = node.target_type;
+  bool valid = false;
+
+  // int <-> int or float <-> float
+  if ((is_integer_type(src_type) && is_integer_type(dst_type)) ||
+      (is_numeric_type(src_type) && is_numeric_type(dst_type))) {
+    valid = true;
+  }
+  // ptr/str <-> ptr/str (type punning)
+  else if (is_pointer_like(src_type) && is_pointer_like(dst_type)) {
+    valid = true;
+  }
+  // int -> ptr/str (raw memory addresses)
+  else if (is_integer_type(src_type) && is_pointer_like(dst_type)) {
+    valid = true;
+  }
+  // ptr/str -> int (pointer math/hashing)
+  else if (is_pointer_like(src_type) && is_integer_type(dst_type)) {
+    valid = true;
+  }
+
+  if (!valid) {
+    m_logger->report(Diag::Error(node.token->get_span(),
+          "Invalid explicit cast from '" + src_type->to_string() +
+          "' to '" + dst_type->to_string() + "'."));
+    node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
+  } else {
+    node.expr_type = dst_type;
   }
 }
 
@@ -642,9 +695,9 @@ void TypeChecker::visit(BinaryOpExprNode& node) {
       // General equality: types must be the same, or one is ptr and other is null
       if (*left_type == *right_type || numeric_resolved)
         result_type = bool_type;
-      else if (left_type->is<Type::Pointer>() && *right_type == *null_type)
+      else if (is_pointer_like(left_type) && *right_type == *null_type)
         result_type = bool_type;
-      else if (*left_type == *null_type && right_type->is<Type::Pointer>())
+      else if (*left_type == *null_type && is_pointer_like(right_type))
         result_type = bool_type;
       break;
 
@@ -655,7 +708,7 @@ void TypeChecker::visit(BinaryOpExprNode& node) {
       // Ordered comparison: types must be same numeric or pointer types
       //  (excluding null for direct < >)
       if (numeric_resolved ||
-          (left_type->is<Type::Pointer>() && right_type->is<Type::Pointer>() &&
+          (is_pointer_like(left_type) && is_pointer_like(right_type) &&
            *left_type == *right_type)) {
         result_type = bool_type;
       }
@@ -816,11 +869,11 @@ void TypeChecker::visit(FunctionCallNode& node) {
         node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
         return;
       }
-      // implicit cast is not allowed, they must be the same type
+      // implicit cast is not allowed for mutable references, they must be the same type
       if (!(*param_type == *arg_t)) {
-        m_logger->report(Diag::Error(span, "Type mismatch for 'mut' parameter: expected exactly '" +
-                                            param_type->to_string() + "', got '" + arg_t->to_string() +
-                                            "'. Implicit casting is not allowed for mutable references."));
+        m_logger->report(Diag::TypeMismatch(span,
+                                           "'mut' parameter: " + param_type->to_string(),
+                                           arg_t->to_string()));
         node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
         return;
       }
@@ -1149,17 +1202,13 @@ void TypeChecker::visit(FreeStmtNode& node) {
     }
   }
 
-  bool is_string = expr_type->is<Type::Named>() &&
-                   expr_type->as<Type::Named>().identifier == "string";
-  bool is_ptr = expr_type->is<Type::Pointer>();
-
   bool is_struct = false;
   if (expr_type->is<Type::Named>()) {
     StructDeclPtr struct_decl = m_symtab->lookup_struct(expr_type->as<Type::Named>().identifier, expr_type->get_scope_id());
     if (struct_decl != nullptr) is_struct = true;
   }
 
-  if (!is_ptr && !is_string && !is_struct) {
+  if (!is_pointer_like(expr_type) && !is_struct) {
     m_logger->report(Diag::TypeMismatch(
         node.expression->token->get_span(), "pointer, string, or struct type",
         expr_type->to_string() + ". 'free' statement operand"));

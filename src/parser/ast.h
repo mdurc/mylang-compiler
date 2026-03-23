@@ -132,6 +132,17 @@ public:
   void accept(Visitor& v) override;
 };
 
+class ExplicitCastNode : public ExpressionNode {
+public:
+  ExprPtr expression;
+  Type* target_type;
+  ExplicitCastNode(const Token* tok, size_t sc, ExprPtr expr, Type* target)
+      : ExpressionNode(tok, sc), expression(expr), target_type(target) {
+      this->expr_type = target;
+  }
+  void accept(Visitor& v) override;
+};
+
 class BinaryOpExprNode : public ExpressionNode {
 public:
   BinOperator op_type;

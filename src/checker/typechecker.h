@@ -28,6 +28,7 @@ public:
   void visit(IdentifierNode& node) override;
   void visit(AssignmentNode& node) override;
   void visit(ImplicitCastNode& node) override;
+  void visit(ExplicitCastNode& node) override;
   void visit(BinaryOpExprNode& node) override;
   void visit(UnaryExprNode& node) override;
   void visit(FunctionCallNode& node) override;
@@ -92,6 +93,7 @@ private:
   bool is_integer_type(Type* type) const;
   bool is_numeric_type(Type* type) const;
   bool is_primitive_type(Type* type) const;
+  bool is_pointer_like(Type* type) const;
 };
 
 #endif // CHECKER_TYPECHECKER_H

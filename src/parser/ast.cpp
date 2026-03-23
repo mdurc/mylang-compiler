@@ -15,6 +15,7 @@ void ContinueStmtNode::accept(Visitor& v) { v.visit(*this); }
 void IdentifierNode::accept(Visitor& v) { v.visit(*this); }
 void AssignmentNode::accept(Visitor& v) { v.visit(*this); }
 void ImplicitCastNode::accept(Visitor& v) { v.visit(*this); }
+void ExplicitCastNode::accept(Visitor& v) { v.visit(*this); }
 void BinaryOpExprNode::accept(Visitor& v) { v.visit(*this); }
 void UnaryExprNode::accept(Visitor& v) { v.visit(*this); }
 void ArgumentNode::accept(Visitor& v) { v.visit(*this); }

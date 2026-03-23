@@ -92,6 +92,7 @@ private:
   ExprPtr parse_primitive_literal();
   ExprPtr parse_struct_literal(StructDeclPtr struct_decl);
   ExprPtr parse_new_expr();
+  ExprPtr parse_explicit_cast();
 };
 
 #endif // PARSER_PARSER_H

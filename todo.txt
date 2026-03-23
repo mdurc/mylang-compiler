@@ -5,10 +5,10 @@ Core language builtins:
   - [x] shouldn't be too much extra implementation; will likely come in handy
 - [x] Command line arguments for input and output file input.
   - a lot simpler than I thought! they are added from _start, and we can use the extern print_string to print each char*
-- [ ] Explicit Type Casting
-  - [ ] need to design the syntax for this as well
-  - [ ] should just be a modification of the implicit casting
-  - [ ] for primitive types and ptr/struct types
+- [x] Explicit Type Casting
+  - [x] need to design the syntax for this as well
+  - [x] should just be a modification of the implicit casting
+  - [x] for primitive types and ptr/struct types
 - [ ] Raw memory (void*) and sizeof<T> operations
   - [ ] this should allow for an arena allocated module to be implemented
   - [ ] determine syntax for sizeof operation

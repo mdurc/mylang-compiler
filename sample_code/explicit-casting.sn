@@ -1,0 +1,27 @@
+extern func print_string(fd: i64, s: ptr<imm u8>);
+
+func main() returns (code: u8) {
+  print "--- Integer Truncation ---\n";
+  mut large_val : i64 = 300; // 300 exceeds i8 (max 255)
+  mut small_val : i8 = cast<i8>(large_val);
+  // 300 in binary is 100101100. Lower 8 bits is 00101100 -> 44
+  print "300 as i8 = ", small_val, "\n"; // expected: 44
+
+  print "\n--- Raw Pointer Manipulation ---\n";
+  mut text := "Hello";
+
+  // cast string to raw integer address, add 1, cast back to string
+  mut raw_addr : i64 = cast<i64>(text);
+  raw_addr = raw_addr + 1;
+  mut offset_text : string = cast<string>(raw_addr);
+
+  print "Original string: ";
+  print_string(1, text);
+  print "\n";
+
+  print "Offset string (+1): ";
+  print_string(1, offset_text); // expected: "ello"
+  print "\n";
+
+  return 0;
+}

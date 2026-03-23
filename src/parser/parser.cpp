@@ -1152,6 +1152,8 @@ ExprPtr Parser::parse_primary() {
     return _alloc(GroupedExprNode, tok, m_symtab->current_scope(), grouped_expr);
   } else if (match(TokenType::NEW)) {
     return parse_new_expr();
+  } else if (match(TokenType::CAST)) {
+    return parse_explicit_cast();
   }
 
   // Otherwise it is invalid
@@ -1274,4 +1276,19 @@ ExprPtr Parser::parse_new_expr() {
   }
   return _alloc(NewExprNode, new_tok, m_symtab->current_scope(),
               is_memory_mutable, is_array, allocated_type, specifier);
+}
+
+// <CastExpr> ::= 'cast' '<' <Type> '>' '(' <Expr> ')'
+ExprPtr Parser::parse_explicit_cast() {
+  const Token* cast_tok = current();
+  _consume(TokenType::CAST);
+
+  _consume(TokenType::LANGLE);
+  Type* target_type = parse_type();
+  _consume(TokenType::RANGLE);
+
+  _consume(TokenType::LPAREN);
+  ExprPtr expr = parse_expression();
+  _consume(TokenType::RPAREN);
+  return _alloc(ExplicitCastNode, cast_tok, m_symtab->current_scope(), expr, target_type);
 }

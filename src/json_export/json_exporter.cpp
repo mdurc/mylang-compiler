@@ -78,8 +78,10 @@ static void collect_hover(const AstPtr& node, json& hover, const SymTab* symtab)
   if (auto assign = dynamic_cast<const AssignmentNode*>(node)) {
     collect_hover(assign->lvalue, hover, symtab);
     collect_hover(assign->rvalue, hover, symtab);
-  } else if (auto cast = dynamic_cast<const ImplicitCastNode*>(node)) {
-    collect_hover(cast->expression, hover, symtab);
+  } else if (auto imp_cast = dynamic_cast<const ImplicitCastNode*>(node)) {
+    collect_hover(imp_cast->expression, hover, symtab);
+  } else if (auto exp_cast = dynamic_cast<const ExplicitCastNode*>(node)) {
+    collect_hover(exp_cast->expression, hover, symtab);
   } else if (auto bin = dynamic_cast<const BinaryOpExprNode*>(node)) {
     collect_hover(bin->left, hover, symtab);
     collect_hover(bin->right, hover, symtab);
