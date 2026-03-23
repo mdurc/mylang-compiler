@@ -449,7 +449,6 @@ void X86_64CodeGenerator::handle_instruction(const IRInstruction& instr) {
     case IROpCode::CMP_LE:
     case IROpCode::CMP_GT:
     case IROpCode::CMP_GE: handle_cmp(instr); break;
-    case IROpCode::CMP_STR_EQ: handle_cmp_str_eq(instr); break;
     case IROpCode::NOT: handle_logical_not(instr); break;
     case IROpCode::AND: handle_logical_and_or(instr, "and"); break;
     case IROpCode::OR: handle_logical_and_or(instr, "or"); break;
@@ -847,41 +846,6 @@ void X86_64CodeGenerator::handle_cmp(const IRInstruction& instr) {
   emit(set_instr + " " + byte_reg);
   emit("movzx " + dst_str + ", " + byte_reg); // zero-extend al to dest_reg
   if (rax_pushed) emit("pop rax");
-}
-
-void X86_64CodeGenerator::handle_cmp_str_eq(const IRInstruction& instr) {
-  IROperand dst = instr.result.value();
-  _assert(std::holds_alternative<IR_Register>(dst),
-          "CMP_STR_EQ instruction must have a register as the destination");
-  _assert(instr.operands.size() == 2, "str_eq should have two operands");
-  _assert(instr.size == Type::PTR_SIZE, "str_eq should have 8 byte instr size");
-
-  std::string s1_str = get_sized_component(instr.operands[0], instr.size);
-  std::string s2_str = get_sized_component(instr.operands[1], instr.size);
-
-  m_call_stack.push(CallContext{});
-  save_caller_saved_regs();
-
-  CallContext ctx = m_call_stack.top();
-  m_call_stack.pop();
-
-  for (const std::string& arg_instr : ctx.arg_instrs) {
-    emit(arg_instr);
-  }
-
-  std::string t1 = get_temp_x86_reg(Type::PTR_SIZE);
-  std::string t2 = get_temp_x86_reg(Type::PTR_SIZE);
-  emit(get_mov_instr(t1, s1_str, is_imm(instr.operands[0]), instr.size));
-  emit(get_mov_instr(t2, s2_str, is_imm(instr.operands[1]), instr.size));
-
-  emit("mov rdi, " + t1 + " ; arg1 for string_equals");
-  emit("mov rsi, " + t2 + " ; arg2 for string_equals");
-
-  emit("call string_equals");
-  restore_caller_saved_regs(ctx.used_caller_saved);
-
-  std::string dst_str = get_sized_component(dst, Type::PTR_SIZE);
-  emit("movzx " + dst_str + ", al"); // zero-extend al to dest_reg
 }
 
 void X86_64CodeGenerator::handle_label(const IRInstruction& instr) {

@@ -26,6 +26,7 @@ public:
   virtual void visit(AssignmentNode& node) = 0;
   virtual void visit(ImplicitCastNode& node) = 0;
   virtual void visit(ExplicitCastNode& node) = 0;
+  virtual void visit(SizeOfNode& node) = 0;
   virtual void visit(BinaryOpExprNode& node) = 0;
   virtual void visit(UnaryExprNode& node) = 0;
   virtual void visit(FunctionCallNode& node) = 0;
@@ -370,6 +371,10 @@ public:
     print_indent();
     node.expression->accept(*this);
     indent--;
+  }
+
+  void visit(SizeOfNode& node) override {
+    out << "SizeOfNode(" << node.target_type->to_string() << ")";
   }
 
   void visit(BlockNode& node) override {

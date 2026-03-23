@@ -29,6 +29,7 @@ public:
   void visit(AssignmentNode& node) override;
   void visit(ImplicitCastNode& node) override;
   void visit(ExplicitCastNode& node) override;
+  void visit(SizeOfNode& node) override;
   void visit(BinaryOpExprNode& node) override;
   void visit(UnaryExprNode& node) override;
   void visit(FunctionCallNode& node) override;

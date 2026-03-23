@@ -38,6 +38,7 @@ enum class TokenType {
   PTR,      // ptr
   NEW,      // new
   CAST,     // cast
+  SIZEOF,   // sizeof
   FREE,     // free
   ASM,      // asm
   ERROR_KW, // error

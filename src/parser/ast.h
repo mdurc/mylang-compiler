@@ -143,6 +143,14 @@ public:
   void accept(Visitor& v) override;
 };
 
+class SizeOfNode : public ExpressionNode {
+public:
+  Type* target_type;
+  SizeOfNode(const Token* tok, size_t sc, Type* target)
+      : ExpressionNode(tok, sc), target_type(target) {}
+  void accept(Visitor& v) override;
+};
+
 class BinaryOpExprNode : public ExpressionNode {
 public:
   BinOperator op_type;

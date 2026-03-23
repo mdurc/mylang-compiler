@@ -63,6 +63,7 @@ std::string token_type_to_string(TokenType type) {
   switch (type) {
     // keywords
     case TokenType::FUNC: return "FUNC";
+    case TokenType::EXTERN: return "EXTERN";
     case TokenType::IF: return "IF";
     case TokenType::ELSE: return "ELSE";
     case TokenType::FOR: return "FOR";
@@ -94,6 +95,8 @@ std::string token_type_to_string(TokenType type) {
 
     case TokenType::PTR: return "PTR";
     case TokenType::NEW: return "NEW";
+    case TokenType::CAST: return "CAST";
+    case TokenType::SIZEOF: return "SIZEOF";
     case TokenType::FREE: return "FREE";
 
     case TokenType::IDENTIFIER: return "IDENTIFIER";

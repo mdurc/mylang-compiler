@@ -41,6 +41,7 @@ public:
   void visit(AssignmentNode& node) override;
   void visit(ImplicitCastNode& node) override;
   void visit(ExplicitCastNode& node) override;
+  void visit(SizeOfNode& node) override;
   void visit(BinaryOpExprNode& node) override;
 
   void visit_addrof(const ExprPtr& op, const IR_Register& dst);
@@ -96,12 +97,6 @@ private:
   IR_Register compute_struct_field_addr(const ExprPtr& object, std::string_view field_name);
 
   void unimpl(const std::string& nodeName);
-
-  IROperand get_copy_of_operand(const IROperand& src, ExprPtr rhs_expr,
-                                bool is_str_lhs_mut = true); // default copy str
-  bool is_string_mutable(Type* type, const std::string& name,
-                         size_t scope_id);
-  bool is_string_mutable(Type* type, BorrowState modifier);
   bool is_string_literal_expr(const ExprPtr& expr);
 };
 

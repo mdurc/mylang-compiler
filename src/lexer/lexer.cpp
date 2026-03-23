@@ -8,7 +8,7 @@
 const std::unordered_map<std::string_view, TokenType> Lexer::s_keyword_map = {
     {"func", TokenType::FUNC},     {"extern", TokenType::EXTERN}, {"if", TokenType::IF},
     {"else", TokenType::ELSE},     {"for", TokenType::FOR}, {"cast", TokenType::CAST},
-    {"while", TokenType::WHILE},   {"read", TokenType::READ},
+    {"while", TokenType::WHILE},   {"read", TokenType::READ}, {"sizeof", TokenType::SIZEOF},
     {"return", TokenType::RETURN}, {"print", TokenType::PRINT},
     {"struct", TokenType::STRUCT}, {"returns", TokenType::RETURNS},
     {"case", TokenType::CASE},     {"switch", TokenType::SWITCH},

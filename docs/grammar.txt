@@ -34,18 +34,22 @@
 <VarDecl>               ::= <TypePrefix>? Identifier ( ( ':' <Type> ( '=' <Expr> )? ) | ( ':=' <Expr> ) )
 
 <IfStmt>                ::= 'if' '(' <Expr> ')' <Block> ( 'else' ( <Block> | <IfStmt> ) )?
+
 <ForStmt>               ::= 'for' '(' (<VarDecl> | <Expr>)? ';' <Expr>? ';' <Expr>? ')' <Block>
 <WhileStmt>             ::= 'while' '(' <Expr> ')' <Block>
+<BreakStmt>             ::= 'break'
+<ContinueStmt>          ::= 'continue'
+
 <SwitchStmt>            ::= 'switch' '(' <Expr> ')' '{' <Case>* '}'
 <Case>                  ::= 'case' <Expr> ':' <Block> | 'default' ':' <Block>
 
 <PrintStmt>             ::= 'print'  <Expr> ( ',' <Expr> )*
-<ReturnStmt>            ::= 'return' <Expr>?
-<BreakStmt>             ::= 'break'
-<ContinueStmt>          ::= 'continue'
-<FreeStmt>              ::= 'free' '[]'? <Expr>
 <ErrorStmt>             ::= 'error' <Expr> ( ',' <Expr> )*
+
+<ReturnStmt>            ::= 'return' <Expr>?
 <ExitStmt>              ::= 'exit' <Expr>?
+
+<FreeStmt>              ::= 'free' '[]'? <Expr>
 
 <Expr>                  ::= <AssignmentExpr>
 <AssignmentExpr>        ::= <LogicalOrExpr> ( '=' <AssignmentExpr> )?
@@ -70,18 +74,20 @@
                           | <StructLiteral>
                           | <NewExpr>
                           | <CastExpr>
+                          | <SizeOfExpr>
 
 <PrimitiveLiteral>      ::= Integer | Float | String | Bool | 'null'
 
 <StructLiteral>         ::= Identifier '{' ( Identifier '=' <Expr> ( ',' Identifier '=' <Expr> )* )? '}'
 <NewExpr>               ::= 'new' '<' <TypePrefix>? <Type> '>' ( '[' <Expr> ']' | '(' (<StructLiteral> | <Expr>)? ')' )
 <CastExpr>              ::= 'cast' '<' <Type> '>' '(' <Expr> ')'
+<SizeOfExpr>            ::= 'sizeof' '<' <Type> '>'
 
 <Args>                  ::= <Arg> ( ',' <Arg> )*
 <Arg>                   ::= 'give'? <Expr>
 
 <Type>                  ::= <BasicType> | <StructType> | <PointerType> | <FunctionType>
-<BasicType>             ::= 'i32' | 'u8' | 'string' | 'bool' | 'u0' | 'u16' | 'u32' | 'u64' | 'i8' | 'i16' | 'i64' | 'f64'
+<BasicType>             ::= 'i32' | 'u8' | 'bool' | 'u0' | 'u16' | 'u32' | 'u64' | 'i8' | 'i16' | 'i64' | 'f64'
 <StructType>            ::= Identifier
 <PointerType>           ::= 'ptr' '<' <TypePrefix>? <Type> '>'
 

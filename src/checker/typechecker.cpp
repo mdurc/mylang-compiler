@@ -29,15 +29,12 @@ bool TypeChecker::is_numeric_type(Type* type) const {
 
 bool TypeChecker::is_primitive_type(Type* type) const {
   if (!type || !type->is<Type::Named>()) return false;
-  return is_numeric_type(type) ||
-         type->as<Type::Named>().identifier == "string" ||
-         type->as<Type::Named>().identifier == "bool";
+  return is_numeric_type(type) || type->as<Type::Named>().identifier == "bool";
 }
 
 bool TypeChecker::is_pointer_like(Type* type) const {
   if (!type) return false;
-  return type->is<Type::Pointer>() ||
-         (type->is<Type::Named>() && type->as<Type::Named>().identifier == "string");
+  return type->is<Type::Pointer>();
 }
 
 TypeChecker::TypeChecker(Logger* logger, ArenaAllocator* arena)
@@ -101,15 +98,6 @@ bool TypeChecker::check_type_assignable(Type* target_type, Type* value_type, con
       return true;
     }
   }
-  /* allow implicit assignment from 'string' to 'ptr<imm u8>' or 'ptr<mut u8>' */
-  else if (target_type->is<Type::Pointer>() && value_type->is<Type::Named>() &&
-           value_type->as<Type::Named>().identifier == "string") {
-    const Type::Pointer& target_ptr = target_type->as<Type::Pointer>();
-    if (target_ptr.pointee && target_ptr.pointee->is<Type::Named>() &&
-        target_ptr.pointee->as<Type::Named>().identifier == "u8") {
-      return true;
-    }
-  }
 
   // otherwise we have found a type error on assignemnet
   m_logger->report(Diag::TypeMismatch(span, target_type->to_string(), value_type->to_string()));
@@ -155,8 +143,13 @@ void TypeChecker::visit(FloatLiteralNode& node) {
 }
 
 void TypeChecker::visit(StringLiteralNode& node) {
-  node.expr_type = m_symtab->lookup<Type>("string", 0);
-  _assert(node.expr_type != nullptr, "string type not found for StringLit");
+  /* string literal will be allocated in a ptr<imm u8>; define in global scope */
+  Type* u8_type = m_symtab->lookup<Type>("u8", 0);
+  Type ptr_t(Type::Pointer(false, u8_type), 0);
+  std::string_view name = m_arena->make_string(ptr_t.to_string());
+  Type* ptr_type = m_symtab->lookup<Type>(name, 0);
+  if (!ptr_type) ptr_type = m_symtab->declare_type(name, m_arena->make<Type>(ptr_t), 0);
+  node.expr_type = ptr_type;
 }
 
 void TypeChecker::visit(BoolLiteralNode& node) {
@@ -271,21 +264,8 @@ Type* TypeChecker::get_lvalue_type_if_mutable(const ExprPtr& expr) {
         object_type->as<Type::Pointer>().is_pointee_mutable) {
       return get_expr_type(expr);
     }
-
-    // Strings: s[i] = ..., s must be mutable
-    if (object_type && object_type->is<Type::Named>() &&
-        object_type->as<Type::Named>().identifier == "string") {
-      if (auto ident_node = dynamic_cast<IdentifierNode*>(array_index_node->object)) {
-        Variable* var_sym = m_symtab->lookup<Variable>(ident_node->name_str, ident_node->scope_id);
-        if (var_sym && (var_sym->modifier == BorrowState::MutablyOwned ||
-                        var_sym->modifier == BorrowState::MutablyBorrowed)) {
-          return get_expr_type(expr);
-        }
-      }
-    }
     return nullptr;
   }
-
   return nullptr;
 }
 
@@ -372,6 +352,17 @@ void TypeChecker::visit(ExplicitCastNode& node) {
   }
 }
 
+void TypeChecker::visit(SizeOfNode& node) {
+  if (!node.target_type || node.target_type->is<Type::ErrorType>()) {
+    m_logger->report(Diag::Error(node.token->get_span(), "Cannot get sizeof an invalid or unresolved type."));
+    node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
+    return;
+  }
+  // the result of sizeof is always a 64-bit integer
+  node.expr_type = m_symtab->lookup<Type>("i64", 0);
+  _assert(node.expr_type != nullptr, "i64 type must exist in symbol table");
+}
+
 // == Variable Declaration ==
 void TypeChecker::visit(VariableDeclNode& node) {
   Type* var_declared_type = node.type;
@@ -442,9 +433,7 @@ void TypeChecker::visit(ReadStmtNode& node) {
     return;
   }
 
-  bool is_allowed_type = is_integer_type(expr_type) ||
-                         (expr_type->is<Type::Named>() &&
-                          expr_type->as<Type::Named>().identifier == "string");
+  bool is_allowed_type = is_integer_type(expr_type);
 
   if (!is_allowed_type) {
     m_logger->report(Diag::Error(
@@ -956,13 +945,6 @@ void TypeChecker::visit(ArrayIndexNode& node) {
   if (!object_type || !index_type || object_type->is<Type::ErrorType>() || index_type->is<Type::ErrorType>()) {
       node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
       return;
-  }
-
-  // if the object is a string, subscripting returns the char value: u8
-  if (object_type->is<Type::Named>() &&
-      object_type->as<Type::Named>().identifier == "string") {
-    node.expr_type = m_symtab->lookup<Type>("u8", 0);
-    return;
   }
 
   // Pointers are used as arrays right now, we do not have Array types.

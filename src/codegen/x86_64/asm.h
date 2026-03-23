@@ -117,7 +117,6 @@ private:
   void handle_shift(const std::string& x86_instr, const IRInstruction& instr);
 
   void handle_cmp(const IRInstruction& instr); // For all CMP_XX
-  void handle_cmp_str_eq(const IRInstruction& instr);
 
   void handle_label(const IRInstruction& instr);
   void handle_goto(const IRInstruction& instr);

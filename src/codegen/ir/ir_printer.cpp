@@ -105,7 +105,6 @@ void print_ir_instruction(const IRInstruction& instr, std::ostream& out) {
     case IROpCode::CMP_LE:
     case IROpCode::CMP_GT:
     case IROpCode::CMP_GE:
-    case IROpCode::CMP_STR_EQ:
       _assert_nolog(instr.result.has_value() && instr.operands.size() == 2,
               "cmp operation must have a value and 2 operands");
       print_ir_operand(instr.result.value(), out);
@@ -125,7 +124,6 @@ void print_ir_instruction(const IRInstruction& instr, std::ostream& out) {
         case IROpCode::CMP_LE: out << " <= "; break;
         case IROpCode::CMP_GT: out << " > "; break;
         case IROpCode::CMP_GE: out << " >= "; break;
-        case IROpCode::CMP_STR_EQ: out << " ==[str] "; break;
         default: out << " ?? "; break;
       }
       print_ir_operand(instr.operands[1], out);

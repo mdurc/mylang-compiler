@@ -93,6 +93,7 @@ private:
   ExprPtr parse_struct_literal(StructDeclPtr struct_decl);
   ExprPtr parse_new_expr();
   ExprPtr parse_explicit_cast();
+  ExprPtr parse_sizeof();
 };
 
 #endif // PARSER_PARSER_H

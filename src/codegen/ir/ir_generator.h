@@ -52,8 +52,6 @@ public:
   void emit_cmp_le(IR_Register dst, IROperand s1, IROperand s2, std::uint64_t size);
   void emit_cmp_gt(IR_Register dst, IROperand s1, IROperand s2, std::uint64_t size);
   void emit_cmp_ge(IR_Register dst, IROperand s1, IROperand s2, std::uint64_t size);
-  void emit_cmp_str_eq(IR_Register dst, IROperand s1, IROperand s2,
-                       std::uint64_t size);
 
   /* Control Flow */
   void emit_label(IR_Label label);

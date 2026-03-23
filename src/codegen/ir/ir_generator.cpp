@@ -161,12 +161,6 @@ void IrGenerator::emit_cmp_ge(IR_Register dst, IROperand s1, IROperand s2,
                               std::vector<IROperand>{s1, s2}, size);
 }
 
-void IrGenerator::emit_cmp_str_eq(IR_Register dst, IROperand s1, IROperand s2,
-                                  std::uint64_t size) {
-  m_instructions.emplace_back(IROpCode::CMP_STR_EQ, dst,
-                              std::vector<IROperand>{s1, s2}, size);
-}
-
 void IrGenerator::emit_label(IR_Label label) {
   m_instructions.emplace_back(IROpCode::LABEL, label, std::vector<IROperand>{});
 }

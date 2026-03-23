@@ -5,11 +5,6 @@
 #include "../../parser/visitor.h"
 #include "../../util.h"
 
-static bool is_str_cmp(Type* a, Type* b) {
-  return a->is<Type::Named>() && a->as<Type::Named>().identifier == "string" &&
-         b->is<Type::Named>() && b->as<Type::Named>().identifier == "string";
-}
-
 static std::string make_ir_var_name(Variable* var) {
   return std::string(var->name) + "_" + std::to_string(var->scope_id);
 }
@@ -45,15 +40,14 @@ void IrVisitor::visit_all(const std::vector<AstPtr>& ast) {
 
 IR_Label IrVisitor::get_runtime_print_call(Type* type) {
   _assert(type, "Type must be known for print function selection");
-  if (type->is<Type::Named>()) {
-    std::string_view name = type->as<Type::Named>().identifier;
-    if (name == "string") return IR_Label("print_string");
-    if (name == "bool") return IR_Label("print_int");
-    if (name == "i64" || name == "u64" || name == "i32" || name == "u32" ||
-        name == "i16" || name == "u16" || name == "i8" || name == "u8") {
-      return IR_Label("print_int");
+  /* still print "strings" (ptr<imm u8>) as expected */
+  if (type->is<Type::Pointer>()) {
+    Type* pointee = type->as<Type::Pointer>().pointee;
+    if (pointee && pointee->is<Type::Named>() && pointee->as<Type::Named>().identifier == "u8") {
+      return IR_Label("print_string");
     }
   }
+  /* otherwise it should be an int */
   return IR_Label("print_int");
 }
 
@@ -191,14 +185,7 @@ void IrVisitor::visit(BinaryOpExprNode& node) {
 
   switch (node.op_type) {
     case BinOperator::Plus:
-      if (is_str_cmp(node.left->expr_type, node.right->expr_type)) {
-        m_ir_gen.emit_begin_lcall_prep();
-        m_ir_gen.emit_push_arg(left_op, Type::PTR_SIZE);
-        m_ir_gen.emit_push_arg(right_op, Type::PTR_SIZE);
-        m_ir_gen.emit_lcall(dest_reg, IR_Label("string_concat"), Type::PTR_SIZE);
-      } else {
-        m_ir_gen.emit_add(dest_reg, left_op, right_op, op_size);
-      }
+      m_ir_gen.emit_add(dest_reg, left_op, right_op, op_size);
       break;
     case BinOperator::Minus:
       m_ir_gen.emit_sub(dest_reg, left_op, right_op, op_size);
@@ -210,19 +197,10 @@ void IrVisitor::visit(BinaryOpExprNode& node) {
       m_ir_gen.emit_div(dest_reg, left_op, right_op, op_size);
       break;
     case BinOperator::Equal:
-      if (is_str_cmp(node.left->expr_type, node.right->expr_type)) {
-        m_ir_gen.emit_cmp_str_eq(dest_reg, left_op, right_op, Type::PTR_SIZE);
-      } else {
-        m_ir_gen.emit_cmp_eq(dest_reg, left_op, right_op, op_size);
-      }
+      m_ir_gen.emit_cmp_eq(dest_reg, left_op, right_op, op_size);
       break;
     case BinOperator::NotEqual:
-      if (is_str_cmp(node.left->expr_type, node.right->expr_type)) {
-        m_ir_gen.emit_cmp_str_eq(dest_reg, left_op, right_op, Type::PTR_SIZE);
-        m_ir_gen.emit_log_not(dest_reg, dest_reg, 1); // one bit for str_eqs
-      } else {
-        m_ir_gen.emit_cmp_ne(dest_reg, left_op, right_op, op_size);
-      }
+      m_ir_gen.emit_cmp_ne(dest_reg, left_op, right_op, op_size);
       break;
     case BinOperator::LessThan:
       m_ir_gen.emit_cmp_lt(dest_reg, left_op, right_op, op_size);
@@ -390,9 +368,8 @@ void IrVisitor::visit(AssignmentNode& node) {
   node.rvalue->accept(*this);
   Type* lval_type = node.lvalue->expr_type;
 
-  // Assignment is defaultly a copy; handle string/struct copying semantics
-  ExprPtr rval = node.rvalue;
-  IROperand rval_op = get_copy_of_operand(m_last_expr_operand, rval);
+  // no more hidden heap allocation copies (with the change from strings to ptr<imm u8>)
+  IROperand rval_op = m_last_expr_operand;
 
   _assert(lval_type, "Types should be resolved by Typechecker");
   std::uint64_t size = lval_type->get_byte_size();
@@ -453,6 +430,11 @@ void IrVisitor::visit(ExplicitCastNode& node) {
   m_last_expr_operand = dest_reg;
 }
 
+void IrVisitor::visit(SizeOfNode& node) {
+  std::uint64_t type_size = node.target_type->get_byte_size();
+  m_last_expr_operand = IR_Immediate(type_size, 8); // 8 bytes for an i64
+}
+
 void IrVisitor::visit(GroupedExprNode& node) { node.expression->accept(*this); }
 
 void IrVisitor::visit(ExpressionStatementNode& node) {
@@ -475,9 +457,7 @@ void IrVisitor::visit(VariableDeclNode& node) {
 
   if (node.initializer) {
     node.initializer->accept(*this);
-    bool str_lhs_mut = is_string_mutable(node.type, std::string(var_name), var_scope);
-    IROperand res = get_copy_of_operand(m_last_expr_operand, node.initializer, str_lhs_mut);
-    m_ir_gen.emit_assign(*var_operand, res, size);
+    m_ir_gen.emit_assign(*var_operand, m_last_expr_operand, size);
   } else {
     // default values, right now just assign 0
     m_ir_gen.emit_assign(*var_operand, IR_Immediate(0, size), size);
@@ -639,18 +619,15 @@ void IrVisitor::visit(FunctionCallNode& node) {
     _assert(arg_expr->expr_type, "Types should be resolved by Typechecker");
 
     const Type::ParamInfo& param_info = func_type.params[i];
-    IROperand final_arg_op = arg_op;
-
     if (param_info.modifier == BorrowState::ImmutablyOwned ||
         param_info.modifier == BorrowState::MutablyOwned) { // take
       if (arg_node->is_give) {
-        bool str_mut = is_string_mutable(param_info.type, param_info.modifier);
-        final_arg_op = get_copy_of_operand(arg_op, arg_expr, str_mut);
+        /* todo: somehow transfer ownership */
       }
     }
 
     Type* arg_type = arg_expr->expr_type;
-    m_ir_gen.emit_push_arg(final_arg_op, arg_type->get_byte_size());
+    m_ir_gen.emit_push_arg(arg_op, arg_type->get_byte_size());
   }
 
   std::optional<IR_Register> result_reg_opt = std::nullopt;
@@ -997,63 +974,6 @@ void IrVisitor::visit(StructLiteralNode& node) {
   }
   // the result of the struct literal is the address
   m_last_expr_operand = struct_addr;
-}
-
-IROperand IrVisitor::get_copy_of_operand(const IROperand& src, ExprPtr rhs_expr, bool is_str_lhs_mut) {
-  Type* rhs_type = rhs_expr->expr_type;
-  if (rhs_type->is<Type::Named>()) {
-    // check if it is a struct
-    if (dynamic_cast<StructLiteralNode*>(rhs_expr)) {
-      return src; // we won't be copying a struct literal, it is redundant
-    }
-
-    std::string_view name = rhs_type->as<Type::Named>().identifier;
-    size_t scope = rhs_type->get_scope_id();
-    StructDeclPtr struct_decl = m_symtab->lookup_struct(name, scope);
-
-    if (struct_decl != nullptr) {
-      // it must be a struct
-      std::uint64_t struct_size = struct_decl->struct_size;
-      IR_Register new_addr_reg = m_ir_gen.new_temp_reg();
-      m_ir_gen.emit_alloc(new_addr_reg, struct_size, std::nullopt, 0);
-      m_ir_gen.emit_mem_copy(new_addr_reg, src, struct_size);
-      return new_addr_reg;
-    }
-
-    // check if it is a string
-    if (name == "string") {
-      if (is_str_lhs_mut || !is_string_literal_expr(rhs_expr)) {
-        // heap-allocate if the l-value is mutable, or it is not a str literal
-        IR_Register result_reg = m_ir_gen.new_temp_reg();
-        m_ir_gen.emit_begin_lcall_prep();
-        m_ir_gen.emit_push_arg(src, Type::PTR_SIZE);
-        m_ir_gen.emit_lcall(result_reg, IR_Label("string_copy"), Type::PTR_SIZE);
-        return result_reg;
-      } else {
-        return src; // return reference
-      }
-    }
-  }
-  // default: primitive types, pointers (shallow copy), return src itself
-  return src;
-}
-
-bool IrVisitor::is_string_mutable(Type* type, const std::string& name, size_t scope_id) {
-  bool is_string_mut = type->is<Type::Named>() && type->as<Type::Named>().identifier == "string";
-  if (is_string_mut) {
-    Variable* var_sym = m_symtab->lookup<Variable>(name, scope_id);
-    is_string_mut =
-        var_sym && (var_sym->modifier == BorrowState::MutablyOwned ||
-                    var_sym->modifier == BorrowState::MutablyBorrowed);
-  }
-  return is_string_mut;
-}
-
-bool IrVisitor::is_string_mutable(Type* type, BorrowState modifier) {
-  return type->is<Type::Named>() &&
-         type->as<Type::Named>().identifier == "string" &&
-         (modifier == BorrowState::MutablyOwned ||
-          modifier == BorrowState::MutablyBorrowed);
 }
 
 bool IrVisitor::is_string_literal_expr(const ExprPtr& expr) {

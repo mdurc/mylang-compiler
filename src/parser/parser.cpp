@@ -1034,8 +1034,18 @@ std::vector<ArgPtr> Parser::parse_args() {
 Type* Parser::parse_type() {
   const Token* type_start_tok = current();
   if (is_basic_type(type_start_tok->get_type())) {
-    // Basic types
     advance();
+    // 'string' keyword will be translated into ptr<imm u8>
+    if (type_start_tok->get_type() == TokenType::STRING) {
+      /* define the type at global scope because it is just ptr<imm u8> */
+      Type* u8_type = m_symtab->lookup<Type>("u8", 0);
+      Type ptr_t(Type::Pointer(false, u8_type), 0);
+      std::string_view name = m_arena->make_string(ptr_t.to_string());
+      Type* ptr_type = m_symtab->lookup<Type>(name, 0);
+      if (!ptr_type) ptr_type = m_symtab->declare_type(name, m_arena->make<Type>(ptr_t), 0);
+      return ptr_type;
+    }
+    // basic types
     Type* t = m_symtab->lookup<Type>(type_start_tok->get_lexeme(), 0);
     _assert(t != nullptr, "basic primitive type should be found in the symtab");
     return t;
@@ -1070,7 +1080,6 @@ Type* Parser::parse_type() {
 
     // we do not check the symbol table for this because ptrs of any valid
     // pointee types are allowed. We will add it to the symbol table though.
-
     size_t scope_id = m_symtab->current_scope();
     Type search_t(Type::Pointer(is_mutable, pointee), scope_id);
     std::string_view name = m_arena->make_string(search_t.to_string());
@@ -1154,6 +1163,8 @@ ExprPtr Parser::parse_primary() {
     return parse_new_expr();
   } else if (match(TokenType::CAST)) {
     return parse_explicit_cast();
+  } else if (match(TokenType::SIZEOF)) {
+    return parse_sizeof();
   }
 
   // Otherwise it is invalid
@@ -1291,4 +1302,14 @@ ExprPtr Parser::parse_explicit_cast() {
   ExprPtr expr = parse_expression();
   _consume(TokenType::RPAREN);
   return _alloc(ExplicitCastNode, cast_tok, m_symtab->current_scope(), expr, target_type);
+}
+
+// <SizeOfExpr> ::= 'sizeof' '<' <Type> '>'
+ExprPtr Parser::parse_sizeof() {
+  const Token* sizeof_tok = current();
+  _consume(TokenType::SIZEOF);
+  _consume(TokenType::LANGLE);
+  Type* target_type = parse_type();
+  _consume(TokenType::RANGLE);
+  return _alloc(SizeOfNode, sizeof_tok, m_symtab->current_scope(), target_type);
 }
