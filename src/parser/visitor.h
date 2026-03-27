@@ -578,8 +578,7 @@ public:
 
   void visit(FreeStmtNode& node) override {
     print_indent();
-    out << "FreeStmt(IsArray: "
-        << (node.is_array_deallocation ? "true" : "false") << ",\n";
+    out << "FreeStmt(\n";
     indent++;
     node.expression->accept(*this);
     indent--;

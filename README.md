@@ -1,9 +1,9 @@
 Statically-typed, compiled language.
 This compiler is a complete rewrite of a previous attempt, designed from the ground up to prioritize a well-designed and easily extenisible architecture.
 
-- [Grammar](docs/grammar.txt)
 - [Syntax](docs/syntax.md)
-- [Architecture](docs/architecture.md)
+    - [Grammar](docs/grammar.txt)
+- [Compiler Architecture](docs/architecture.md)
 - [Testing](docs/testing.md)
 - [Todo](todo.txt)
 

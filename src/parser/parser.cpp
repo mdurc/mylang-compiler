@@ -635,17 +635,10 @@ StmtPtr Parser::parse_free_stmt() {
   const Token* free_tok = current();
   _consume(TokenType::FREE);
 
-  bool is_array = false;
-  if (match(TokenType::LBRACK)) {
-    advance();
-    _consume(TokenType::RBRACK);
-    is_array = true;
-  }
-
   ExprPtr expr = parse_expression();
   _consume(TokenType::SEMICOLON);
 
-  return _alloc(FreeStmtNode, free_tok, m_symtab->current_scope(), is_array, expr);
+  return _alloc(FreeStmtNode, free_tok, m_symtab->current_scope(), expr);
 }
 
 // <ErrorStmt> ::= 'error' <Expr> ( ',' <Expr> )*

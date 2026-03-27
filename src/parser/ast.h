@@ -351,10 +351,9 @@ public:
 
 class FreeStmtNode : public StatementNode {
 public:
-  bool is_array_deallocation;
   ExprPtr expression;
-  FreeStmtNode(const Token* tok, size_t sc, bool is_arr, ExprPtr expr)
-      : StatementNode(tok, sc), is_array_deallocation(is_arr), expression(expr) {}
+  FreeStmtNode(const Token* tok, size_t sc, ExprPtr expr)
+      : StatementNode(tok, sc), expression(expr) {}
   void accept(Visitor& v) override;
 };
 

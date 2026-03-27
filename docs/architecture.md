@@ -8,6 +8,8 @@ I'll first try to cover some of the approaches that I was thinking about while d
 ### Error Handling: Panic Mode & Diagnostics
 The compiler is only as useful as what it is able to compile, and what it is able to express to the user regarding errors and other information. A poor error handling system disregards an entire part of a compiler project. It also demonstrates the understanding that your compiler has over the language it is compiling. If you lack well-formed error messages, it's impossible to be sure if the user made a mistake, or if the compiler has a bug.
 
+- The current state of error handling and messages is _okay_. The general case will produce well-formed error messages, though there are some cases where (particularly when working with structs/function identifiers) the error messages are not the most descriptive of the precise error.
+
 **Parser**
 - The parser is the first stage where significant error handling design has to be decided. The main approach is to report as many actionable errors as possible in a single pass, _without cascading false positives_.
 - This seems to be a common approach, called "Panic Mode Recovery".
@@ -61,10 +63,10 @@ Follows a standard flow of passes until producing the assembly:
     -   The generator saves and restores any caller-saved registers that are live across a `call` instruction. It also saves and restores any used callee-saved registers in the function prologue/epilogue.
 -   **Entry Point**: The final executable's entry point is `_start`. This label marks the beginning of the top-level code. If a `main` function is defined, `_start` will execute all top-level statements and then `call main`. The return value of `main` is used as the program's exit code. If no `main` exists, the program exits after the top-level code.
 
-## Runtime Library
--   **Output to stdout**: `print_string`, `print_char`, `print_int`, `print_uint`, `print_newline`.
+## Runtime ASM Library
+-   **Output to file-descriptor**: `print_string`, `print_char`, `print_int`, `print_uint`, `print_newline`.
 -   **Input from stdin**: `read_char`, `read_word`, `parse_uint`, `parse_int`.
--   **Memory Management**: `malloc`, `free`, `memcpy`
+-   **Memory Management**: `malloc`, `free`, `memcpy`, `memset`
     - Note that memory allocated with `malloc` is signed so that during `free` we know that we are deallocated our own memory.
 -   **String Utilities**: `string_length`, `string_equals`, `string_copy`, `string_concat`.
 -   **Other**: `exit`, `clrscr`.
