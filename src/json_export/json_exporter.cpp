@@ -64,7 +64,7 @@ static void collect_hover(const AstPtr& node, json& hover, const SymTab* symtab)
     h["range"] = span_to_range(struct_lit->token->get_span());
     h["contents"] = struct_lit->token->get_lexeme();
     h["type"] = struct_lit->struct_decl->type->to_string();
-    h["bytes"] = struct_lit->struct_decl->struct_size;
+    h["bytes"] = struct_lit->struct_decl->type->get_byte_size();
     h["def_scope_id"] = struct_lit->struct_decl->scope_id;
     hover.push_back(h);
 

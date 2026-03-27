@@ -1,0 +1,128 @@
+/* This file demonstrates the sizing functionality of structs
+ *  and how they are passed by value, copied, etc.
+ *
+ * Originally structs were allocated dynamically upon instantiation
+ *  because it was a simpler approach to treat them as pointers, particularly
+ *  when trying to pass them as arguments, use them as return values, etc.
+ *
+ * Now they are allocated on the stack.
+ * The stack should be properly aligned on all allocations,
+ *  and our structs follow the standard padding approach.
+ */
+
+struct Triple { a: i8, b: i64, c: i32 } /* sizeof: (1+7) + 8 + (4+4) = 24 */
+struct Pair { a: i16, b: i8 } /* sizeof: 2+(1+1) = 4 */
+struct Outer { p: Pair, flag: i8 } /* sizeof: 4+(1+1) = 6 */
+
+struct Point { x: i32, y: i32 } /* sizeof: 4*2 = 8 */
+struct Vec3 { x: i32, y: i32, z: i32 } /* sizeof: 4*3 = 12 */
+
+/* helpers */
+func print_pair(p: Pair) { print "(", p.a, ", ", p.b, ")\n"; }
+func print_vec(v: Vec3) { print "{",v.x, ", ", v.y, ", ", v.z, "}\n"; }
+
+// ====
+
+func test_sizes() {
+  print sizeof<Triple>, " ",
+        sizeof<Pair>, " ",
+        sizeof<Outer>, " ",
+        sizeof<Point>, " ",
+        sizeof<Vec3>, "\n";
+}
+
+// ====
+
+func test_basics() {
+  mut x := Pair{a = 6, b = 9}; // allocate + assign, memcpy to x
+  mut y := Pair{a = 3, b = 1}; // allocate + assign, memcpy to y
+  mut z : Pair;                // memset to zero
+  mut w : Pair = Pair{};       // memset to zero, memcpy to w
+  print x.a, " ", x.b, "\n", y.a, " ", y.b, "\n",
+        z.a, " ", z.b, "\n", w.a, " ", w.b, "\n";
+}
+
+// ====
+
+func mod_point(mut p: Point) {
+  print "received: ", p.x, " ", p.y, " modified to ";
+  p.x = 99;
+  print p.x, " ", p.y, "\n";
+}
+func test_pass_by_value() {
+  mut p := Point{ x = 10, y = 20 };
+  mod_point(p);
+  print "original: ", p.x, " ", p.y, "\n";
+}
+
+// ====
+
+func implicit_return() returns (r: Vec3) {
+  r.x = 1; r.y = 2; r.z = 3;
+}
+func explicit_return() returns (r: Vec3) {
+  mut ret := Vec3{ x = 4, y = 5, z = 6 };
+  return ret;
+}
+func test_return_struct() {
+  mut v1 := implicit_return(); print_vec(v1);
+  mut v2 := explicit_return(); print_vec(v2);
+  print_vec(explicit_return());
+}
+
+// ====
+
+func shift_outer(o: Outer) returns (copy: Outer) {
+    copy = o;
+    copy.p.a = copy.p.a + 10;
+    copy.flag = 2;
+    return copy;
+}
+func test_copy() {
+  mut a := Outer{ p = Pair{ a = 50 }, flag = 1 };
+  mut b := shift_outer(a);
+  print a.p.a, " ", b.p.a, " ", b.flag, "\n";
+}
+
+// ====
+
+func test_array_allocation() {
+  arr : ptr<mut Point> = new<mut Point>[2];
+  arr[0] = Point{x = 1, y = 2};
+  arr[1].y = 13;
+  print "x=", arr[0].x, ", y=", arr[0].y, "\n";
+  print "x=", arr[1].x, ", y=", arr[1].y, "\n";
+  print "x=", (*(arr + sizeof<Point>)).x,
+      ", y=", (*(arr + sizeof<Point>)).y, "\n";
+  free arr;
+}
+
+func test_with_pointers() {
+  mut v := Pair{a = 100, b = 50};
+  mut p : ptr<mut Pair> = &mut v;
+  mut b := *p;
+  b.a = 25;
+  print_pair(*p); print " vs \n"; print_pair(b);
+}
+
+func set_midpoint(out: ptr<mut Point>, p1: Point, p2: Point) {
+  mut mx: i64 = (p1.x + p2.x) / 2;
+  mut my: i64 = (p1.y + p2.y) / 2;
+  *out = Point{x = mx, y = my};
+}
+func test_pass_pointer_return() {
+  mut mid: Point;
+  set_midpoint(&mut mid, Point{x = 3, y = 4}, Point{x = 6, y = 8});
+  print "(", mid.x, " ", mid.y, ")\n";
+}
+
+// ====
+
+test_sizes();
+test_basics();
+test_pass_by_value();
+test_return_struct();
+test_copy();
+test_array_allocation();
+test_with_pointers();
+test_pass_pointer_return();

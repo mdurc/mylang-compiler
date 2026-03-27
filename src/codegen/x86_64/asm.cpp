@@ -94,6 +94,8 @@ std::string X86_64CodeGenerator::operand_to_string(const IROperand& operand) {
     }
 
     std::uint64_t var_size = ir_var.size;
+    std::uint64_t align = ir_var.alignment > 0 ? ir_var.alignment : 1;
+
     auto itr = m_var_locations.find(var_name);
     if (itr == m_var_locations.end()) {
       itr = m_glob_var_locations.find(var_name);
@@ -103,6 +105,7 @@ std::string X86_64CodeGenerator::operand_to_string(const IROperand& operand) {
 
       std::string relative_addr;
       if (m_handling_top_level) {
+        m_global_var_alloc = (m_global_var_alloc + align - 1) & ~(align - 1);
         relative_addr = "[rel global_vars + " + std::to_string(m_global_var_alloc) + "]";
         // the relative addresses start at 'global_vars + 0', then we add
         // the size of what we just reserved, and let the next variable start
@@ -111,6 +114,7 @@ std::string X86_64CodeGenerator::operand_to_string(const IROperand& operand) {
         itr = m_glob_var_locations.insert({var_name, relative_addr}).first;
       } else {
         // not found: we should make new space for this variable in the curr func
+        m_current_func_stack_offset = (m_current_func_stack_offset + align - 1) & ~(align - 1);
         m_current_func_stack_offset += var_size;
         relative_addr = "[rbp - " + std::to_string(m_current_func_stack_offset) + "]";
         itr = m_var_locations.insert({var_name, relative_addr}).first;
@@ -469,6 +473,7 @@ void X86_64CodeGenerator::handle_instruction(const IRInstruction& instr) {
     case IROpCode::ALLOC_ARRAY: handle_alloc_array(instr); break;
     case IROpCode::FREE: handle_free(instr); break;
     case IROpCode::MEM_COPY: handle_mem_copy(instr); break;
+    case IROpCode::MEM_SET: handle_mem_set(instr); break;
     default:
       _assert(false, "Unsupported IR opcode for x86_64: " + std::to_string((int)instr.opcode));
   }
@@ -1197,6 +1202,12 @@ void X86_64CodeGenerator::handle_mem_copy(const IRInstruction& instr) {
   std::string dst_str = get_sized_component(dst_op, Type::PTR_SIZE);
   std::string src_str = get_sized_component(src_op, Type::PTR_SIZE);
 
+  std::string temp_src = get_temp_x86_reg(Type::PTR_SIZE);
+  std::string temp_dst = get_temp_x86_reg(Type::PTR_SIZE);
+
+  emit("mov " + temp_src + ", " + src_str + " ; load src addr");
+  emit("mov " + temp_dst + ", " + dst_str + " ; load dst addr");
+
   m_call_stack.push(CallContext{});
   save_caller_saved_regs();
   CallContext ctx = m_call_stack.top();
@@ -1204,10 +1215,39 @@ void X86_64CodeGenerator::handle_mem_copy(const IRInstruction& instr) {
 
   for (const std::string& arg_instr : ctx.arg_instrs) emit(arg_instr);
 
-  emit("mov rdi, " + dst_str + " ; memcpy dst");
-  emit("mov rsi, " + src_str + " ; memcpy src");
-  emit("mov rcx, " + std::to_string(instr.size) + " ; memcpy size");
+  emit("mov rdi, " + temp_dst + " ; memcpy dst");
+  emit("mov rsi, " + temp_src + " ; memcpy src");
+  emit("mov rdx, " + std::to_string(instr.size) + " ; memcpy size");
   emit("call memcpy");
+
+  restore_caller_saved_regs(ctx.used_caller_saved);
+}
+
+void X86_64CodeGenerator::handle_mem_set(const IRInstruction& instr) {
+  // result: dst_addr, operands[0]: value (to set), size: size to set
+  IROperand dst_op = instr.result.value();
+  IROperand val_op = instr.operands[0];
+
+  std::string dst_str = get_sized_component(dst_op, Type::PTR_SIZE);
+  std::string val_str = get_sized_component(val_op, 1); // 8 bit value
+
+  std::string temp_dst = get_temp_x86_reg(Type::PTR_SIZE);
+  std::string temp_val = get_temp_x86_reg(Type::PTR_SIZE);
+
+  emit("mov " + temp_dst + ", " + dst_str + " ; load dst addr");
+  emit(get_mov_instr(temp_val, val_str, is_imm(val_op), 1) + " ; load fill value");
+
+  m_call_stack.push(CallContext{});
+  save_caller_saved_regs();
+  CallContext ctx = m_call_stack.top();
+  m_call_stack.pop();
+
+  for (const std::string& arg_instr : ctx.arg_instrs) emit(arg_instr);
+
+  emit("mov rdi, " + temp_dst + " ; memset dst (Arg 1)");
+  emit("mov rsi, " + temp_val + " ; memset val (Arg 2)");
+  emit("mov rdx, " + std::to_string(instr.size) + " ; memset size (Arg 3)");
+  emit("call memset");
 
   restore_caller_saved_regs(ctx.used_caller_saved);
 }

@@ -1,0 +1,64 @@
+/*
+Output:
+  Distance^2 between a and b: 25
+  Midpoint: Point(4, 6)
+  Moved point a: Point(13, 1)
+  Array of Points:
+  Point(1, 1) --> Point(1, 1)
+  Point(2, 2) --> Point(2, 2)
+  Point(3, 3) --> Point(3, 3)
+*/
+
+struct Point { x: i64, y: i64 }
+
+func distance_squared(a: Point, b: Point) returns (d: i64) {
+  mut dx: i64 = a.x - b.x;
+  mut dy: i64 = a.y - b.y;
+  return dx * dx + dy * dy;
+}
+
+func set_midpoint(out: ptr<mut Point>, p1: Point, p2: Point) {
+  mut mx: i64 = (p1.x + p2.x) / 2;
+  mut my: i64 = (p1.y + p2.y) / 2;
+  *out = Point{x = mx, y = my};
+}
+
+func print_point(p: Point) {
+  print "Point(", p.x, ", ", p.y, ")";
+}
+
+func move_point(mut p: ptr<mut Point>, dx: i64, dy: i64) {
+  (*p).x = (*p).x + dx;
+  (*p).y = (*p).y + dy;
+}
+
+// Direct initialization
+mut a: Point = Point{x = 3, y = 4};
+mut b: Point = Point{x = 6, y = 8};
+
+print "Distance^2 between a and b: ", distance_squared(a,b), "\n";
+
+// Midpoint
+mut mid: Point;
+set_midpoint(&mut mid, a, b);
+print "Midpoint: "; print_point(mid); print "\n";
+
+// Pointer modification
+mut p: ptr<mut Point> = &mut a;
+move_point(p, 10, -3);
+print "Moved point a: "; print_point(a); print "\n";
+
+// Struct array
+mut points: ptr<mut Point> = new<mut Point>[3];
+points[0] = Point{x = 1, y = 1};
+points[1] = Point{x = 2, y = 2};
+points[2] = Point{x = 3, y = 3};
+
+print "Array of Points:\n";
+for (mut i: i64 = 0; i < 3; i = i + 1) {
+  print_point(points[i]);
+  print " --> ";
+  print_point(*(points + sizeof<Point> * i));
+  print "\n";
+}
+free[] points;

@@ -65,6 +65,7 @@ enum class IROpCode {
                // instr.size = num_el's type size
   FREE,        // Operands: ptr_op
   MEM_COPY,    // Result: dst, Operands: [src]. size is total bytes to be copied
+  MEM_SET
 };
 
 // == Operand Types ==
@@ -82,15 +83,18 @@ struct IR_ParameterSlot {
   size_t index;     // 0-indexed param number
   size_t param_amt; // number of parameters in this group
   std::uint64_t size;    // size in bytes
+  std::uint64_t alignment;
 
-  IR_ParameterSlot(size_t idx, size_t p_amt, std::uint64_t s)
-      : index(idx), param_amt(p_amt), size(s) {}
+  IR_ParameterSlot(size_t idx, size_t p_amt, std::uint64_t s, std::uint64_t a)
+      : index(idx), param_amt(p_amt), size(s), alignment(a) {}
+
   bool operator==(const IR_ParameterSlot& other) const {
-    return index == other.index && size == other.size;
+    return index == other.index && size == other.size && alignment == other.alignment;
   }
   bool operator<(const IR_ParameterSlot& other) const {
     if (index != other.index) return index < other.index;
-    return size < other.size;
+    if (size != other.size) return size < other.size;
+    return alignment < other.alignment;
   }
 };
 
@@ -98,11 +102,13 @@ struct IR_ParameterSlot {
 struct IR_Variable {
   std::string name;
   std::uint64_t size; // size in bytes
+  std::uint64_t alignment;
   bool is_func_decl;
   bool is_extern;
 
-  IR_Variable(const std::string& name, std::uint64_t size, bool func = false, bool is_ext = false)
-      : name(name), size(size), is_func_decl(func), is_extern(is_ext) {}
+  IR_Variable(const std::string& name, std::uint64_t size, std::uint64_t align, bool func = false, bool is_ext = false)
+      : name(name), size(size), alignment(align), is_func_decl(func), is_extern(is_ext) {}
+
   bool operator==(const IR_Variable& other) const { return name == other.name; }
   bool operator<(const IR_Variable& other) const { return name < other.name; }
 };

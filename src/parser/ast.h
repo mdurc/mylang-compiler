@@ -388,6 +388,7 @@ class StructFieldNode : public AstNode {
 public:
   IdentPtr name;
   Type* type;
+  std::uint64_t offset = 0; // offset within the struct
   StructFieldNode(const Token* tok, size_t sc, IdentPtr name, Type* tk)
       : AstNode(tok, sc), name(name), type(tk) {}
   void accept(Visitor& v) override;
@@ -395,11 +396,11 @@ public:
 
 class StructDeclNode : public AstNode {
 public:
-  Type* type; /* new type to be set after type creation in parser */
+  Type* type; /* new type to be set after type creation in parser     */
+              /* struct's (padded) size will be reflected in the type */
   std::vector<StructFieldPtr> fields; /* only fields, no methods */
-  std::uint64_t struct_size; /* total struct size set by the type checker */
   StructDeclNode(const Token* tok, size_t sc, Type* type, std::vector<StructFieldPtr> f)
-      : AstNode(tok, sc), type(type), fields(std::move(f)), struct_size(0) {}
+      : AstNode(tok, sc), type(type), fields(std::move(f)) {}
   void accept(Visitor& v) override;
 };
 

@@ -38,6 +38,10 @@ void IrVisitor::visit_all(const std::vector<AstPtr>& ast) {
   }
 }
 
+bool IrVisitor::is_string_literal_expr(const ExprPtr& expr) {
+  return dynamic_cast<StringLiteralNode*>(expr) != nullptr;
+}
+
 IR_Label IrVisitor::get_runtime_print_call(Type* type) {
   _assert(type, "Type must be known for print function selection");
   /* still print "strings" (ptr<imm u8>) as expected */
@@ -56,14 +60,16 @@ bool IrVisitor::var_exists(std::string_view name, size_t scope_id) {
   _assert(var != nullptr, "var should exist within symbol table");
   _assert(var->type, "variable type should be resolved (even if inferred)");
   std::uint64_t size = var->type->get_byte_size();
-  return m_vars.find(IR_Variable(make_ir_var_name(var), size)) != m_vars.end();
+  std::uint64_t align = var->type->get_alignment();
+  return m_vars.find(IR_Variable(make_ir_var_name(var), size, align)) != m_vars.end();
 }
 
 const IR_Variable& IrVisitor::get_var(std::string_view name, size_t scope_id) {
   Variable* var = m_symtab->lookup<Variable>(name, scope_id);
   if (!var_exists(name, scope_id)) _assert(false, "var is expected to exist: " + std::string(name));
   std::uint64_t size = var->type->get_byte_size();
-  return *m_vars.find(IR_Variable(make_ir_var_name(var), size));
+  std::uint64_t align = var->type->get_alignment();
+  return *m_vars.find(IR_Variable(make_ir_var_name(var), size, align));
 }
 
 const IR_Variable* IrVisitor::add_var(std::string_view name, size_t scope_id,
@@ -71,8 +77,22 @@ const IR_Variable* IrVisitor::add_var(std::string_view name, size_t scope_id,
   Variable* var = m_symtab->lookup<Variable>(name, scope_id);
   if (var_exists(name, scope_id)) _assert(false, "var already exists: " + std::string(name));
   std::uint64_t size = var->type->get_byte_size();
-  auto itr = m_vars.insert(IR_Variable(make_ir_var_name(var), size, is_func_decl, is_extern));
+  std::uint64_t align = var->type->get_alignment();
+  auto itr = m_vars.insert(IR_Variable(make_ir_var_name(var), size, align, is_func_decl, is_extern));
   return &(*itr.first);
+}
+
+IR_Register IrVisitor::allocate_temp_local(std::uint64_t size, std::uint64_t alignment) {
+  static int s_tmp_id = 0;
+  std::string tmp_name = ".tmp_local_" + std::to_string(s_tmp_id++);
+
+  IR_Variable tmp_var(tmp_name, size, alignment, false, false);
+  m_vars.insert(tmp_var); /* allocate on the stack */
+
+  IR_Register addr_reg = m_ir_gen.new_temp_reg();
+  m_ir_gen.emit_addr_of(addr_reg, tmp_var);
+  /* return the register that has address of stack variable */
+  return addr_reg;
 }
 
 void IrVisitor::unimpl(const std::string& note) {
@@ -118,6 +138,12 @@ void IrVisitor::visit(IdentifierNode& node) {
   _assert(var_exists(node.name_str, node.scope_id),
           "Type checker should identify use of undeclared identifiers");
   m_last_expr_operand = get_var(node.name_str, node.scope_id);
+  if (node.expr_type->is_aggregate()) {
+    /* return a ptr to var (structs) */
+    IR_Register addr_reg = m_ir_gen.new_temp_reg();
+    m_ir_gen.emit_addr_of(addr_reg, m_last_expr_operand);
+    m_last_expr_operand = addr_reg;
+  }
 }
 
 void IrVisitor::visit(BinaryOpExprNode& node) {
@@ -257,7 +283,12 @@ void IrVisitor::visit(UnaryExprNode& node) {
       m_ir_gen.emit_log_not(dest_reg, object, size);
       break;
     case UnaryOperator::Dereference:
-      m_ir_gen.emit_load(dest_reg, object, node.expr_type->get_byte_size());
+      if (node.expr_type->is_aggregate()) {
+        m_ir_gen.emit_assign(dest_reg, object, Type::PTR_SIZE);
+      } else {
+        // Standard scalar load
+        m_ir_gen.emit_load(dest_reg, object, node.expr_type->get_byte_size());
+      }
       break;
     case UnaryOperator::AddressOf:
     case UnaryOperator::AddressOfMut:
@@ -332,16 +363,16 @@ IR_Register IrVisitor::compute_struct_field_addr(const ExprPtr& object, std::str
   bool found = false;
   for (const StructFieldPtr& field : struct_decl->fields) {
     if (field->name->name_str == field_name) {
+      offset = field->offset;
       found = true;
       break;
     }
-    offset += field->type->get_byte_size();
   }
   _assert(found, "Struct field not found");
 
   // get base address of struct
   object->accept(*this); // it points to base addr
-  IROperand  base_addr_op = m_last_expr_operand;
+  IROperand base_addr_op = m_last_expr_operand;
 
   // final address: base + offset
   IR_Register addr_reg = m_ir_gen.new_temp_reg();
@@ -358,43 +389,39 @@ void IrVisitor::visit(FieldAccessNode& node) {
   _assert(node.expr_type, "FieldAccessNode must have its type resolved by typechecker");
   std::uint64_t size = node.expr_type->get_byte_size();
 
-  // load the value from the computed address
-  IR_Register result_reg = m_ir_gen.new_temp_reg();
-  m_ir_gen.emit_load(result_reg, field_addr, size);
-  m_last_expr_operand = result_reg;
+  if (node.expr_type->is_aggregate()) {
+    // nested struct, its "value" is its address
+    m_last_expr_operand = field_addr;
+  } else {
+    // load scalar from computed address
+    IR_Register result_reg = m_ir_gen.new_temp_reg();
+    m_ir_gen.emit_load(result_reg, field_addr, size);
+    m_last_expr_operand = result_reg;
+  }
 }
 
 void IrVisitor::visit(AssignmentNode& node) {
   node.rvalue->accept(*this);
-  Type* lval_type = node.lvalue->expr_type;
-
-  // no more hidden heap allocation copies (with the change from strings to ptr<imm u8>)
   IROperand rval_op = m_last_expr_operand;
 
+  Type* lval_type = node.lvalue->expr_type;
   _assert(lval_type, "Types should be resolved by Typechecker");
   std::uint64_t size = lval_type->get_byte_size();
 
-  // Handle all possible L-values and stores
-  if (auto lval = dynamic_cast<IdentifierNode*>(node.lvalue)) {
-    _assert(var_exists(lval->name_str, lval->scope_id),
-            "Type checker should identify use of undeclared variable");
-    IR_Variable lval_var = get_var(lval->name_str, lval->scope_id);
-    m_ir_gen.emit_assign(lval_var, rval_op, size);
+  IR_Register target_addr_reg = m_ir_gen.new_temp_reg();
+  visit_addrof(node.lvalue, target_addr_reg);
+
+  if (lval_type->is_aggregate()) {
+    m_ir_gen.emit_mem_copy(target_addr_reg, rval_op, size);
   } else {
-    // handles all complex l-values (array-indexing, struct field access, dereferencing, etc)
-    IR_Register target_addr_reg = m_ir_gen.new_temp_reg();
-    // compute memory address and store our value
-    visit_addrof(node.lvalue, target_addr_reg);
     m_ir_gen.emit_store(target_addr_reg, rval_op, size);
   }
-
   m_last_expr_operand = rval_op;
 }
 
-void IrVisitor::visit(ImplicitCastNode& node) {
-  node.expression->accept(*this);
+void IrVisitor::handle_cast(ExprPtr expression, Type* dst_type) {
+  expression->accept(*this);
   IROperand src_op = m_last_expr_operand;
-  Type* dst_type = node.target_type;
 
   std::uint64_t dst_size = dst_type->get_byte_size();
 
@@ -405,29 +432,30 @@ void IrVisitor::visit(ImplicitCastNode& node) {
     return;
   }
 
-  IR_Register dest_reg = m_ir_gen.new_temp_reg();
-  m_ir_gen.emit_assign(dest_reg, src_op, dst_size);
-  m_last_expr_operand = dest_reg;
+  if (dst_type->is_aggregate()) {
+    // casting to an aggregate ... this isn't allowed by typechecker yet.
+    IR_Register dst_addr = allocate_temp_local(dst_size, dst_type->get_alignment());
+    if (expression->expr_type->is_aggregate()) {
+      m_ir_gen.emit_mem_copy(dst_addr, src_op, dst_size);
+    } else {
+      // scalar to struct
+      m_ir_gen.emit_store(dst_addr, src_op, dst_size);
+    }
+    m_last_expr_operand = dst_addr;
+  } else {
+    // normal scalar cast (int to int, etc)
+    IR_Register dest_reg = m_ir_gen.new_temp_reg();
+    m_ir_gen.emit_assign(dest_reg, src_op, dst_size);
+    m_last_expr_operand = dest_reg;
+  }
 }
 
-// same as the ImplicitCastNode, adjusting the size
+void IrVisitor::visit(ImplicitCastNode& node) {
+  handle_cast(node.expression, node.target_type);
+}
+
 void IrVisitor::visit(ExplicitCastNode& node) {
-  node.expression->accept(*this);
-  IROperand src_op = m_last_expr_operand;
-  Type* dst_type = node.target_type;
-
-  std::uint64_t dst_size = dst_type->get_byte_size();
-
-  // just like with the implicit cast for immediate literal
-  if (std::holds_alternative<IR_Immediate>(src_op)) {
-    IR_Immediate imm = std::get<IR_Immediate>(src_op);
-    m_last_expr_operand = IR_Immediate(imm.val, dst_size);
-    return;
-  }
-
-  IR_Register dest_reg = m_ir_gen.new_temp_reg();
-  m_ir_gen.emit_assign(dest_reg, src_op, dst_size);
-  m_last_expr_operand = dest_reg;
+  handle_cast(node.expression, node.target_type);
 }
 
 void IrVisitor::visit(SizeOfNode& node) {
@@ -457,10 +485,22 @@ void IrVisitor::visit(VariableDeclNode& node) {
 
   if (node.initializer) {
     node.initializer->accept(*this);
-    m_ir_gen.emit_assign(*var_operand, m_last_expr_operand, size);
+    if (node.type->is_aggregate()) {
+      IR_Register target_addr_reg = m_ir_gen.new_temp_reg();
+      m_ir_gen.emit_addr_of(target_addr_reg, *var_operand);
+      m_ir_gen.emit_mem_copy(target_addr_reg, m_last_expr_operand, size);
+    } else {
+      m_ir_gen.emit_assign(*var_operand, m_last_expr_operand, size);
+    }
   } else {
-    // default values, right now just assign 0
-    m_ir_gen.emit_assign(*var_operand, IR_Immediate(0, size), size);
+    // default values, right now just zero out the memory
+    if (node.type->is_aggregate()) {
+      IR_Register target_addr_reg = m_ir_gen.new_temp_reg();
+      m_ir_gen.emit_addr_of(target_addr_reg, *var_operand);
+      m_ir_gen.emit_mem_set(target_addr_reg, IR_Immediate(0, 1), size);
+    } else {
+      m_ir_gen.emit_assign(*var_operand, IR_Immediate(0, size), size);
+    }
   }
 }
 
@@ -540,7 +580,6 @@ void IrVisitor::visit(FunctionDeclNode& node) {
   }
 
   IR_Label func_label = m_ir_gen.new_func_label(func_ir_name);
-
   m_ir_gen.emit_begin_func(func_label);
 
   // allocate registers for arguments
@@ -551,14 +590,54 @@ void IrVisitor::visit(FunctionDeclNode& node) {
         get_var(param_node->name->name_str, param_node->scope_id));
   }
 
+  bool returns_aggregate = node.return_type && node.return_type->is_aggregate();
+  size_t param_offset = returns_aggregate ? 1 : 0;
+  size_t total_p_amt = ordered_param_vars.size() + param_offset;
+
+  std::optional<std::string> prev_hidden_ret_ptr = m_current_hidden_ret_ptr;
+
+  if (returns_aggregate) {
+    // make a local variable for the first register which holds return struct addr
+    m_current_hidden_ret_ptr = ".hidden_ret_ptr_" + std::to_string(node.body->scope_id);
+    IR_Variable hidden_ret_var(m_current_hidden_ret_ptr.value(), Type::PTR_SIZE, Type::PTR_SIZE, false, false);
+    m_vars.insert(hidden_ret_var);
+    // assign param 0 to this variable
+    m_ir_gen.emit_assign(hidden_ret_var, IR_ParameterSlot(0, total_p_amt, Type::PTR_SIZE, Type::PTR_SIZE), Type::PTR_SIZE);
+  } else {
+    m_current_hidden_ret_ptr = std::nullopt;
+  }
+
   // emit assignments from argument slots to parameter variables so that the
   // code generation can load the passed arguments onto the stack as local vars
+  std::vector<IR_Register> captured_aggregate_ptrs;
+  captured_aggregate_ptrs.resize(ordered_param_vars.size(), IR_Register(-1));
+  // we should only perform mem copies after gathering all of the initial parameter mappings
+
   size_t p_amt = ordered_param_vars.size();
   for (size_t i = 0; i < p_amt; ++i) {
     const IR_Variable& param_var = ordered_param_vars[i];
     std::uint64_t param_size = node.params[i]->type->get_byte_size();
-    m_ir_gen.emit_assign(param_var, IR_ParameterSlot(i, p_amt, param_size),
-                         param_size);
+    std::uint64_t param_align = node.params[i]->type->get_alignment();
+    if (node.params[i]->type->is_aggregate()) {
+      // param arrives as an 8-byte reference pointer
+      IR_Register ptr_reg = m_ir_gen.new_temp_reg();
+      m_ir_gen.emit_assign(ptr_reg, IR_ParameterSlot(i + param_offset, total_p_amt, Type::PTR_SIZE, Type::PTR_SIZE), Type::PTR_SIZE);
+      // copy the struct memory into our local parameter space
+      captured_aggregate_ptrs[i] = ptr_reg;
+    } else {
+      // standard scalar parameter mapping
+      m_ir_gen.emit_assign(param_var, IR_ParameterSlot(i + param_offset, total_p_amt, param_size, param_align), param_size);
+    }
+  }
+
+  for (size_t i = 0; i < ordered_param_vars.size(); ++i) {
+    if (node.params[i]->type->is_aggregate()) {
+      const IR_Variable& param_var = ordered_param_vars[i];
+      std::uint64_t param_size = node.params[i]->type->get_byte_size();
+      IR_Register local_addr = m_ir_gen.new_temp_reg();
+      m_ir_gen.emit_addr_of(local_addr, param_var);
+      m_ir_gen.emit_mem_copy(local_addr, captured_aggregate_ptrs[i], param_size);
+    }
   }
 
   IR_Label epilogue_label = m_ir_gen.new_label();
@@ -573,11 +652,23 @@ void IrVisitor::visit(FunctionDeclNode& node) {
     node.body->accept(*this);
   }
 
-  // setup void return before epilogue
+  // handle return-fallthrough if they omit the returnstmt
+  // we can still return the return_variable
   if (node.retvar_name) {
     // named return, defaultly return the value within the return variable
     IROperand named_operand = get_var(node.retvar_name->name_str, node.retvar_name->scope_id);
-    m_ir_gen.emit_return(named_operand, node.return_type->get_byte_size());
+    if (returns_aggregate) {
+      IR_Variable hidden_ret_var(m_current_hidden_ret_ptr.value(), Type::PTR_SIZE, Type::PTR_SIZE, false, false);
+      IR_Register ret_ptr_reg = m_ir_gen.new_temp_reg();
+      m_ir_gen.emit_assign(ret_ptr_reg, hidden_ret_var, Type::PTR_SIZE);
+
+      IR_Register local_addr = m_ir_gen.new_temp_reg();
+      m_ir_gen.emit_addr_of(local_addr, named_operand);
+      m_ir_gen.emit_mem_copy(ret_ptr_reg, local_addr, node.return_type->get_byte_size());
+      m_ir_gen.emit_return(ret_ptr_reg, Type::PTR_SIZE); // return the pointer in rax
+    } else {
+      m_ir_gen.emit_return(named_operand, node.return_type->get_byte_size());
+    }
   } else {
     // void return, add default return before epilogue in case there are no
     // explicit return statements in the code.
@@ -587,6 +678,7 @@ void IrVisitor::visit(FunctionDeclNode& node) {
   m_ir_gen.emit_end_func();
 
   m_current_func_epilogue_label = prev_epilogue_label;
+  m_current_hidden_ret_ptr = prev_hidden_ret_ptr;
 }
 
 void IrVisitor::visit(ArgumentNode& node) {
@@ -609,14 +701,23 @@ void IrVisitor::visit(FunctionCallNode& node) {
   node.callee->accept(*this);
   IROperand func_target = m_last_expr_operand;
 
-  m_ir_gen.emit_begin_lcall_prep();
+  /* if it is an aggregate type (struct), we need to allocate it here */
+  bool returns_aggregate = node.expr_type && node.expr_type->is_aggregate();
+  IR_Register hidden_ret_addr;
+  if (returns_aggregate) {
+    // this needs to be done before lcall_prep
+    hidden_ret_addr = allocate_temp_local(node.expr_type->get_byte_size(), node.expr_type->get_alignment());
+  }
+
+  std::vector<IROperand> evaluated_args;
   for (size_t i = 0; i < node.arguments.size(); ++i) {
     ArgPtr arg_node = node.arguments[i];
     arg_node->accept(*this);
     IROperand arg_op = m_last_expr_operand;
 
     ExprPtr arg_expr = arg_node->expression;
-    _assert(arg_expr->expr_type, "Types should be resolved by Typechecker");
+    Type* arg_type = arg_expr->expr_type;
+    _assert(arg_type, "Types should be resolved by Typechecker");
 
     const Type::ParamInfo& param_info = func_type.params[i];
     if (param_info.modifier == BorrowState::ImmutablyOwned ||
@@ -626,26 +727,49 @@ void IrVisitor::visit(FunctionCallNode& node) {
       }
     }
 
-    Type* arg_type = arg_expr->expr_type;
-    m_ir_gen.emit_push_arg(arg_op, arg_type->get_byte_size());
+    if (arg_type->is_aggregate()) {
+      // passing an aggregate by value means: create a copy here, pass address to that copy
+      // this must come before lcall_prep
+      IR_Register temp_arg_addr = allocate_temp_local(arg_type->get_byte_size(), arg_type->get_alignment());
+      m_ir_gen.emit_mem_copy(temp_arg_addr, arg_op, arg_type->get_byte_size());
+      evaluated_args.push_back(temp_arg_addr);
+    } else {
+      evaluated_args.push_back(arg_op);
+    }
   }
 
-  std::optional<IR_Register> result_reg_opt = std::nullopt;
+  m_ir_gen.emit_begin_lcall_prep();
+  if (returns_aggregate) {
+    // pass ptr to memory as first argument
+    m_ir_gen.emit_push_arg(hidden_ret_addr, Type::PTR_SIZE);
+  }
+
+  for (size_t i = 0; i < node.arguments.size(); ++i) {
+    Type* arg_type = node.arguments[i]->expression->expr_type;
+    if (arg_type->is_aggregate()) {
+      m_ir_gen.emit_push_arg(evaluated_args[i], Type::PTR_SIZE);
+    } else {
+      m_ir_gen.emit_push_arg(evaluated_args[i], arg_type->get_byte_size());
+    }
+  }
 
   // if it is not void, prepare a temp register for return value
   _assert(node.expr_type, "Type checker should resolve function call");
-  if (!(node.expr_type->is<Type::Named>() &&
-        node.expr_type->as<Type::Named>().identifier == "u0")) {
-    IR_Register call_result_reg = m_ir_gen.new_temp_reg();
-    result_reg_opt = call_result_reg;
-    m_last_expr_operand = call_result_reg;
-  } else {
-    // void placeholder
-    m_last_expr_operand = IR_Immediate(0, Type::PTR_SIZE);
-  }
 
-  size_t byte_size = node.expr_type->get_byte_size();
-  m_ir_gen.emit_lcall(result_reg_opt, func_target, byte_size);
+  if (returns_aggregate) {
+    // result is just the addr of the struct we allocated before calling
+    m_last_expr_operand = hidden_ret_addr;
+    m_ir_gen.emit_lcall(std::nullopt, func_target, Type::PTR_SIZE);
+  } else if (!(node.expr_type->is<Type::Named>() && node.expr_type->as<Type::Named>().identifier == "u0")) {
+    // standard scalar return
+    IR_Register call_result_reg = m_ir_gen.new_temp_reg();
+    m_last_expr_operand = call_result_reg;
+    m_ir_gen.emit_lcall(call_result_reg, func_target, node.expr_type->get_byte_size());
+  } else {
+    // void return
+    m_last_expr_operand = IR_Immediate(0, Type::PTR_SIZE);
+    m_ir_gen.emit_lcall(std::nullopt, func_target, 0);
+  }
 }
 
 void IrVisitor::visit(ReturnStmtNode& node) {
@@ -654,9 +778,25 @@ void IrVisitor::visit(ReturnStmtNode& node) {
 
   if (node.value) {
     node.value->accept(*this);
-    _assert(node.value->expr_type, "Types should be resolved by Typechecker");
-    m_ir_gen.emit_return(m_last_expr_operand,
-                         node.value->expr_type->get_byte_size());
+    Type* ret_type = node.value->expr_type;
+    _assert(ret_type, "Types should be resolved by Typechecker");
+    std::uint64_t ret_size = ret_type->get_byte_size();
+
+    if (ret_type->is_aggregate()) {
+      _assert(m_current_hidden_ret_ptr.has_value(), "Hidden return pointer must be established");
+      // load the hidden pointer provided by the caller
+      IR_Variable hidden_ret_var(m_current_hidden_ret_ptr.value(), Type::PTR_SIZE, Type::PTR_SIZE, false, false);
+      IR_Register ret_ptr_reg = m_ir_gen.new_temp_reg();
+      m_ir_gen.emit_assign(ret_ptr_reg, hidden_ret_var, Type::PTR_SIZE);
+
+      // memcpy our local struct data into the caller's allocation
+      m_ir_gen.emit_mem_copy(ret_ptr_reg, m_last_expr_operand, ret_size);
+
+      // return the pointer in rax
+      m_ir_gen.emit_return(ret_ptr_reg, Type::PTR_SIZE);
+    } else {
+      m_ir_gen.emit_return(m_last_expr_operand, ret_size);
+    }
   } else {
     // void
     m_ir_gen.emit_return();
@@ -790,9 +930,14 @@ void IrVisitor::visit(ArrayIndexNode& node) {
   IR_Register target_addr_reg = m_ir_gen.new_temp_reg();
   m_ir_gen.emit_add(target_addr_reg, base_addr_op, offset_reg, Type::PTR_SIZE);
 
-  IR_Register result_val_reg = m_ir_gen.new_temp_reg();
-  m_ir_gen.emit_load(result_val_reg, target_addr_reg, size);
-  m_last_expr_operand = result_val_reg;
+  if (node.expr_type->is_aggregate()) {
+    // array of structs, "value" is address
+    m_last_expr_operand = target_addr_reg;
+  } else {
+    IR_Register result_val_reg = m_ir_gen.new_temp_reg();
+    m_ir_gen.emit_load(result_val_reg, target_addr_reg, size);
+    m_last_expr_operand = result_val_reg;
+  }
 }
 
 void IrVisitor::visit(ExitStmtNode& node) {
@@ -936,13 +1081,17 @@ void IrVisitor::visit(StructDeclNode&) { /* no-op */ }
 void IrVisitor::visit(StructFieldInitializerNode&) { /* no-op */ }
 
 void IrVisitor::visit(StructLiteralNode& node) {
-  // allocate memory for the struct
-  std::uint64_t struct_size = node.struct_decl->struct_size;
-  IR_Register struct_addr = m_ir_gen.new_temp_reg();
-  m_ir_gen.emit_alloc(struct_addr, struct_size, std::nullopt, 0);
+  std::uint64_t struct_size = node.struct_decl->type->get_byte_size();
+  std::uint64_t struct_align = node.struct_decl->type->get_alignment();
+
+  IR_Register struct_addr = allocate_temp_local(struct_size, struct_align);
+
+  // memset by default
+  m_ir_gen.emit_mem_set(struct_addr, IR_Immediate(0, 1), struct_size);
+  // mut zeroed_outer: Outer = Outer{};
+  // this will perform the default memset 0 on Outer{}, then perform a memcopy into zeroed_outer
 
   // for each field initializer, store the value at the correct offset
-  size_t offset = 0;
   for (const StructFieldPtr& field : node.struct_decl->fields) {
     // find the initializer for this field
     std::string_view field_name = field->name->name_str;
@@ -954,28 +1103,26 @@ void IrVisitor::visit(StructLiteralNode& node) {
       }
     }
 
-    // store at struct_addr + offset
-    IR_Register field_addr = m_ir_gen.new_temp_reg();
-    m_ir_gen.emit_add(field_addr, struct_addr,
-                      IR_Immediate(offset, Type::PTR_SIZE), Type::PTR_SIZE);
-
     if (value == nullptr) {
       // the struct field initializer is missing for one of the fields
-      m_logger->report(Diag::Warning(node.token->get_span(), "missing struct field initializer: " + std::string(field_name)));
-
-      // zero-initialize the memory as a fallback
-      m_ir_gen.emit_store(field_addr, IR_Immediate(0, field->type->get_byte_size()), field->type->get_byte_size());
+      // we won't report an error because we memset it to zero anyways
+      // m_logger->report(Diag::Warning(node.token->get_span(), "missing struct field initializer: " + std::string(field_name)));
     } else {
+      // store at struct_addr + offset
+      IR_Register field_addr = m_ir_gen.new_temp_reg();
+      m_ir_gen.emit_add(field_addr, struct_addr,
+          IR_Immediate(field->offset, Type::PTR_SIZE), Type::PTR_SIZE);
+
       value->accept(*this);
       IROperand val = m_last_expr_operand;
-      m_ir_gen.emit_store(field_addr, val, field->type->get_byte_size());
+
+      if (field->type->is_aggregate()) {
+        m_ir_gen.emit_mem_copy(field_addr, val, field->type->get_byte_size());
+      } else {
+        m_ir_gen.emit_store(field_addr, val, field->type->get_byte_size());
+      }
     }
-    offset += field->type->get_byte_size();
   }
   // the result of the struct literal is the address
   m_last_expr_operand = struct_addr;
-}
-
-bool IrVisitor::is_string_literal_expr(const ExprPtr& expr) {
-  return dynamic_cast<StringLiteralNode*>(expr) != nullptr;
 }

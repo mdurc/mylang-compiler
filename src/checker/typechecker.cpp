@@ -588,15 +588,30 @@ void TypeChecker::visit(ParamNode& node) {
 
 // Struct Declaration
 void TypeChecker::visit(StructDeclNode& node) {
-  // resolve fields
-  // set the size of the struct based on its fields.
-  std::uint64_t current_struct_size = 0;
+  std::uint64_t current_offset = 0;
+  std::uint64_t max_alignment = 1; // min alignment is 1 byte
   for (const StructFieldPtr& field : node.fields) {
     field->accept(*this);
     _assert(field->type, "field type should be non-null");
-    if (field->type) current_struct_size += field->type->get_byte_size();
+    std::uint64_t field_size = field->type->get_byte_size();
+    std::uint64_t field_align = field->type->get_alignment();
+    std::uint64_t padding = (field_align - (current_offset % field_align)) % field_align;
+    current_offset += padding;
+    field->offset = current_offset;
+    current_offset += field_size;
+    // max alignment of the struct will be struct alignment
+    if (field_align > max_alignment) {
+      max_alignment = field_align;
+    }
   }
-  node.struct_size = current_struct_size;
+
+  // pad total struct size to its alignment
+  std::uint64_t struct_padding = (max_alignment - (current_offset % max_alignment)) % max_alignment;
+  std::uint64_t total_size = current_offset + struct_padding;
+
+  node.type->set_byte_size(total_size);
+  node.type->set_alignment(max_alignment);
+  node.type->set_aggregate(true);
 }
 
 // Struct Field Node
@@ -620,7 +635,6 @@ void TypeChecker::visit(BinaryOpExprNode& node) {
   Type* bool_type = m_symtab->lookup<Type>("bool", 0);
   Type* i64_type = m_symtab->lookup<Type>("i64", 0);
   Type* f64_type = m_symtab->lookup<Type>("f64", 0);
-  Type* string_type = m_symtab->lookup<Type>("string", 0);
   Type* null_type = m_symtab->lookup<Type>("u0", 0);
 
   // unify integer types (if they are integer/float types)
@@ -647,9 +661,6 @@ void TypeChecker::visit(BinaryOpExprNode& node) {
     case BinOperator::Plus:
       if (numeric_resolved)
         result_type = numeric_resolved;
-      else if ((*left_type == *string_type && *right_type == *string_type))
-        result_type = string_type;
-
       // Pointer arithmetic: ptr<T> + i64 -> ptr<T> or i64 + ptr<T> -> ptr<T>
       else if (left_type->is<Type::Pointer>() && is_integer_type(right_type))
         result_type = left_type;
@@ -1184,15 +1195,9 @@ void TypeChecker::visit(FreeStmtNode& node) {
     }
   }
 
-  bool is_struct = false;
-  if (expr_type->is<Type::Named>()) {
-    StructDeclPtr struct_decl = m_symtab->lookup_struct(expr_type->as<Type::Named>().identifier, expr_type->get_scope_id());
-    if (struct_decl != nullptr) is_struct = true;
-  }
-
-  if (!is_pointer_like(expr_type) && !is_struct) {
+  if (!is_pointer_like(expr_type)) {
     m_logger->report(Diag::TypeMismatch(
-        node.expression->token->get_span(), "pointer, string, or struct type",
+        node.expression->token->get_span(), "pointer type",
         expr_type->to_string() + ". 'free' statement operand"));
   }
   // array vs not array deallocation will be up to the user.

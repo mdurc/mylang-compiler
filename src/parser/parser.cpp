@@ -69,12 +69,16 @@ bool Parser::is_sync_point(const Token* tok) const {
     case TokenType::RETURN:
     case TokenType::READ:
     case TokenType::PRINT:
-    case TokenType::LBRACE: return true;
+    case TokenType::LBRACE:
+    case TokenType::RBRACE:
+      return true;
     default: return false;
   }
 }
 
 void Parser::synchronize() {
+  // advance once unconditionally
+  if (current()->get_type() != TokenType::EOF_TOK) advance();
   while (current()->get_type() != TokenType::EOF_TOK) {
     if (is_sync_point(current())) return;
     advance();
@@ -121,7 +125,8 @@ AstPtr Parser::parse_struct_decl() {
   std::string_view type_name = name_tok->get_lexeme();
   size_t scope_id = m_symtab->current_scope();
 
-  // declare the new struct type
+  // declare the new struct type (size will be re-evaluated in the type checker to
+  //  handle other nested struct type sizes that need to be resolved)
   Type* struct_type = _alloc(Type, Type::Named(type_name), scope_id, Type::PTR_SIZE);
   Type* sym_struct_type = m_symtab->declare_type(type_name, struct_type, scope_id);
   if (!sym_struct_type) {

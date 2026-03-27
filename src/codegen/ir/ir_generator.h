@@ -76,7 +76,9 @@ public:
   void emit_alloc_array(IR_Register dst_ptr, std::uint64_t size_el, IROperand num_el,
                         std::uint64_t initializer_type_size);
   void emit_free(IROperand ptr);
+
   void emit_mem_copy(IROperand dst, IROperand src, std::uint64_t size);
+  void emit_mem_set(IROperand dst_addr, IROperand val, std::uint64_t size);
 
   const std::vector<IRInstruction>& get_instructions() const;
 

@@ -213,9 +213,20 @@ void print_ir_instruction(const IRInstruction& instr, std::ostream& out) {
     case IROpCode::MEM_COPY:
       _assert_nolog(instr.result.has_value() && instr.operands.size() == 1,
               "MEM_COPY must have a destination and 1 operand");
-      print_ir_operand(instr.result.value(), out);
-      out << " = memcpy ";
+      out << "Memcpy(src=";
       print_ir_operand(instr.operands[0], out);
+      out << ", dst=";
+      print_ir_operand(instr.result.value(), out);
+      out << ", " << instr.size << " bytes)";
+      break;
+    case IROpCode::MEM_SET:
+      _assert_nolog(instr.result.has_value() && instr.operands.size() == 1,
+              "MEM_SET must have a destination and 1 operand");
+      out << "Memset(dst=";
+      print_ir_operand(instr.result.value(), out);
+      out << ", val=";
+      print_ir_operand(instr.operands[0], out);
+      out << ", " << instr.size << " bytes)";
       break;
     default:
       out << "UNKNOWN_IR_OPCODE(" << static_cast<int>(instr.opcode) << ")";

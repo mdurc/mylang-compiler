@@ -77,15 +77,26 @@ public:
 
   /* getter for ir/code generation */
   std::uint64_t get_byte_size() const { return m_bytes; }
+  void set_byte_size(std::uint64_t sz) { m_bytes = sz; }
 
-  Type(Named n, size_t sc, std::uint64_t bytes)
-      : m_storage(n), m_scope_id(sc), m_bytes(bytes) {}
+  std::uint64_t get_alignment() const { return m_alignment; }
+  void set_alignment(std::uint64_t align) { m_alignment = align; }
+
+  bool is_aggregate() const { return m_is_aggregate; }
+  void set_aggregate(bool is_agg) { m_is_aggregate = is_agg; }
+
+  Type(Named n, size_t sc, std::uint64_t bytes, std::uint64_t align = 0)
+      : m_storage(n), m_scope_id(sc), m_bytes(bytes),
+        m_alignment(align > 0 ? align : bytes), m_is_aggregate(false){}
   Type(Function f, size_t sc)
-      : m_storage(std::move(f)), m_scope_id(sc), m_bytes(PTR_SIZE) {}
+      : m_storage(std::move(f)), m_scope_id(sc), m_bytes(PTR_SIZE),
+        m_alignment(PTR_SIZE), m_is_aggregate(false) {}
   Type(Pointer p, size_t sc)
-      : m_storage(p), m_scope_id(sc), m_bytes(PTR_SIZE) {}
+      : m_storage(p), m_scope_id(sc), m_bytes(PTR_SIZE),
+        m_alignment(PTR_SIZE), m_is_aggregate(false) {}
   Type(ErrorType e, size_t sc)
-      : m_storage(e), m_scope_id(sc), m_bytes(PTR_SIZE) {}
+      : m_storage(e), m_scope_id(sc), m_bytes(PTR_SIZE),
+        m_alignment(PTR_SIZE), m_is_aggregate(false) {}
 
   friend bool operator==(const Type& a, const Type& b) {
     return a.m_storage == b.m_storage;
@@ -95,6 +106,8 @@ private:
   std::variant<Named, Function, Pointer, ErrorType> m_storage;
   size_t m_scope_id;
   std::uint64_t m_bytes;
+  std::uint64_t m_alignment;
+  bool m_is_aggregate;
 
   std::string to_string_recursive(std::vector<const Type*>& visited) const;
 };

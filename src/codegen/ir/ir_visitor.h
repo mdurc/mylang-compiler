@@ -21,12 +21,6 @@ public:
   bool is_main_defined() const { return m_main_function_defined; }
   void visit_all(const std::vector<AstPtr>& ast);
 
-  // variable helpers to make sure that we take scopes into account + shadowing
-  bool var_exists(std::string_view name, size_t scope_id);
-  const IR_Variable& get_var(std::string_view name, size_t scope_id);
-  const IR_Variable* add_var(std::string_view name, size_t scope_id,
-                              bool is_func_decl = false, bool is_extern = false);
-
   void visit(PoisonExprNode& node) override;
   void visit(PoisonStmtNode& node) override;
 
@@ -92,12 +86,26 @@ private:
   IROperand m_last_expr_operand;
   bool m_main_function_defined;
 
+  /* for return-by-value structs, we need to have the CALLER pass a ptr that we fill */
+  std::optional<std::string> m_current_hidden_ret_ptr;
+
+  bool is_string_literal_expr(const ExprPtr& expr);
   IR_Label get_runtime_print_call(Type* type);
+
+  void handle_cast(ExprPtr expression, Type* dst_type);
+
+  /* variable helpers to make sure that we take scopes into account + shadowing */
+  bool var_exists(std::string_view name, size_t scope_id);
+  const IR_Variable& get_var(std::string_view name, size_t scope_id);
+  const IR_Variable* add_var(std::string_view name, size_t scope_id,
+                              bool is_func_decl = false, bool is_extern = false);
+
+  /* helper for allocating dynamic sizes on the stack (for structs mainly) */
+  IR_Register allocate_temp_local(std::uint64_t size, std::uint64_t alignment);
 
   IR_Register compute_struct_field_addr(const ExprPtr& object, std::string_view field_name);
 
   void unimpl(const std::string& nodeName);
-  bool is_string_literal_expr(const ExprPtr& expr);
 };
 
 #endif // CODEGEN_IR_IR_VISITOR_H

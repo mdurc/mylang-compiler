@@ -1,4 +1,4 @@
-extern func print_char(c: u8);
+extern func print_char(fd: i64, c: u8);
 extern func string_length(s: string) returns (len: i64);
 
 /*
@@ -33,17 +33,32 @@ func print_char(c: u8) {
 
 /* ********************** */
 
+func concat(x: string, y: string) returns (s: string) {
+  len_x := string_length(x);
+  len_y := string_length(y);
+  len := len_x + len_y;
+  tmp : ptr<mut u8> = new<mut u8>[len + 1];
+  for (mut i := 0; i < len; i = i + 1) {
+    if (i < len_x) {
+      tmp[i] = x[i];
+    } else {
+      tmp[i] = y[i - len_x];
+    }
+  }
+  tmp[len] = 0;
+  s = tmp;
+}
+
 // strings and chars:
 x : string = "hello";
 y : string = "bye";
-z : string = x + y;
+z : string = concat(x, y);
 print "Chars of string: ", z, " (len: ", string_length(z), ")\n";
-for (mut i := 0; i < 8; i = i + 1) {
+for (mut i := 0; i < string_length(z); i = i + 1) {
   print "  z[", i, "] -> ";
-  print_char(z[i]);
+  print_char(1, z[i]);
   print " -> ", z[i], "\n";
 }
-free z;
 
 a : string = "hello";
 h : u8 = a[0];
@@ -52,7 +67,7 @@ l : u8 = a[2];
 o : u8 = a[4];
 
 func helper(c: u8) {
-  print c, ": "; print_char(c); print " --> ", c - 'a' + 1, "th character in the alphabet\n";
+  print c, ": "; print_char(1, c); print " --> ", c - 'a' + 1, "th character in the alphabet\n";
 }
 
 helper(h);

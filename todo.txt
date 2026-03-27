@@ -22,6 +22,7 @@ Core language builtins:
 
 Standard library to build (instead of adding them into the core-language, we can derive these):
 - [ ] String lib that tracks length/capacity, and performs common string operations
+  - string.sn, etc.
 - [ ] vector, map, arena, etc...
 - [ ] Subprocess / System Command Execution (fork()/system()/exec() to call nasm, ld, etc)
   - [ ] File IO for reading and parsing, outputting files, etc.

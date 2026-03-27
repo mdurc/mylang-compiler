@@ -325,12 +325,24 @@ string_copy:
 
 ; rdi <- dst
 ; rsi <- src
-; rcx <- size
-; copies 'size' bytes from src to dst. requires dst to be allocated prior
-; clobbering: rep movsb rcx, rsi, rdi
+; rdx <- size
 memcpy:
+  mov rax, rdi
+  mov rcx, rdx
+  cld           ; clear direction flag
+  rep movsb     ; copy rcx bytes (this clobbers rdi, rsi, and rcx)
+  ret           ; rax holds original dst
+
+; rdi <- dst
+; rsi <- value
+; rdx <- size
+memset:
+	mov r8, rdi
+	mov rax, rsi
+	mov rcx, rdx
 	cld           ; clear direction flag
-	rep movsb     ; repeat movsb from [rsi] to [rdi], rcx times, incrementing both each time
+	rep stosb     ; fill memory (clobbers rdi and rcx)
+	mov rax, r8   ; restore original dst
 	ret
 
 %define SIGNATURE 0xDEADC0DEDEADC0DE
