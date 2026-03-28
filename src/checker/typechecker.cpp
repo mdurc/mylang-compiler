@@ -439,7 +439,7 @@ void TypeChecker::visit(ReadStmtNode& node) {
     m_logger->report(Diag::Error(
         node.expression->token->get_span(),
         "Cannot 'read' into variable of type '" + expr_type->to_string() +
-            "'. Must be a mutable integer or string variable."));
+            "'. Must be a mutable supported type."));
   }
 }
 

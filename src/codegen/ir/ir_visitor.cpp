@@ -859,7 +859,13 @@ void IrVisitor::visit(ReadStmtNode& node) {
   Type* expr_type = node.expression->expr_type;
   _assert(expr_type, "Read expression must have a type from typechecker");
 
+  // allocate a 64-byte buffer for reading
+  IR_Register buffer_addr = allocate_temp_local(64, 1);
+
   m_ir_gen.emit_begin_lcall_prep();
+  m_ir_gen.emit_push_arg(buffer_addr, Type::PTR_SIZE);
+  m_ir_gen.emit_push_arg(IR_Immediate(64, Type::PTR_SIZE), Type::PTR_SIZE); // buffer size arg
+
   IR_Register word_reg = m_ir_gen.new_temp_reg();
   m_ir_gen.emit_lcall(word_reg, IR_Label("read_word"), Type::PTR_SIZE);
 

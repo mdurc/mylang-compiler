@@ -31,6 +31,30 @@ X86_64CodeGenerator::X86_64CodeGenerator(Logger* logger)
   m_arg_regs = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
 }
 
+void X86_64CodeGenerator::emit_runtime_call(const std::string& func_name, const std::vector<std::string>& arg_setup_instrs) {
+  m_call_stack.push(CallContext{});
+  save_caller_saved_regs();
+  CallContext ctx = m_call_stack.top();
+  m_call_stack.pop();
+
+  // internal calls only push registers, no stack arguments
+  size_t pushed_bytes = ctx.used_caller_saved.size() * 8;
+  size_t padding = (pushed_bytes % 16 != 0) ? 8 : 0;
+
+  // pad stack before pushing
+  if (padding > 0) emit("sub rsp, " + std::to_string(padding) + " ; align stack");
+
+  // push caller-saved registers
+  for (const std::string& instr : ctx.arg_instrs) emit(instr);
+
+  // load argument registers (rdi, rsi, rdx)
+  for (const std::string& instr : arg_setup_instrs) emit(instr);
+
+  emit("call " + func_name);
+  restore_caller_saved_regs(ctx.used_caller_saved);
+  if (padding > 0) emit("add rsp, " + std::to_string(padding) + " ; remove alignment padding");
+}
+
 std::string X86_64CodeGenerator::get_sized_register_name(
     const std::string& reg64_name, std::uint64_t size) {
   if (size == Type::PTR_SIZE) return reg64_name;
@@ -325,6 +349,12 @@ std::string X86_64CodeGenerator::generate(const std::vector<IRInstruction>& inst
   return generate_assembly(instructions, is_main_defined);
 }
 
+void X86_64CodeGenerator::emit_program_header() {
+  m_out << "default rel\n";
+  m_out << "global _start\n";
+  m_out << "section .text\n";
+}
+
 std::string X86_64CodeGenerator::generate_assembly(const std::vector<IRInstruction>& instructions, bool is_main_defined) {
   clear_func_data();
   m_string_literals_data.clear();
@@ -341,10 +371,6 @@ std::string X86_64CodeGenerator::generate_assembly(const std::vector<IRInstructi
   m_out << "extern memcpy, malloc, free, clrscr, string_concat\n";
   m_out << "\n";
   */
-
-  m_out << "default rel\n";
-  m_out << "global _start\n";
-  m_out << "section .text\n";
 
   std::vector<IRInstruction> top_level;
   std::vector<IRInstruction> functions;
@@ -363,11 +389,12 @@ std::string X86_64CodeGenerator::generate_assembly(const std::vector<IRInstructi
     }
   }
 
+  emit_program_header();
   handle_begin_func(IRInstruction(IROpCode::BEGIN_FUNC, IR_Label("_start"), {}));
 
   m_current_func_stack_offset += 16;
-  emit("mov [rbp-8], rdi ; save argc");
-  emit("mov [rbp-16], rsi ; save argv");
+  emit("mov [rbp-8], rdi ; save argc (provided by macos CRT)");
+  emit("mov [rbp-16], rsi ; save argv (provided by macos CRT)");
 
   // emit the top level instructions only, within _start procedure
   m_handling_top_level = true;
@@ -392,9 +419,13 @@ std::string X86_64CodeGenerator::generate_assembly(const std::vector<IRInstructi
     handle_instruction(instr);
   }
 
+  emit_program_footer();
+  return m_out.str();
+}
+
+void X86_64CodeGenerator::emit_program_footer() {
   // output the gathered string labels in the data section
-  m_out << "\n";
-  m_out << "section .data\n";
+  m_out << "\nsection .data\n";
   for (const std::string& str : m_string_literals_data) {
     m_out << m_string_literal_to_label.at(str) << ":\n";
     if (str.size() == 1 && str[0] == '\n') {
@@ -423,13 +454,28 @@ std::string X86_64CodeGenerator::generate_assembly(const std::vector<IRInstructi
 
   if (m_global_var_alloc > 0) {
     m_out << "section .bss\n";
-    emit("global_vars resb " + std::to_string(get_align(m_global_var_alloc)));
+    m_out << "\tglobal_vars resb " << std::to_string(get_align(m_global_var_alloc)) << "\n";
   }
 
   /* insert runtime stdlib */
   m_out << "\n" << RUNTIME_ASM_CODE << "\n";
+}
 
-  return m_out.str();
+void X86_64CodeGenerator::emit_debug_stack_align() {
+  emit("; --- STACK ALIGNMENT DIAGNOSTIC ---");
+  emit("mov r11, rsp");
+  emit("and r11, 15");
+  emit("push rax"); emit("push rcx"); emit("push rdx");
+  emit("push rsi"); emit("push rdi"); emit("push r8");
+  emit("push r9"); emit("push r10");
+  emit("mov rdi, 1 ; stdout (fd 1)");
+  emit("mov rsi, r11 ; remainder to print");
+  emit("call print_uint");
+  emit("call print_newline");
+  emit("pop r10"); emit("pop r9"); emit("pop r8");
+  emit("pop rdi"); emit("pop rsi"); emit("pop rdx");
+  emit("pop rcx"); emit("pop rax");
+  emit("; ----------------------------------");
 }
 
 void X86_64CodeGenerator::handle_instruction(const IRInstruction& instr) {
@@ -498,7 +544,14 @@ void X86_64CodeGenerator::handle_begin_func(const IRInstruction& instr) {
   clear_func_data();
 
   const IROperand& label = instr.result.value();
-  emit_label(std::get<IR_Label>(label).name);
+  std::string func_name = std::get<IR_Label>(label).name;
+  emit_label(func_name);
+
+  if (func_name == "_start") {
+    // macOS LC_MAIN loads _start directly without a return address pushed on the stack
+    // emit_debug_stack_align();
+    emit("sub rsp, 8 ; emulate return address for 16-byte alignment math");
+  }
 
   // Save base ptr as stack context of this function.
   // This will be used for relative addressing of variables in the program
@@ -961,46 +1014,39 @@ void X86_64CodeGenerator::handle_lcall(const IRInstruction& instr) {
   _assert(std::holds_alternative<IR_Label>(label) ||
               std::holds_alternative<IR_Variable>(label),
           "lcall should be from a label or variable (func ptr) operand");
+  const std::string& name = std::holds_alternative<IR_Label>(label)
+                                ? std::get<IR_Label>(label).name
+                                : get_sized_component(label, Type::PTR_SIZE);
 
   save_caller_saved_regs();
   CallContext ctx = m_call_stack.top();
   m_call_stack.pop();
 
+  size_t pushed_bytes = (ctx.used_caller_saved.size() * 8) + ctx.stack_args_size;
+  size_t padding = (pushed_bytes % 16 != 0) ? 8 : 0;
+  if (padding > 0) emit("sub rsp, " + std::to_string(padding) + " ; align stack");
+
   for (const std::string& arg_instr : ctx.arg_instrs) {
     emit(arg_instr);
   }
 
-  // special handling for read_word
-  const std::string& name = std::holds_alternative<IR_Label>(label)
-                                ? std::get<IR_Label>(label).name
-                                : get_sized_component(label, Type::PTR_SIZE);
-  if (name == "read_word") {
-    // just doing 64 byte input buffer for now for the read procedure
-    emit("sub rsp, 64");
-    emit("mov rdi, rsp");
-  }
-
   emit("call " + name);
-
-  if (name == "read_word") {
-    // deallocate the memory
-    emit("add rsp, 64 ; clean up read_word buffer");
-  }
 
   // restore stack pointer by adding back the total stack space used
   if (ctx.stack_args_size > 0) {
-    emit("add rsp, " + std::to_string(ctx.stack_args_size) +
-         " ; restore stack after call for args");
+    emit("add rsp, " + std::to_string(ctx.stack_args_size) + " ; remove stack args");
   }
 
-  // restore caller-saved registers
   restore_caller_saved_regs(ctx.used_caller_saved);
+
+  if (padding > 0) {
+    emit("add rsp, " + std::to_string(padding) + " ; remove alignment padding");
+  }
 
   // if the call has a result, it's in rax: move it to the IR result register.
   if (instr.result.has_value()) {
     IROperand res = instr.result.value();
-    _assert(std::holds_alternative<IR_Register>(res),
-            "LCALL result must be a register");
+    _assert(std::holds_alternative<IR_Register>(res), "LCALL result must be a register");
     std::string dest_reg = get_sized_component(res, Type::PTR_SIZE);
     std::string sized_rax = get_sized_register_name("rax", instr.size);
     emit(get_mov_instr(dest_reg, sized_rax, false, instr.size));
@@ -1107,17 +1153,7 @@ void X86_64CodeGenerator::handle_alloc(const IRInstruction& instr) {
   const IROperand& dst = instr.result.value();
   std::uint64_t type_alloc_size = std::get<IR_Immediate>(instr.operands[0]).val;
 
-  m_call_stack.push(CallContext{});
-  save_caller_saved_regs();
-  CallContext ctx = m_call_stack.top();
-  m_call_stack.pop();
-
-  for (const std::string& arg_instr : ctx.arg_instrs) emit(arg_instr);
-
-  emit("mov rdi, " + std::to_string(type_alloc_size));
-  emit("call malloc");
-
-  restore_caller_saved_regs(ctx.used_caller_saved);
+  emit_runtime_call("malloc", {"mov rdi, " + std::to_string(type_alloc_size)});
 
   std::string dst_ptr_str = get_sized_component(dst, Type::PTR_SIZE);
   emit("mov " + dst_ptr_str + ", rax"); // no need for movzx
@@ -1129,7 +1165,6 @@ void X86_64CodeGenerator::handle_alloc(const IRInstruction& instr) {
 
     std::string init_val = get_sized_component(initializer_op, init_type_size);
     std::string allocated = get_size_prefix(init_type_size) + " [rax]";
-
     emit_one_operand_memory_operation(allocated, init_val, "mov", init_type_size);
   }
 }
@@ -1143,32 +1178,16 @@ void X86_64CodeGenerator::handle_alloc_array(const IRInstruction& instr) {
           "alloc array should have two operands, the first an immediate");
 
   const IROperand& dst = instr.result.value();
-
   std::uint64_t element_size_val = std::get<IR_Immediate>(instr.operands[0]).val;
-  IROperand num_elements_op = instr.operands[1];
-  std::uint64_t num_elements_type_size = instr.size;
-  _assert(num_elements_type_size > 0,
-          "num_elements type operand must have a valid type size");
+  std::string num_elements_str = get_sized_component(instr.operands[1], instr.size);
 
-  std::string num_elements_str =
-      get_sized_component(num_elements_op, num_elements_type_size);
+  _assert(instr.size > 0, "num_elements type operand must have a valid type size");
 
   std::string temp = get_temp_x86_reg(Type::PTR_SIZE);
-  emit(get_mov_instr(temp, num_elements_str, is_imm(num_elements_op),
-                     num_elements_type_size));
+  emit(get_mov_instr(temp, num_elements_str, is_imm(instr.operands[1]), instr.size));
   emit("imul " + temp + ", " + std::to_string(element_size_val));
 
-  m_call_stack.push(CallContext{});
-  save_caller_saved_regs();
-  CallContext ctx = m_call_stack.top();
-  m_call_stack.pop();
-
-  for (const std::string& arg_instr : ctx.arg_instrs) emit(arg_instr);
-
-  emit("mov rdi, " + temp);
-  emit("call malloc");
-
-  restore_caller_saved_regs(ctx.used_caller_saved);
+  emit_runtime_call("malloc", { "mov rdi, " + temp });
 
   std::string dst_ptr_str = get_sized_component(dst, Type::PTR_SIZE);
   emit("mov " + dst_ptr_str + ", rax"); // no need for movzx
@@ -1176,21 +1195,8 @@ void X86_64CodeGenerator::handle_alloc_array(const IRInstruction& instr) {
 
 void X86_64CodeGenerator::handle_free(const IRInstruction& instr) {
   _assert(instr.operands.size() == 1, "free instr should have one operand");
-  IROperand ptr_op = instr.operands[0];
-  std::string ptr_str = get_sized_component(ptr_op, Type::PTR_SIZE);
-
-  m_call_stack.push(CallContext{});
-  save_caller_saved_regs();
-  CallContext ctx = m_call_stack.top();
-  m_call_stack.pop();
-
-  for (const std::string& arg_instr : ctx.arg_instrs) emit(arg_instr);
-
-  emit("mov rdi, " + ptr_str); // no need for movzx
-  emit("call free");
-
-  restore_caller_saved_regs(ctx.used_caller_saved);
-
+  std::string ptr_str = get_sized_component(instr.operands[0], Type::PTR_SIZE);
+  emit_runtime_call("free", { "mov rdi, " + ptr_str });
   emit("mov " + ptr_str + ", 0 ; clear ptr to null after free");
 }
 
@@ -1208,19 +1214,11 @@ void X86_64CodeGenerator::handle_mem_copy(const IRInstruction& instr) {
   emit("mov " + temp_src + ", " + src_str + " ; load src addr");
   emit("mov " + temp_dst + ", " + dst_str + " ; load dst addr");
 
-  m_call_stack.push(CallContext{});
-  save_caller_saved_regs();
-  CallContext ctx = m_call_stack.top();
-  m_call_stack.pop();
-
-  for (const std::string& arg_instr : ctx.arg_instrs) emit(arg_instr);
-
-  emit("mov rdi, " + temp_dst + " ; memcpy dst");
-  emit("mov rsi, " + temp_src + " ; memcpy src");
-  emit("mov rdx, " + std::to_string(instr.size) + " ; memcpy size");
-  emit("call memcpy");
-
-  restore_caller_saved_regs(ctx.used_caller_saved);
+  emit_runtime_call("memcpy", {
+      "mov rdi, " + temp_dst,
+      "mov rsi, " + temp_src,
+      "mov rdx, " + std::to_string(instr.size)
+  });
 }
 
 void X86_64CodeGenerator::handle_mem_set(const IRInstruction& instr) {
@@ -1237,17 +1235,9 @@ void X86_64CodeGenerator::handle_mem_set(const IRInstruction& instr) {
   emit("mov " + temp_dst + ", " + dst_str + " ; load dst addr");
   emit(get_mov_instr(temp_val, val_str, is_imm(val_op), 1) + " ; load fill value");
 
-  m_call_stack.push(CallContext{});
-  save_caller_saved_regs();
-  CallContext ctx = m_call_stack.top();
-  m_call_stack.pop();
-
-  for (const std::string& arg_instr : ctx.arg_instrs) emit(arg_instr);
-
-  emit("mov rdi, " + temp_dst + " ; memset dst (Arg 1)");
-  emit("mov rsi, " + temp_val + " ; memset val (Arg 2)");
-  emit("mov rdx, " + std::to_string(instr.size) + " ; memset size (Arg 3)");
-  emit("call memset");
-
-  restore_caller_saved_regs(ctx.used_caller_saved);
+  emit_runtime_call("memset", {
+      "mov rdi, " + temp_dst,
+      "mov rsi, " + temp_val,
+      "mov rdx, " + std::to_string(instr.size)
+  });
 }

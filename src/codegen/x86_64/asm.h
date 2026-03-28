@@ -62,6 +62,7 @@ private:
   std::vector<std::string> m_caller_saved_regs;
 
   std::stack<CallContext> m_call_stack;
+  void emit_runtime_call(const std::string& func_name, const std::vector<std::string>& arg_setup_instrs);
 
   void save_caller_saved_regs();
   void restore_caller_saved_regs(const std::vector<std::string>& used_caller_saved);
@@ -92,8 +93,11 @@ private:
   void emit(const std::string& instruction);
   void emit_label(const std::string& label_name);
 
-  std::string generate_assembly(const std::vector<IRInstruction>& instructions,
-                                bool is_main_defined);
+  void emit_program_header();
+  std::string generate_assembly(const std::vector<IRInstruction>& instructions, bool is_main_defined);
+  void emit_program_footer();
+  void emit_debug_stack_align();
+
   void handle_instruction(const IRInstruction& instr);
 
   void handle_begin_func(const IRInstruction& instr);
