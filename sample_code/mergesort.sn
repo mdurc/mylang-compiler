@@ -45,8 +45,8 @@ func merge(arr: ptr<mut i64>, left: i64, mid: i64, right: i64) {
     arr[k] = R[j]; k = k + 1; j = j + 1;
   }
 
-  free[] L;
-  free[] R;
+  free L;
+  free R;
 }
 
 func print_arr(p: ptr<mut i64>, size: i64) {
@@ -80,4 +80,4 @@ print "Original a: "; print_arr(arr, size_arr);
 merge_sort(arr, 0, 11);
 print "Sorted arr: "; print_arr(arr, size_arr);
 
-free[] arr;
+free arr;

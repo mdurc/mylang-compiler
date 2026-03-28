@@ -2,8 +2,3 @@ mut x : i32 = 8;
 print "Integer: ";
 read x;
 print x, "\n";
-
-mut y : string;
-print "String: ";
-read y;
-print y, "\n";

@@ -68,7 +68,7 @@ pz[0] = 30;
 pz[1] = 60;
 pz[2] = 90;
 print_arr(pz, 3);
-free[] pz;
+free pz;
 
 pz = null;
 pz = new<mut i64>(32);

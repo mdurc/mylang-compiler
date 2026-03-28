@@ -61,4 +61,4 @@ for (mut i: i64 = 0; i < 3; i = i + 1) {
   print_point(*(points + sizeof<Point> * i));
   print "\n";
 }
-free[] points;
+free points;

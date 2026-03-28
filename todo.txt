@@ -9,6 +9,10 @@ Core language builtins:
   - [x] need to design the syntax for this as well
   - [x] should just be a modification of the implicit casting
   - [x] for primitive types and ptr/struct types
+- [x] Structs refactored to value-types
+  - [x] stack alignment for type system
+- [ ] Implement the argument-parameter semantics
+  - [ ] give, take, etc, with imm/mut
 - [ ] Raw memory (void*) and sizeof<T> operations
   - [ ] this should allow for an arena allocated module to be implemented
   - [ ] determine syntax for sizeof operation
@@ -26,3 +30,4 @@ Standard library to build (instead of adding them into the core-language, we can
 - [ ] vector, map, arena, etc...
 - [ ] Subprocess / System Command Execution (fork()/system()/exec() to call nasm, ld, etc)
   - [ ] File IO for reading and parsing, outputting files, etc.
+  - [ ] More supported stdin types to read? Right now it is only integers.

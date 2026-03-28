@@ -81,8 +81,8 @@ func merge(arr: ptr<mut i64>, left: i64, mid: i64, right: i64, total_size: i64) 
     arr[k] = R[j]; k = k + 1; j = j + 1;
   }
 
-  free[] L;
-  free[] R;
+  free L;
+  free R;
 
   print_bar_chart(arr, total_size);
 }
@@ -115,4 +115,4 @@ print_bar_chart(arr, size_arr);
 delay(90000000);
 merge_sort(arr, 0, size_arr - 1, size_arr);
 
-free[] arr;
+free arr;

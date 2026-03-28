@@ -58,10 +58,7 @@ func test_pointers_vs_bitwise() {
   print "42 & 15 = ", val & mask, "\n"; // Expected: 10 (001010)
 }
 
-func main() returns (code: u8) {
-  test_old_ops();
-  test_bitwise_ops();
-  test_precedence();
-  test_pointers_vs_bitwise();
-  return 0;
-}
+test_old_ops();
+test_bitwise_ops();
+test_precedence();
+test_pointers_vs_bitwise();

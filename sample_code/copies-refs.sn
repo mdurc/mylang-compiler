@@ -8,17 +8,6 @@ Output:
   bar(ref point):
     set p.x to 36 and p.y to 19
   bar(b) where b is a Point{0,0} yields -> b.x: 36, b.y: 19
-
-  took the string and modified it to: ai
-  gave the string and after it is still: hi
-  modified string h[1] = 'b': hb
-
-  Final:
-  3
-  15
-  36
-  19
-  hb
 */
 
 struct Point {
@@ -49,19 +38,3 @@ func bar(take mut p: Point) {
 mut b : Point = Point{x=0, y=0};
 bar(b);
 print "bar(b) where b is a Point{0,0} yields -> b.x: ", b.x, ", b.y: ", b.y, "\n\n";
-
-
-// string argument passing with copies vs references
-func foo_str(take mut s : string) {
-  s[0] = 'a';
-  print "took the string and modified it to: ", s, "\n";
-}
-
-mut h := "hi";
-foo_str(give h);
-print "gave the string and after it is still: ", h, "\n";
-h[1] = 'b';
-print "modified string h[1] = 'b': ", h, "\n\n";
-
-
-print "Final:\n", a.x, "\n", a.y, "\n", b.x, "\n", b.y, "\n", h, "\n";

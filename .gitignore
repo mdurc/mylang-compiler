@@ -1,5 +1,6 @@
 build/
 vendor/
+testing/snapshots
 .DS_Store
 a.out
 compiler_build_files/

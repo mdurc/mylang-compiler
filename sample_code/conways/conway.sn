@@ -1,3 +1,5 @@
+/* ./a.out < sample_code/conways/conway-input.txt */
+
 mut WIDTH: i64 = 0;
 mut HEIGHT: i64 = 0;
 mut SIZE: i64 = 0;
@@ -88,14 +90,9 @@ func main() {
 
   for (mut y: i64 = 0; y < HEIGHT; y = y + 1) {
     for (mut x: i64 = 0; x < WIDTH; x = x + 1) {
-      mut cell: string;
+      mut cell: i32;
       read cell;
-      next_idx : i64 = idx(x,y);
-      if (cell == "@" or cell == "*") {
-        grid_a[next_idx] = 1;
-      } else {
-        grid_a[next_idx] = 0;
-      }
+      grid_a[idx(x,y)] = cell;
     }
   }
 
@@ -117,6 +114,6 @@ func main() {
     delay(del_time);
   }
 
-  free[] grid_a;
-  free[] grid_b;
+  free grid_a;
+  free grid_b;
 }
