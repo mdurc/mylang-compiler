@@ -22,7 +22,7 @@ pz = new<mut i64>[3];
 pz[0] = 30;
 pz[1] = 60;
 pz[2] = 90;
-free[] pz;
+free pz;
 
 pz = null;
 pz = new<mut i64>(32);

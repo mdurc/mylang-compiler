@@ -1,3 +1,0 @@
----- Generated Ast ----
-(No ast nodes)
------------------------

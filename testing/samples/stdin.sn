@@ -1,5 +1,2 @@
 mut x : i32;
 read x;
-
-mut y : string;
-read y;

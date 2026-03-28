@@ -11,7 +11,3 @@ mut y_o : i64 = origin.y;
 struct Empty { }
 p : Empty = Empty{};
 c : Empty = p;
-
-free origin;
-free p;
-free c;

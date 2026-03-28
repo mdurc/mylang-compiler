@@ -1,9 +1,0 @@
---- IR Instructions ---
-	x_0 = 0
-	_t0 = LCall read_word
-	_t0 = LCall parse_int
-	x_0 = _t0
-	y_0 = 0
-	_t1 = LCall read_word
-	y_0 = _t1
------------------------

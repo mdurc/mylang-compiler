@@ -1,8 +1,7 @@
 asm {
-
-  mov rdi, 15
+  mov rdi, 1  // fd (stdout)
+  mov rsi, 15 // value to print
   call print_int
-
 };
 
 print "\n";
