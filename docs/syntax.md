@@ -97,7 +97,7 @@ Functions are top-level declarations.
     extern func malloc(size: i64) returns (ptr: ptr<mut u0>);
     ```
 
-- **Parameters and Ownership**:
+- **Parameters and Ownership (not currently enforced -- defaultly pass by value)**:
     - `imm` (default): Immutable borrow. The argument is passed by reference, but cannot be modified.
     - `mut`: Mutable borrow. The argument is passed by reference and can be modified. The passed variable must be mutable.
     - `take`: The function takes ownership of the argument. This results in a copy/move. The `give` keyword on the call-site can be used to signify an explicit move.
@@ -139,6 +139,14 @@ Memory are managed manually on the heap using `new` and `free`.
 - **Deallocation (`free`)**:
     - `free ptr`
 - **Pointer Arithmetic**: Pointers support addition and subtraction with integers. Array-style subscripting `ptr[i]` is syntactic sugar for `*(ptr + sizeof<T>)`.
+
+- Casting operations will also allow for code such as:
+```mylang
+a : ptr<mut u0> = new<mut u0>();         // 8 byte allocation
+b : ptr<mut i8> = cast<ptr<mut i8> >(a); // cast ptr
+*b = 13; // now we can assign a i64 to i8
+free a;
+```
 
 ### Strings
 

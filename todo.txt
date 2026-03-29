@@ -11,23 +11,25 @@ Core language builtins:
   - [x] for primitive types and ptr/struct types
 - [x] Structs refactored to value-types
   - [x] stack alignment for type system
-- [ ] Implement the argument-parameter semantics
-  - [ ] give, take, etc, with imm/mut
-- [ ] Raw memory (void*) and sizeof<T> operations
-  - [ ] this should allow for an arena allocated module to be implemented
-  - [ ] determine syntax for sizeof operation
-  - [ ] compiler should resolve struct sizes at compile-time;
+- [x] Raw memory (void*) and sizeof<T> operations
+  - [x] this should allow for an arena allocated module to be implemented
+  - [x] determine syntax for sizeof operation
+  - [x] compiler should resolve struct sizes at compile-time;
 - [ ] Global/static variables?
   - [ ] This may already work fine, as long as different modules/files can have their own static/global data, with some exposed API
 - [ ] Forward declarations (improve the extern keyword to work for user-defined functions, not just the implemented ASM procedures)
   - [ ] Do we need a way to forward declare a struct/enum type? Or can we just put them in headers and require the user to track the order of declarations.
 - [ ] Proper header files with some sort of guard
+- [ ] Subprocess / System Command Execution (fork()/system()/exec() to call nasm, ld, etc)
+  - [ ] File IO for reading and parsing, outputting files, etc.
+  - [ ] More supported stdin types to read? Right now it is only integers.
+
+Harder tasks:
 - [ ] Enums/Tagged Unions for AST and token stream
+- [ ] Implement the argument-parameter semantics
+  - [ ] give, take, imm, mut
 
 Standard library to build (instead of adding them into the core-language, we can derive these):
 - [ ] String lib that tracks length/capacity, and performs common string operations
   - string.sn, etc.
 - [ ] vector, map, arena, etc...
-- [ ] Subprocess / System Command Execution (fork()/system()/exec() to call nasm, ld, etc)
-  - [ ] File IO for reading and parsing, outputting files, etc.
-  - [ ] More supported stdin types to read? Right now it is only integers.
