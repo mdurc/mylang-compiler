@@ -36,6 +36,8 @@ Follows a standard flow of passes until producing the assembly:
 2. **Lexer**: converts the source text that we loadded into a stream of tokens.
 3. **Preprocessor**: this walks through the tokens and performs macro substitution on tokens for `#define` directives, and re-runs the lexer for any other `#include`d files, to insert the tokens into the final token stream.
     - File paths are relative for inclusion, see `sample_code/modules`
+    - Idempotent preprocessor will only include a given file once, without the need for guards.
+    - Single-pass preprocessing will require the user to favor forward-declarations for any cyclic type/function dependencies.
 4. **Parser**: Builds an Abstract Syntax Tree (AST) from the token stream and populates the symbol table with initial declarations of types and variables.
 5. **Type checker**: Traverses the AST to enforce type rules, resolve expression types, and check for semantic errors such as VariableNotFound.
 6. **IR Generation**: Translates the annotated AST into a three-address code IR format for the code generator.

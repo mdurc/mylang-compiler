@@ -79,27 +79,22 @@ void Preprocessor::handle_include(const std::vector<Token>& tokens, size_t& i, s
   }
 
   std::uint32_t file_id = m_loader->load_file(full_path);
-  if (file_id == 0) return;
 
-  if (m_processing_files.find(file_id) != m_processing_files.end()) {
-    m_logger->report(Diag::Error(tokens[i].get_span(), "Circular include detected for file: " + include_name));
-    return;
+  if (file_id != 0 && m_included_files.find(file_id) == m_included_files.end()) {
+    // never seen this file before.. recursively lex and preprocess the included file
+    m_included_files.insert(file_id);
+
+    Lexer lexer(m_logger, file_id);
+    std::vector<Token> raw_included_tokens = lexer.tokenize(m_loader->get_source(file_id));
+    std::vector<Token> processed_included_tokens = process(raw_included_tokens);
+
+    /* remove trailing EOF token */
+    if (!processed_included_tokens.empty() && processed_included_tokens.back().get_type() == TokenType::EOF_TOK) {
+      processed_included_tokens.pop_back();
+    }
+
+    output.insert(output.end(), processed_included_tokens.begin(), processed_included_tokens.end());
   }
-
-  // recursively lex and preprocess the included file
-  m_processing_files.insert(file_id);
-
-  Lexer lexer(m_logger, file_id);
-  std::vector<Token> raw_included_tokens = lexer.tokenize(m_loader->get_source(file_id));
-  std::vector<Token> processed_included_tokens = process(raw_included_tokens);
-
-  /* remove trailing EOF token */
-  if (!processed_included_tokens.empty() && processed_included_tokens.back().get_type() == TokenType::EOF_TOK) {
-    processed_included_tokens.pop_back();
-  }
-
-  output.insert(output.end(), processed_included_tokens.begin(), processed_included_tokens.end());
-  m_processing_files.erase(file_id);
 
   // consume any remaining tokens on the #include line
   while (i < tokens.size() && tokens[i].get_type() != TokenType::EOF_TOK && tokens[i].get_span().row == directive_row) {

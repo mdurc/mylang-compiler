@@ -27,8 +27,8 @@ private:
   /* macros map an identifier to a sequence of replacement tokens */
   std::unordered_map<std::string_view, std::vector<Token>> m_macros;
 
-  /* track circular includes via file_id from loader */
-  std::unordered_set<std::uint32_t> m_processing_files;
+  /* track includes via file_id from loader -- implements idempotent inclusion (circular/diamond dependencies) */
+  std::unordered_set<std::uint32_t> m_included_files;
   std::vector<std::string> m_include_path;
 
   void handle_define(const std::vector<Token>& tokens, size_t& i);

@@ -1,0 +1,4 @@
+print "D\n";
+
+/* we don't want multiple declaration errors for this function */
+func foo() { }

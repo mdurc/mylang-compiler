@@ -1,0 +1,2 @@
+print "B file!\n";
+#include "D.sn"

@@ -15,14 +15,18 @@ Core language builtins:
   - [x] this should allow for an arena allocated module to be implemented
   - [x] determine syntax for sizeof operation
   - [x] compiler should resolve struct sizes at compile-time;
-- [ ] Global/static variables?
-  - [ ] This may already work fine, as long as different modules/files can have their own static/global data, with some exposed API
 - [ ] Forward declarations (improve the extern keyword to work for user-defined functions, not just the implemented ASM procedures)
-  - [ ] Do we need a way to forward declare a struct/enum type? Or can we just put them in headers and require the user to track the order of declarations.
+  - [ ] Currently they are primarily used for access to the ASM runtime procedures without having to add builtin syntax to the compiler. (see the `sample_code/strings.sn` file).
+  - [ ] Struct and function forward declarations should be added here.
+  - [ ] Should I get rid of the extern keyword? Does it provide any value or ease of implementation in the compiler? If it does make the implementation simpler, should we extend it to also be used for structs and general (non asm-runtime procedure) functions?
+    - [ ] Or should I get rid of the extern keyword if it is simply adding extra complexity for the programmer.
 - [ ] Proper header files with some sort of guard
 - [ ] Subprocess / System Command Execution (fork()/system()/exec() to call nasm, ld, etc)
   - [ ] File IO for reading and parsing, outputting files, etc.
   - [ ] More supported stdin types to read? Right now it is only integers.
+- [ ] Global/static variables?
+  - [ ] This may already work fine, as long as different modules/files can have their own static/global data, with some exposed API
+  - [ ] Do we even need these? Maybe we can just program in a way where everything includes into a single file...
 
 Harder tasks:
 - [ ] Enums/Tagged Unions for AST and token stream
