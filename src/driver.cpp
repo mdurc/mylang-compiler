@@ -148,6 +148,7 @@ static bool run_pipeline(TargetStage stage, const std::string& infile,
     return false;
 
   } catch (const std::runtime_error& internal_error) {
+    logger.report(Diag::Fatal(Span{}, std::string("Unhandled System Exception: ") + internal_error.what()));
     if (stage == TargetStage::JSON) {
       JsonExporter exporter(&symtab, &logger, &ast);
       out << exporter.export_to_json() << "\n";
