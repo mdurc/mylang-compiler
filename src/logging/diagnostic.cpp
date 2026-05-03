@@ -39,6 +39,10 @@ Diagnostic DuplicateDeclaration(const Span& span, const std::string& identifier)
   return {DiagType::ERROR, span, "Duplicate Declaration: identifier '" + identifier + "'"};
 }
 
+Diagnostic IncompleteType(const Span& span, const std::string& operation, const std::string& type_str) {
+  return {DiagType::ERROR, span, "Incomplete type for " + operation + ": '" + type_str + "'"};
+}
+
 Diagnostic Error(const Span& span, const std::string& msg) {
   return {DiagType::ERROR, span, msg};
 }

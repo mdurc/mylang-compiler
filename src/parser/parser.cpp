@@ -115,7 +115,7 @@ AstPtr Parser::parse_toplevel_declaration() {
 }
 
 // Structs
-// <StructDecl> ::= 'struct' Identifier '{' <StructFields>? '}'
+// <StructDecl> ::= 'struct' Identifier ('{' <StructFields>? '}' | ';')
 AstPtr Parser::parse_struct_decl() {
   _consume(TokenType::STRUCT);
 
@@ -125,21 +125,42 @@ AstPtr Parser::parse_struct_decl() {
   std::string_view type_name = name_tok->get_lexeme();
   size_t scope_id = m_symtab->current_scope();
 
-  // declare the new struct type (size will be re-evaluated in the type checker to
-  //  handle other nested struct type sizes that need to be resolved)
-  Type* struct_type = _alloc(Type, Type::Named(type_name), scope_id, Type::PTR_SIZE);
-  Type* sym_struct_type = m_symtab->declare_type(type_name, struct_type, scope_id);
-  if (!sym_struct_type) {
-    m_logger->report(Diag::DuplicateDeclaration(name_tok->get_span(), std::string(type_name)));
-    throw ParsePanic();
+  bool is_opaque_decl = match(TokenType::SEMICOLON);
+
+  Type* existing_sym_type = m_symtab->lookup<Type>(type_name, scope_id);
+  StructDeclPtr existing_struct_node = m_symtab->lookup_struct(type_name, scope_id);
+
+  // check for redefinition of struct type
+  if (existing_sym_type && existing_struct_node) {
+    if (existing_sym_type->is_complete() && !is_opaque_decl) {
+      m_logger->report(Diag::DuplicateDeclaration(name_tok->get_span(), "struct " + std::string(type_name)));
+      throw ParsePanic();
+    }
   }
 
-  // now link the struct declaration node to the symbol table for the IR
-  StructDeclPtr struct_node = _alloc(StructDeclNode, name_tok, scope_id, sym_struct_type, std::vector<StructFieldPtr>{});
-  if (!m_symtab->declare_struct(type_name, struct_node, scope_id)) {
-    m_logger->report(Diag::DuplicateDeclaration(name_tok->get_span(), "struct " + std::string(type_name)));
-    throw ParsePanic();
+  Type* sym_struct_type = existing_sym_type;
+  StructDeclPtr struct_node = existing_struct_node;
+
+  if (!sym_struct_type) {
+    // declare the new struct type (size will be re-evaluated in the type checker to
+    //  handle other nested struct type sizes that need to be resolved)
+    Type* struct_type = _alloc(Type, Type::Named(type_name), scope_id, Type::PTR_SIZE);
+
+    struct_type->set_aggregate(true);
+    struct_type->set_complete(false);
+    sym_struct_type = m_symtab->declare_type(type_name, struct_type, scope_id);
+
+    // now link the struct declaration node to the symbol table for the IR
+    struct_node = _alloc(StructDeclNode, name_tok, scope_id, sym_struct_type, std::vector<StructFieldPtr>{});
+    m_symtab->declare_struct(type_name, struct_node, scope_id);
   }
+
+  if (is_opaque_decl) {
+    advance();
+    return _alloc(StructDeclNode, name_tok, scope_id, sym_struct_type, std::vector<StructFieldPtr>{});
+  }
+
+  sym_struct_type->set_complete(true);
 
   m_symtab->enter_scope(); // new scope for the contents
   try {
@@ -204,7 +225,6 @@ FuncDeclPtr Parser::parse_function_decl() {
   _consume(TokenType::IDENTIFIER);
 
   std::string_view func_name = name_tok->get_lexeme();
-
   IdentPtr name_ident = _alloc(IdentifierNode, name_tok, m_symtab->current_scope(), func_name);
 
   std::vector<ParamPtr> params_vec;
@@ -232,6 +252,8 @@ FuncDeclPtr Parser::parse_function_decl() {
 
     if (is_ext) {
       _consume(TokenType::SEMICOLON);
+    } else if (match(TokenType::SEMICOLON)) {
+      advance(); // consume semicolon for regular (non-extern) forward declaration
     } else {
       body_block = parse_block(false);
     }
@@ -241,7 +263,7 @@ FuncDeclPtr Parser::parse_function_decl() {
   }
   m_symtab->exit_scope();
 
-  // Construct FunctionType for the symbol table declaration
+  // construct FunctionType for the symbol table declaration
   std::vector<Type::ParamInfo> ft_params;
   for (const ParamPtr& ast_param : params_vec) {
     ft_params.push_back({ast_param->type, ast_param->modifier});
@@ -258,12 +280,18 @@ FuncDeclPtr Parser::parse_function_decl() {
     fn_type = m_symtab->declare_type(ft_type_str, _alloc(Type, ft), 0);
   }
 
-  // declare it as a var as well with the associated type
-  Variable* var = _alloc(Variable, func_name, name_tok->get_span(),
-               BorrowState::ImmutablyOwned, fn_type, 0);
-  if (!m_symtab->declare_variable(var->name, var, 0)) {
-    m_logger->report(Diag::DuplicateDeclaration(name_tok->get_span(), std::string(func_name)));
-    throw ParsePanic();
+  Variable* existing_var = m_symtab->lookup<Variable>(func_name, 0);
+  if (existing_var) {
+    // check signature with prior forward declaration
+    if (!(*(existing_var->type) == *fn_type)) {
+      m_logger->report(Diag::TypeMismatch(name_tok->get_span(), existing_var->type->to_string(), fn_type->to_string()));
+      throw ParsePanic();
+    }
+  } else {
+    // declare it as a var with the associated type
+    Variable* var = _alloc(Variable, func_name, name_tok->get_span(),
+                 BorrowState::ImmutablyOwned, fn_type, 0);
+    m_symtab->declare_variable(var->name, var, 0);
   }
 
   return _alloc(FunctionDeclNode, func_tok, m_symtab->current_scope(), is_ext, name_ident,

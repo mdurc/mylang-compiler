@@ -1,0 +1,4 @@
+func math_op(a: i32) returns (r: i32);
+func math_op(a: i64) returns (r: i32) { return 0; }
+
+/*  Type mismatch: Expected 'func(imm: i32)->i32', got 'func(imm: i64)->i32' */

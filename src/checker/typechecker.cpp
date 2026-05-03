@@ -358,6 +358,13 @@ void TypeChecker::visit(SizeOfNode& node) {
     node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
     return;
   }
+
+  if (!node.target_type->is_complete()) {
+    m_logger->report(Diag::IncompleteType(node.token->get_span(), "SizeOf", node.target_type->to_string()));
+    node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
+    return;
+  }
+
   // the result of sizeof is always a 64-bit integer
   node.expr_type = m_symtab->lookup<Type>("i64", 0);
   _assert(node.expr_type != nullptr, "i64 type must exist in symbol table");
@@ -378,6 +385,14 @@ void TypeChecker::visit(VariableDeclNode& node) {
 
   Variable* sym = m_symtab->lookup<Variable>(node.name->name_str, node.scope_id);
   _assert(sym, "Variable should've been declared in symtab by Parser.");
+
+  if (sym->type && sym->type->is_aggregate() && !sym->type->is_complete()) {
+    m_logger->report(Diag::IncompleteType(node.name->token->get_span(), "Variable Instantiation", sym->type->to_string()));
+    sym->type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
+    node.name->expr_type = sym->type;
+    node.type = sym->type;
+    return;
+  }
 
   if (var_declared_type) {
     // Explicit type declaration
@@ -593,6 +608,11 @@ void TypeChecker::visit(StructDeclNode& node) {
   for (const StructFieldPtr& field : node.fields) {
     field->accept(*this);
     _assert(field->type, "field type should be non-null");
+    if (field->type && field->type->is_aggregate() && !field->type->is_complete()) {
+      m_logger->report(Diag::IncompleteType(field->name->token->get_span(), "Field declaration", std::string(field->name->name_str)));
+      field->type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
+    }
+    if (field->type->is<Type::ErrorType>()) continue;
     std::uint64_t field_size = field->type->get_byte_size();
     std::uint64_t field_align = field->type->get_alignment();
     std::uint64_t padding = (field_align - (current_offset % field_align)) % field_align;
@@ -1033,6 +1053,12 @@ void TypeChecker::visit(StructLiteralNode& node) {
 
 void TypeChecker::visit(NewExprNode& node) {
   _assert(node.type_to_allocate != nullptr, "Parser must provide type_to_allocate");
+
+  if (node.type_to_allocate->is_aggregate() && !node.type_to_allocate->is_complete()) {
+    m_logger->report(Diag::IncompleteType(node.token->get_span(), "NewAllocation", node.type_to_allocate->to_string()));
+    node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
+    return;
+  }
 
   /*
      Result is `ptr<[mut] type_to_allocate>`

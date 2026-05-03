@@ -85,18 +85,21 @@ public:
   bool is_aggregate() const { return m_is_aggregate; }
   void set_aggregate(bool is_agg) { m_is_aggregate = is_agg; }
 
+  bool is_complete() const { return m_is_complete; }
+  void set_complete(bool complete) { m_is_complete = complete; }
+
   Type(Named n, size_t sc, std::uint64_t bytes, std::uint64_t align = 0)
       : m_storage(n), m_scope_id(sc), m_bytes(bytes),
-        m_alignment(align > 0 ? align : bytes), m_is_aggregate(false){}
+        m_alignment(align > 0 ? align : bytes), m_is_aggregate(false), m_is_complete(true) {}
   Type(Function f, size_t sc)
       : m_storage(std::move(f)), m_scope_id(sc), m_bytes(PTR_SIZE),
-        m_alignment(PTR_SIZE), m_is_aggregate(false) {}
+        m_alignment(PTR_SIZE), m_is_aggregate(false), m_is_complete(true) {}
   Type(Pointer p, size_t sc)
       : m_storage(p), m_scope_id(sc), m_bytes(PTR_SIZE),
-        m_alignment(PTR_SIZE), m_is_aggregate(false) {}
+        m_alignment(PTR_SIZE), m_is_aggregate(false), m_is_complete(true) {}
   Type(ErrorType e, size_t sc)
       : m_storage(e), m_scope_id(sc), m_bytes(PTR_SIZE),
-        m_alignment(PTR_SIZE), m_is_aggregate(false) {}
+        m_alignment(PTR_SIZE), m_is_aggregate(false), m_is_complete(true) {}
 
   friend bool operator==(const Type& a, const Type& b) {
     return a.m_storage == b.m_storage;
@@ -108,6 +111,7 @@ private:
   std::uint64_t m_bytes;
   std::uint64_t m_alignment;
   bool m_is_aggregate;
+  bool m_is_complete;
 
   std::string to_string_recursive(std::vector<const Type*>& visited) const;
 };

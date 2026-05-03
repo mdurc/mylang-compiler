@@ -26,6 +26,7 @@ namespace Diag {
   Diagnostic VariableNotFound(const Span& span, const std::string& identifier);
   Diagnostic TypeNotFound(const Span& span, const std::string& type);
   Diagnostic DuplicateDeclaration(const Span& span, const std::string& identifier);
+  Diagnostic IncompleteType(const Span& span, const std::string& operation, const std::string& type_str);
 
   // generic diagnostics
   Diagnostic Error(const Span& span, const std::string& msg);

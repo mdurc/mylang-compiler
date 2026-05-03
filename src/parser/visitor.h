@@ -772,8 +772,7 @@ public:
       node.body->accept(*this);
     } else {
       /* is_extern */
-      _assert_nolog(node.is_extern, "function decl body is null, but not an extern function?");
-      out << "Extern implementation\n";
+      out << "Extern/incomplete implementation";
     }
     out << "\n";
     indent--;

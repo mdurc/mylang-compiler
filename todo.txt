@@ -15,12 +15,15 @@ Core language builtins:
   - [x] this should allow for an arena allocated module to be implemented
   - [x] determine syntax for sizeof operation
   - [x] compiler should resolve struct sizes at compile-time;
-- [ ] Forward declarations (improve the extern keyword to work for user-defined functions, not just the implemented ASM procedures)
-  - [ ] Currently they are primarily used for access to the ASM runtime procedures without having to add builtin syntax to the compiler. (see the `sample_code/strings.sn` file).
-  - [ ] Struct and function forward declarations should be added here.
-  - [ ] Should I get rid of the extern keyword? Does it provide any value or ease of implementation in the compiler? If it does make the implementation simpler, should we extend it to also be used for structs and general (non asm-runtime procedure) functions?
-    - [ ] Or should I get rid of the extern keyword if it is simply adding extra complexity for the programmer.
-- [ ] Proper header files with some sort of guard
+- [x] Forward declarations (improve the extern keyword to work for user-defined functions, not just the implemented ASM procedures)
+  - [x] Currently they are primarily used for access to the ASM runtime procedures without having to add builtin syntax to the compiler. (see the `sample_code/strings.sn` file).
+  - [x] Struct and function forward declarations should be added here.
+  - [x] Should I get rid of the extern keyword? Does it provide any value or ease of implementation in the compiler? If it does make the implementation simpler, should we extend it to also be used for structs and general (non asm-runtime procedure) functions?
+    - [x] Or should I get rid of the extern keyword if it is simply adding extra complexity for the programmer.
+    - ** extern is now only for the linker, assumed to be from the asm library
+    - ** normal prototypes are just regular declarations without a body
+- [x] Proper header files with some sort of guard
+  - [x] ~~ decided to simply do single-include per file for simplicity, relying on forward declarations and opaque types
 - [ ] Subprocess / System Command Execution (fork()/system()/exec() to call nasm, ld, etc)
   - [ ] File IO for reading and parsing, outputting files, etc.
   - [ ] More supported stdin types to read? Right now it is only integers.

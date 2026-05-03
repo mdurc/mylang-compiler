@@ -3,8 +3,8 @@
 <DefineDirective>       ::= '#define' Identifier /[^\n]+/
 <IncludeDirective>       ::= '#include' String
 
-<StructDecl>            ::= 'struct' Identifier '{' <StructFields>? '}'
-<StructFields>         ::= <StructField> ( ',' <StructField> )*
+<StructDecl>            ::= 'struct' Identifier ('{' <StructFields>? '}' | ';')
+<StructFields>          ::= <StructField> ( ',' <StructField> )*
 <StructField>           ::= Identifier ':' <Type>
 
 <FunctionDecl>          ::= ('extern')? 'func' Identifier '(' <Params>? ')' <ReturnType>? ( <Block> | ';' )

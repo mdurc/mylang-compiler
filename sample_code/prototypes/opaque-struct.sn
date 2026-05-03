@@ -1,0 +1,14 @@
+struct Node;
+
+struct Graph {
+  root: ptr<mut Node>
+}
+
+struct Node {
+  id: i32,
+  next: ptr<mut Node>
+}
+
+mut n := Node{id=1, next=null};
+g := Graph{root=&mut n};
+sz := sizeof<Node>;

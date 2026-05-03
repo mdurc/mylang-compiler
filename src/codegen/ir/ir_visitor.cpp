@@ -28,8 +28,11 @@ void IrVisitor::visit_all(const std::vector<AstPtr>& ast) {
       if (func_name == "main") {
         m_main_function_defined = true;
       }
-      // add it as a variable so that function calls can find it's identifier
-      add_var(func_name, func_decl->scope_id, true, func_decl->is_extern);
+
+      // don't re-insert an existing function (forward declarations)
+      if (!var_exists(func_name, func_decl->scope_id)) {
+        add_var(func_name, func_decl->scope_id, true, func_decl->is_extern);
+      }
     }
   }
 
@@ -571,6 +574,7 @@ void IrVisitor::visit(BlockNode& node) {
 
 void IrVisitor::visit(FunctionDeclNode& node) {
   if (node.is_extern) return; // it is already in asm runtime-library
+  if (!node.body) return; // forward decl
 
   std::string original_func_name = std::string(node.name->name_str);
   std::string func_ir_name = original_func_name;

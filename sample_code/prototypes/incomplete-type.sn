@@ -1,0 +1,13 @@
+struct Opaque;
+
+bad_var : Opaque;
+/*  Incomplete type for Variable Instantiation: 'Opaque' */
+
+struct Container { val: Opaque }
+/* Incomplete type for Field declaration: 'val' */
+
+s := sizeof<Opaque>;
+/*  Incomplete type for SizeOf: 'Opaque' */
+
+p := new<Opaque>();
+/* Incomplete type for NewAllocation: 'Opaque' */
