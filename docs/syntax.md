@@ -41,7 +41,8 @@ x = 13; // assignment using = (we cannot use := because it will re-declare the v
 ### Data Types
 
 - **Primitive Types**: `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `f64`, `bool`, `u0` (void/null type).
-- **Structs**: User-defined aggregate data types. Only data fields are allowed.
+- **Structs**: User-defined aggregate data type. Only data fields are allowed.
+- **Enums**: tagged union style enums.
 - **Pointers**: Raw pointers to data in memory.
 - **Function Types**: Types representing callable functions, used for first-class functions.
 
@@ -122,6 +123,37 @@ Functions are top-level declarations.
     - The _caller_ will allocate stack space for the expected return value.
     - The _caller_ will pass a pointer to this stack address as the first argument (`rdi`), and all regular function arguments are shifted over by one register.
     - The _callee_ then retrieves the argument and stores it in a local stack variable and eventually executes a `memcpy` to write data into the caller-provided memory address. The address is then returned in `rax`.
+
+### Enums & Tagged Unions
+- Suppport for both simple tag enums and tagged unions.
+- Treated as value types allocated on the stack.
+- **Simple Enums (Tags Only):**
+    ```mylang
+    enum TrafficLight { Red, Yellow, Green }
+    mut light := TrafficLight::Yellow;
+    ```
+- **Tagged Unions (Payloads):**
+  Variants can hold arbitrary data payloads using struct-like field definitions.
+    ```mylang
+    enum Shape {
+      Circle { radius: i32 },
+      Rectangle { w: i64, h: i64 },
+      Point
+    }
+    mut s := Shape::Rectangle{ w = 100, h = 200 };
+    ```
+- **Safe Payload Extraction (`switch`):**
+  Because tagged unions share overlapping memory, extracting a payload requires checking the tag first to guarantee memory safety. The `switch` statement handles this natively.
+  
+  When a `case` matches an enum variant with a payload, you can provide an identifier (e.g., `rect`). The compiler will automatically allocate a new local variable for that block copy the payload into it.
+
+    ```mylang
+    switch (s) {
+      case Shape::Circle(c): { print c.radius; }
+      case Shape::Rectangle(rect): { print rect.w, " ", rect.h; }
+      case Shape::Point: { print "No dimensions"; }
+    }
+    ```
 
 
 ### Pointers and Memory Management

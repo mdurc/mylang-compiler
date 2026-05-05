@@ -15,6 +15,7 @@ The compiler is only as useful as what it is able to compile, and what it is abl
 - This seems to be a common approach, called "Panic Mode Recovery".
 - The diagnostics module includes different severities that can be logged, and the parser is in charge of logging an error (including the row and column in the source code that this error was found) and then entering a panic mode.
 - The parser throws an exception to enter panic mode, which is eventually caught at a safe point, where the parser moves to a safe location to proceed.
+- Anonymous struct registration: when parsing tagged union payloads (enum Result { Ok { val: i64 } }), the parser dynamically creates an anonymous struct named Result::Ok and registers it directly into the symbol table. This allows the compiler to reuse the existing FieldAccessNode and struct-resolution logic when evaluating payload fields in the AST without needing dedicated union-access nodes.
 
 **Typechecker**
 - The typechecker is the second stage of this error handling system
