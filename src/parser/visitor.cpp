@@ -92,6 +92,8 @@ void AstPrinter::print_type(const Type& type) {
     indent--;
     print_indent();
     out << ")";
+  } else if (type.is<Type::Enum>()) {
+    out << "Enum";
   } else if (type.is<Type::ErrorType>()) {
     out << "ErrorType!";
   } else {

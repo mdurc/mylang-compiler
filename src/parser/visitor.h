@@ -34,6 +34,7 @@ public:
   virtual void visit(ArrayIndexNode& node) = 0;
   virtual void visit(GroupedExprNode& node) = 0;
   virtual void visit(StructLiteralNode& node) = 0;
+  virtual void visit(EnumLiteralNode& node) = 0;
   virtual void visit(NewExprNode& node) = 0;
 
   // Statement Nodes
@@ -62,6 +63,7 @@ public:
   virtual void visit(ParamNode& node) = 0;
   virtual void visit(FunctionDeclNode& node) = 0;
   virtual void visit(StructDeclNode& node) = 0;
+  virtual void visit(EnumDeclNode& node) = 0;
 };
 
 void print_ast_node(const AstPtr& node, std::ostream& out);
@@ -252,7 +254,6 @@ public:
       }
     }
     indent--;
-    out << "\n";
     print_indent();
     out << "]\n";
     indent--;
@@ -671,16 +672,52 @@ public:
     out << "Case(\n";
     indent++;
     print_indent();
-    out << "Value:";
-    if (node.value) {
-      out << "\n";
+    out << "Match:\n";
+    indent++;
+    if (node.is_default) {
+      print_indent();
+      out << "Default";
+    } else if (node.is_enum_match) {
+      print_indent();
+      out << "EnumPattern(\n";
       indent++;
-      node.value->accept(*this);
+      print_indent();
+      out << "Enum:\n";
+      indent++;
+      node.enum_name->accept(*this);
       indent--;
+      out << ",\n";
+      print_indent();
+      out << "Variant:\n";
+      indent++;
+      node.variant_name->accept(*this);
+      indent--;
+      out << ",\n";
+      print_indent();
+      out << "Payload:";
+      if (node.payload_name) {
+        out << "\n";
+        indent++;
+        node.payload_name->accept(*this);
+        indent--;
+      } else {
+        out << " null";
+      }
+      out << "\n";
+      indent--;
+      print_indent();
+      out << ")";
     } else {
-      out << "default";
+      // value-equality match
+      print_indent();
+      out << "Value:\n";
+      indent++;
+      node.condition->accept(*this);
+      indent--;
     }
+    indent--;
     out << ",\n";
+
     print_indent();
     out << "Body:\n";
     node.body->accept(*this);
@@ -799,6 +836,96 @@ public:
         out << ",";
       }
       out << "\n";
+    }
+    indent--;
+    print_indent();
+    out << "]\n";
+    indent--;
+    print_indent();
+    out << ")";
+  }
+
+  void visit(EnumDeclNode& node) override {
+    print_indent();
+    out << "EnumDecl(\n";
+    indent++;
+    print_indent();
+    out << "Type:\n";
+    indent++;
+    if (node.type) {
+      print_type(*node.type);
+    } else {
+      out  << "nullptr";
+    }
+    indent--;
+    out << ",\n";
+    print_indent();
+    out << "Variants: [\n";
+    indent++;
+    for (size_t i = 0; i < node.variants.size(); ++i) {
+      const auto& variant = node.variants[i];
+      print_indent();
+      out << "Variant(\n";
+      indent++;
+      print_indent();
+      out << "Name:\n";
+      indent++;
+      variant.name->accept(*this);
+      indent--;
+      out << ",\n";
+      print_indent();
+      out << "Fields: [\n";
+      indent++;
+      for (size_t j = 0; j < variant.fields.size(); ++j) {
+        variant.fields[j]->accept(*this);
+        if (j < variant.fields.size() - 1) {
+          out << ",";
+        }
+        out << "\n";
+      }
+      indent--;
+      print_indent();
+      out << "]\n";
+      indent--;
+      print_indent();
+      out << ")";
+      if (i < node.variants.size() - 1) {
+        out << ",";
+      }
+      out << "\n";
+    }
+    indent--;
+    print_indent();
+    out << "]\n";
+    indent--;
+    print_indent();
+    out << ")";
+  }
+
+  void visit(EnumLiteralNode& node) override {
+    print_indent();
+    out << "EnumLiteral(\n";
+    indent++;
+    print_indent();
+    out << "Type:\n";
+    indent++;
+    print_type(*node.enum_decl->type);
+    indent--;
+    out << ",\n";
+    print_indent();
+    out << "Variant:\n";
+    indent++;
+    node.variant_name->accept(*this);
+    indent--;
+    out << ",\n";
+    print_indent();
+    out << "Initializers: [\n";
+    indent++;
+    for (size_t i = 0; i < node.initializers.size(); ++i) {
+      node.initializers[i]->accept(*this);
+      if (i < node.initializers.size() - 1) {
+        out << ",\n";
+      }
     }
     indent--;
     print_indent();

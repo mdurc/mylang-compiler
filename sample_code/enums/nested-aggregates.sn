@@ -1,0 +1,19 @@
+struct Vector3 {
+  x: i64,
+  y: i64,
+  z: i64
+}
+
+enum Action {
+  Move { dir: Vector3 },
+  Halt
+}
+
+func main() {
+  mut vec := Vector3{ x = 10, y = 20, z = 30 };
+  mut a := Action::Move{ dir = vec };
+  switch (a) {
+    case Action::Move(m): { print m.dir.x, " ", m.dir.z, "\n"; }
+    case Action::Halt: { print 0, "\n"; }
+  }
+}

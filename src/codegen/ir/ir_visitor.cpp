@@ -956,17 +956,42 @@ void IrVisitor::visit(ExitStmtNode& node) {
 void IrVisitor::visit(SwitchStmtNode& node) {
   node.expression->accept(*this);
   IROperand switch_op = m_last_expr_operand;
-  _assert(node.expression->expr_type, "Switch expression must have a type");
-  std::uint64_t expr_size = node.expression->expr_type->get_byte_size();
+  Type* switch_expr_type = node.expression->expr_type;
+  _assert(switch_expr_type, "Switch expression must have a type");
+  std::uint64_t expr_size = switch_expr_type->get_byte_size();
+
+  // if we are switching on an enum, switch_op is a ptr to the enum struct
+  bool is_enum_switch = switch_expr_type->is<Type::Enum>();
+  IR_Register enum_tag_reg;
+
+  std::optional<IR_Variable> switch_ptr_backup_var = std::nullopt;
+
+  if (is_enum_switch) {
+    // load the 4-byte tag
+    enum_tag_reg = m_ir_gen.new_temp_reg();
+    m_ir_gen.emit_load(enum_tag_reg, switch_op, 4);
+
+    // hidden variable for backup
+    static int s_switch_backup_id = 0;
+    std::string backup_name = ".switch_backup_" + std::to_string(s_switch_backup_id++);
+    IR_Variable backup_var(backup_name, Type::PTR_SIZE, Type::PTR_SIZE, false, false, false);
+    m_vars.insert(backup_var);
+    switch_ptr_backup_var = backup_var;
+
+    // address and store the switch pointer into it BEFORE jumps begin
+    IR_Register backup_addr_pre = m_ir_gen.new_temp_reg();
+    m_ir_gen.emit_addr_of(backup_addr_pre, backup_var);
+    m_ir_gen.emit_store(backup_addr_pre, switch_op, Type::PTR_SIZE);
+  }
 
   CasePtr default_case_node = nullptr;
   IR_Label default_body_label;
 
   std::vector<std::pair<CasePtr, IR_Label>> case_blocks;
 
+  // setup labels for jumps
   for (const CasePtr& case_ptr : node.cases) {
-    if (case_ptr->value) {
-      // it is a non-default case
+    if (!case_ptr->is_default) {
       IR_Label body_label = m_ir_gen.new_label();
       case_blocks.push_back(std::make_pair(case_ptr, body_label));
     } else {
@@ -980,14 +1005,27 @@ void IrVisitor::visit(SwitchStmtNode& node) {
   IR_Label final_fallthrough_label =
       default_case_node ? default_body_label : end_switch_label;
 
-  // emit the cases
+  // emit the comparison jumps
   for (const auto& [case_ptr, body_label] : case_blocks) {
-    case_ptr->value->accept(*this);
-    IROperand case_val_op = m_last_expr_operand;
     IR_Register cmp_reg = m_ir_gen.new_temp_reg();
-
-    // do a not-equal comparison so that we can jump to the case label faster
-    m_ir_gen.emit_cmp_ne(cmp_reg, switch_op, case_val_op, expr_size);
+    if (case_ptr->is_enum_match) {
+      // find the expected tag for this variant
+      const Type::Enum& enum_t = switch_expr_type->as<Type::Enum>();
+      std::uint32_t expected_tag = 0;
+      for (const auto& v : enum_t.variants) {
+        if (v.name == case_ptr->variant_name->name_str) {
+          expected_tag = v.tag_value;
+          break;
+        }
+      }
+      // cmp the extracted tag with the expected tag
+      m_ir_gen.emit_cmp_ne(cmp_reg, enum_tag_reg, IR_Immediate(expected_tag, 4), 4);
+    } else {
+      case_ptr->condition->accept(*this);
+      IROperand case_val_op = m_last_expr_operand;
+      // do a not-equal comparison so that we can jump to the case label faster
+      m_ir_gen.emit_cmp_ne(cmp_reg, switch_op, case_val_op, expr_size);
+    }
 
     // jump to case label if it was not (not-equal)
     m_ir_gen.emit_if_z(cmp_reg, body_label, 1); // cmp_reg is 1 byte bool
@@ -996,12 +1034,53 @@ void IrVisitor::visit(SwitchStmtNode& node) {
   // goto either default case (if one exists) or the exit
   m_ir_gen.emit_goto(final_fallthrough_label);
 
+  // emit the case bodies
   for (const auto& [case_ptr, body_label] : case_blocks) {
     m_ir_gen.emit_label(body_label);
+
+    // unpacking an enum payload
+    if (case_ptr->is_enum_match && case_ptr->payload_name) {
+      const Type::Enum& enum_t = switch_expr_type->as<Type::Enum>();
+
+      std::uint64_t max_payload_align = 1;
+      for (const auto& v : enum_t.variants) {
+        if (v.payload_type) {
+          max_payload_align = std::max(max_payload_align, v.payload_type->get_alignment());
+        }
+      }
+
+      std::uint64_t payload_offset = (4 + max_payload_align - 1) & ~(max_payload_align - 1);
+      std::uint64_t payload_size = 0;
+      for (const auto& v : enum_t.variants) {
+        if (v.name == case_ptr->variant_name->name_str && v.payload_type) {
+          payload_size = v.payload_type->get_byte_size();
+          break;
+        }
+      }
+
+      // add the payload variable to the IR scope tracking explicitly
+      const IR_Variable* payload_ir_var = add_var(case_ptr->payload_name->name_str, case_ptr->body->scope_id);
+      IR_Register dest_payload_addr = m_ir_gen.new_temp_reg();
+      m_ir_gen.emit_addr_of(dest_payload_addr, *payload_ir_var);
+
+      // recalculate backup variable's address (prevent register allocator spilling across jumps)
+      IR_Register local_backup_addr = m_ir_gen.new_temp_reg();
+      m_ir_gen.emit_addr_of(local_backup_addr, switch_ptr_backup_var.value());
+
+      IR_Register restored_switch_ptr = m_ir_gen.new_temp_reg();
+      m_ir_gen.emit_load(restored_switch_ptr, local_backup_addr, Type::PTR_SIZE);
+
+      IR_Register src_payload_addr = m_ir_gen.new_temp_reg();
+      m_ir_gen.emit_add(src_payload_addr, restored_switch_ptr, IR_Immediate(payload_offset, Type::PTR_SIZE), Type::PTR_SIZE);
+
+      m_ir_gen.emit_mem_copy(dest_payload_addr, src_payload_addr, payload_size);
+    }
+
     case_ptr->body->accept(*this);
     m_ir_gen.emit_goto(end_switch_label);
   }
 
+  // default body emit
   if (default_case_node) {
     m_ir_gen.emit_label(default_body_label);
     default_case_node->body->accept(*this);
@@ -1079,6 +1158,7 @@ void IrVisitor::visit(FloatLiteralNode&) { unimpl("FloatLiteralNode"); }
 
 void IrVisitor::visit(StructFieldNode&) { /* no-op */ }
 void IrVisitor::visit(StructDeclNode&) { /* no-op */ }
+void IrVisitor::visit(EnumDeclNode&) { /* no-op */ }
 void IrVisitor::visit(StructFieldInitializerNode&) { /* no-op */ }
 
 void IrVisitor::visit(StructLiteralNode& node) {
@@ -1126,4 +1206,70 @@ void IrVisitor::visit(StructLiteralNode& node) {
   }
   // the result of the struct literal is the address
   m_last_expr_operand = struct_addr;
+}
+
+void IrVisitor::visit(EnumLiteralNode& node) {
+  std::uint64_t enum_size = node.enum_decl->type->get_byte_size();
+  std::uint64_t enum_align = node.enum_decl->type->get_alignment();
+
+  IR_Register enum_addr = allocate_temp_local(enum_size, enum_align);
+  m_ir_gen.emit_mem_set(enum_addr, IR_Immediate(0, 1), enum_size);
+
+  // identify variant and write tag
+  const Type::Enum& enum_t = node.enum_decl->type->as<Type::Enum>();
+  std::uint32_t tag_val = 0;
+  const Type::EnumVariant* matched_var = nullptr;
+  for (const auto& v : enum_t.variants) {
+    if (v.name == node.variant_name->name_str) {
+      tag_val = v.tag_value;
+      matched_var = &v;
+      break;
+    }
+  }
+
+  // write tag (u32) to offset 0
+  m_ir_gen.emit_store(enum_addr, IR_Immediate(tag_val, 4), 4);
+
+  // write payload fields if they exist
+  if (matched_var && matched_var->payload_type && !node.initializers.empty()) {
+    std::uint64_t max_payload_align = 1;
+    for (const auto& v : enum_t.variants) {
+      if (v.payload_type) {
+        max_payload_align = std::max(max_payload_align, v.payload_type->get_alignment());
+      }
+    }
+    std::uint64_t payload_offset = (4 + max_payload_align - 1) & ~(max_payload_align - 1);
+
+    // find the AST fields to get their byte offsets
+    const EnumVariantAST* ast_var = nullptr;
+    for (const auto& v : node.enum_decl->variants) {
+      if (v.name->name_str == node.variant_name->name_str) {
+        ast_var = &v;
+        break;
+      }
+    }
+
+    for (const StructFieldPtr& field : ast_var->fields) {
+      ExprPtr value = nullptr;
+      for (const auto& init : node.initializers) {
+        if (init->field->name_str == field->name->name_str) {
+          value = init->value;
+          break;
+        }
+      }
+
+      if (value) {
+        IR_Register field_addr = m_ir_gen.new_temp_reg();
+        m_ir_gen.emit_add(field_addr, enum_addr, IR_Immediate(payload_offset + field->offset, 8), 8);
+        value->accept(*this);
+        if (field->type->is_aggregate()) {
+          m_ir_gen.emit_mem_copy(field_addr, m_last_expr_operand, field->type->get_byte_size());
+        } else {
+          m_ir_gen.emit_store(field_addr, m_last_expr_operand, field->type->get_byte_size());
+        }
+      }
+    }
+  }
+
+  m_last_expr_operand = enum_addr;
 }

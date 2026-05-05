@@ -55,11 +55,29 @@ public:
     friend bool operator==(const ErrorType&, const ErrorType&) { return true; }
   };
 
+  struct EnumVariant {
+    std::string_view name;
+    Type* payload_type; /* ptr to hidden struct representing the payload (nullptr if empty) */
+    std::uint32_t tag_value;
+    friend bool operator==(const EnumVariant& a, const EnumVariant& b) {
+      return a.name == b.name && a.payload_type == b.payload_type && a.tag_value == b.tag_value;
+    }
+  };
+
+  struct Enum {
+    std::string_view identifier;
+    std::vector<EnumVariant> variants;
+    friend bool operator==(const Enum& a, const Enum& b) {
+      return a.identifier == b.identifier;
+    }
+  };
+
   // public interface
   inline static const std::uint64_t PTR_SIZE = 8;
 
   /* interpret a Type* t via: t->is<Function>() */
   template <typename T> bool is() const { return std::holds_alternative<T>(m_storage); }
+  template <typename T> T& as() { return std::get<T>(m_storage); }
   template <typename T> const T& as() const { return std::get<T>(m_storage); }
 
   /* returns the string format that should be used within the language */
@@ -93,13 +111,16 @@ public:
   Type(ErrorType e, size_t sc)
       : m_storage(e), m_scope_id(sc), m_bytes(PTR_SIZE),
         m_alignment(PTR_SIZE), m_is_aggregate(false), m_is_complete(true) {}
+  Type(Enum e, size_t sc, std::uint64_t bytes, std::uint64_t align)
+      : m_storage(std::move(e)), m_scope_id(sc), m_bytes(bytes),
+        m_alignment(align), m_is_aggregate(true), m_is_complete(true) {}
 
   friend bool operator==(const Type& a, const Type& b) {
     return a.m_storage == b.m_storage;
   }
 
 private:
-  std::variant<Named, Function, Pointer, ErrorType> m_storage;
+  std::variant<Named, Function, Pointer, ErrorType, Enum> m_storage;
   size_t m_scope_id;
   std::uint64_t m_bytes;
   std::uint64_t m_alignment;

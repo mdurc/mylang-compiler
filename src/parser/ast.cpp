@@ -44,5 +44,7 @@ void ExitStmtNode::accept(Visitor& v) { v.visit(*this); }
 void AsmBlockNode::accept(Visitor& v) { v.visit(*this); }
 void StructFieldNode::accept(Visitor& v) { v.visit(*this); }
 void StructDeclNode::accept(Visitor& v) { v.visit(*this); }
+void EnumDeclNode::accept(Visitor& v) { v.visit(*this); }
+void EnumLiteralNode::accept(Visitor& v) { v.visit(*this); }
 void ParamNode::accept(Visitor& v) { v.visit(*this); }
 void FunctionDeclNode::accept(Visitor& v) { v.visit(*this); }

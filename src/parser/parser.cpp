@@ -64,6 +64,7 @@ bool Parser::is_sync_point(const Token* tok) const {
     case TokenType::FUNC:
     case TokenType::IF:
     case TokenType::STRUCT:
+    case TokenType::ENUM:
     case TokenType::WHILE:
     case TokenType::FOR:
     case TokenType::RETURN:
@@ -102,6 +103,8 @@ AstPtr Parser::parse_toplevel_declaration() {
   try {
     if (match(TokenType::STRUCT)) {
       return parse_struct_decl();
+    } else if (match(TokenType::ENUM)) {
+      return parse_enum_decl();
     } else if (match(TokenType::FUNC) || match(TokenType::EXTERN)) {
       return parse_function_decl();
     } else {
@@ -123,6 +126,96 @@ bool Parser::parse_mutability_prefix() {
     advance();
   }
   return is_mut;
+}
+
+// Enums
+// <EnumDecl> ::= 'enum' Identifier '{' <EnumVariant> (',' <EnumVariant>)* '}'
+AstPtr Parser::parse_enum_decl() {
+  _consume(TokenType::ENUM);
+
+  const Token* name_tok = current();
+  _consume(TokenType::IDENTIFIER);
+
+  std::string_view enum_name = name_tok->get_lexeme();
+  size_t scope_id = m_symtab->current_scope();
+  IdentPtr name_ident = _alloc(IdentifierNode, name_tok, scope_id, enum_name);
+
+  // forward declare enum type to support internal pointers if needed
+  Type* enum_type = _alloc(Type, Type::Enum{enum_name, {}}, scope_id, Type::PTR_SIZE, Type::PTR_SIZE);
+  Type* sym_enum_type = m_symtab->declare_type(enum_name, enum_type, scope_id);
+  if (!sym_enum_type) {
+    m_logger->report(Diag::DuplicateDeclaration(name_tok->get_span(), std::string(enum_name)));
+    throw ParsePanic();
+  }
+
+  EnumDeclPtr enum_node = _alloc(EnumDeclNode, name_tok, scope_id, name_ident, std::vector<EnumVariantAST>{});
+  if (!m_symtab->declare_enum(enum_name, enum_node, scope_id)) {
+    m_logger->report(Diag::DuplicateDeclaration(name_tok->get_span(), "enum " + std::string(enum_name)));
+    throw ParsePanic();
+  }
+
+  std::vector<EnumVariantAST> ast_variants;
+  std::vector<Type::EnumVariant> type_variants;
+  std::uint32_t current_tag = 0;
+
+  m_symtab->enter_scope();
+  try {
+    _consume(TokenType::LBRACE);
+    if (!match(TokenType::RBRACE)) {
+      do {
+        const Token* variant_tok = current();
+        _consume(TokenType::IDENTIFIER);
+        std::string_view variant_name = variant_tok->get_lexeme();
+        IdentPtr variant_ident = _alloc(IdentifierNode, variant_tok, m_symtab->current_scope(), variant_name);
+
+        std::vector<StructFieldPtr> payload_fields;
+        Type* payload_type = nullptr;
+
+        if (match(TokenType::LBRACE)) {
+          _consume(TokenType::LBRACE);
+          m_symtab->enter_scope(); // encapsulate payload fields
+          try {
+            if (!match(TokenType::RBRACE)) {
+              do {
+                payload_fields.push_back(parse_struct_field());
+              } while (match(TokenType::COMMA) && advance());
+            }
+            _consume(TokenType::RBRACE);
+          } catch (const ParsePanic&) {
+            m_symtab->exit_scope();
+            throw;
+          }
+          m_symtab->exit_scope();
+
+          // create anonymous struct type for the payload
+          std::string payload_name = std::string(enum_name) + "::" + std::string(variant_name);
+          std::string_view allocated_name = m_arena->make_string(payload_name);
+          payload_type = _alloc(Type, Type::Named(allocated_name), scope_id, 0); // size populated in typechecker
+          payload_type->set_aggregate(true);
+
+          // register anonymous struct in symbol table
+          m_symtab->declare_type(allocated_name, payload_type, scope_id);
+          StructDeclPtr payload_struct = _alloc(StructDeclNode, variant_tok, scope_id, payload_type, payload_fields);
+          m_symtab->declare_struct(allocated_name, payload_struct, scope_id);
+        }
+
+        ast_variants.push_back({variant_ident, payload_fields});
+        type_variants.push_back({variant_name, payload_type, current_tag++});
+
+      } while (match(TokenType::COMMA) && advance());
+    }
+    _consume(TokenType::RBRACE);
+  } catch (const ParsePanic&) {
+    m_symtab->exit_scope();
+    throw;
+  }
+  m_symtab->exit_scope();
+
+  sym_enum_type->as<Type::Enum>().variants = std::move(type_variants);
+  enum_node->variants = std::move(ast_variants);
+  enum_node->type = sym_enum_type;
+
+  return enum_node;
 }
 
 // Structs
@@ -570,23 +663,48 @@ StmtPtr Parser::parse_switch_stmt() {
 
   std::vector<CasePtr> cases;
   while (!match(TokenType::RBRACE)) {
-    // <Case> ::= 'case' <Expr> ':' <Block> | 'default' ':' <Block>
+    // <Case> ::= 'case' <CasePattern> ':' <Block> | 'default' ':' <Block>
     const Token* case_tok = current();
-    ExprPtr value = nullptr;
     if (match(TokenType::CASE)) {
       advance();
-      value = parse_expression();
+      // check for enum match: Identifier '::' Identifier ('(' Identifier ')')? ':'
+      if (match(TokenType::IDENTIFIER) && peek_next(TokenType::COLON_COLON)) {
+        const Token* enum_name_tok = current();
+        advance(); advance();
+        const Token* variant_name_tok = current();
+        _consume(TokenType::IDENTIFIER);
+
+        IdentPtr enum_ident = _alloc(IdentifierNode, enum_name_tok, m_symtab->current_scope(), enum_name_tok->get_lexeme());
+        IdentPtr variant_ident = _alloc(IdentifierNode, variant_name_tok, m_symtab->current_scope(), variant_name_tok->get_lexeme());
+
+        IdentPtr payload_ident = nullptr;
+        if (match(TokenType::LPAREN)) {
+          advance();
+          const Token* payload_tok = current();
+          _consume(TokenType::IDENTIFIER);
+          payload_ident = _alloc(IdentifierNode, payload_tok, m_symtab->current_scope(), payload_tok->get_lexeme());
+          _consume(TokenType::RPAREN);
+        }
+
+        _consume(TokenType::COLON);
+        BlockPtr body = parse_block(true);
+        cases.push_back(_alloc(CaseNode, case_tok, m_symtab->current_scope(), enum_ident, variant_ident, payload_ident, body));
+      } else {
+        // standard integer/expression match
+        ExprPtr value = parse_expression();
+        _consume(TokenType::COLON);
+        BlockPtr body = parse_block(true);
+        cases.push_back(_alloc(CaseNode, case_tok, m_symtab->current_scope(), value, body));
+      }
     } else if (match(TokenType::DEFAULT)) {
-      advance(); // value remains nullptr for default
+      advance();
+      _consume(TokenType::COLON);
+      BlockPtr body = parse_block(true);
+      cases.push_back(_alloc(CaseNode, case_tok, m_symtab->current_scope(), body));
     } else {
       m_logger->report(Diag::ExpectedToken(current()->get_span(), "case | default", token_type_to_string(current()->get_type())));
       throw ParsePanic();
     }
-
-    _consume(TokenType::COLON);
-
-    BlockPtr body = parse_block(true); // each case will have its own scope
-    cases.push_back(_alloc(CaseNode, case_tok, m_symtab->current_scope(), body, value));
   }
 
   _consume(TokenType::RBRACE);
@@ -1141,12 +1259,17 @@ ExprPtr Parser::parse_primary() {
       match(TokenType::NULL_)) {
     return parse_primitive_literal();
   } else if (match(TokenType::IDENTIFIER)) {
-    // could be variable identifier or struct literal
-
-    // if it exists as a type, then it is a struct because that is the only
-    // other named type that can exist besides primatives
+    // could be variable identifier, struct literal, or enum literal
     std::string_view name = tok->get_lexeme();
     size_t scope_id = m_symtab->current_scope();
+
+    if (peek_next(TokenType::COLON_COLON)) {
+      EnumDeclPtr enum_decl = m_symtab->lookup_enum(name, scope_id);
+      if (enum_decl) {
+        return parse_enum_literal(enum_decl);
+      }
+    }
+
     StructDeclPtr struct_decl = m_symtab->lookup_struct(name, scope_id);
     if (struct_decl) {
       return parse_struct_literal(struct_decl);
@@ -1238,6 +1361,34 @@ ExprPtr Parser::parse_struct_literal(StructDeclPtr struct_decl) {
 
   return _alloc(StructLiteralNode, type_name_tok, m_symtab->current_scope(),
               struct_decl, std::move(initializers_vec));
+}
+
+// <EnumLiteral> ::= Identifier '::' Identifier ('{' ( Identifier '=' <Expr> ( ',' Identifier '=' <Expr> )* )? '}')?
+ExprPtr Parser::parse_enum_literal(EnumDeclPtr enum_decl) {
+  const Token* enum_tok = current();
+  _consume(TokenType::IDENTIFIER); // consume enum name
+  _consume(TokenType::COLON_COLON);
+
+  const Token* variant_tok = current();
+  _consume(TokenType::IDENTIFIER);
+  IdentPtr variant_ident = _alloc(IdentifierNode, variant_tok, m_symtab->current_scope(), variant_tok->get_lexeme());
+
+  std::vector<StructFieldInitPtr> initializers;
+  if (match(TokenType::LBRACE)) {
+    _consume(TokenType::LBRACE);
+    if (!match(TokenType::RBRACE)) {
+      do {
+        const Token* field_name_tok = current();
+        _consume(TokenType::IDENTIFIER);
+        IdentPtr field_ident = _alloc(IdentifierNode, field_name_tok, m_symtab->current_scope(), field_name_tok->get_lexeme());
+        _consume(TokenType::EQUAL);
+        ExprPtr value_expr = parse_expression();
+        initializers.push_back(_alloc(StructFieldInitializerNode, field_name_tok, m_symtab->current_scope(), field_ident, value_expr));
+      } while (match(TokenType::COMMA) && advance());
+    }
+    _consume(TokenType::RBRACE);
+  }
+  return _alloc(EnumLiteralNode, enum_tok, m_symtab->current_scope(), enum_decl, variant_ident, std::move(initializers));
 }
 
 // <NewExpr> ::= 'new' '<'<TypePrefix>? <Type>'>' ( '['<Expr>']' | '('(<StructLiteral> | <Expr>)?')' )

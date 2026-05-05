@@ -53,6 +53,8 @@ std::string Type::to_string_recursive(std::vector<const Type*>& visited) const {
   } else if (this->is<ErrorType>()) {
     /* poisoned/invalid type */
     str = "<ErrorType>";
+  } else if (this->is<Enum>()) {
+    str = "enum " + std::string(this->as<Enum>().identifier);
   }
   visited.pop_back();
   return str;

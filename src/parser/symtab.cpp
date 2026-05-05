@@ -2,16 +2,6 @@
 
 #include <map>
 
-const Symbol* Scope::lookup(std::string_view name) const {
-  auto it = m_symbols.find(name);
-  return it != m_symbols.end() ? &it->second : nullptr;
-}
-
-StructDeclPtr Scope::lookup_struct(std::string_view name) const {
-  auto it = m_structs.find(name);
-  return it != m_structs.end() ? it->second : nullptr;
-}
-
 void Scope::print(std::ostream& out, const std::string& indent) const {
   out << indent << "Scope (parent: " << m_parent_scope << ")\n";
   if (m_symbols.empty()) {
@@ -75,6 +65,18 @@ StructDeclPtr SymTab::lookup_struct(std::string_view name, size_t start_scope) c
   }
   for (size_t scope_id = start_scope;; scope_id = m_scopes[scope_id].get_parent_scope()) {
     StructDeclPtr decl = m_scopes[scope_id].lookup_struct(name);
+    if (decl) return decl;
+    if (scope_id == 0) break;
+  }
+  return nullptr;
+}
+
+EnumDeclPtr SymTab::lookup_enum(std::string_view name, size_t start_scope) const {
+  if (start_scope >= m_scopes.size()) {
+    return nullptr;
+  }
+  for (size_t scope_id = start_scope;; scope_id = m_scopes[scope_id].get_parent_scope()) {
+    EnumDeclPtr decl = m_scopes[scope_id].lookup_enum(name);
     if (decl) return decl;
     if (scope_id == 0) break;
   }

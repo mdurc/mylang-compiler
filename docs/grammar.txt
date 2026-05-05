@@ -77,6 +77,7 @@
                           | Identifier
                           | '(' <Expr> ')'
                           | <StructLiteral>
+                          | <EnumLiteral>
                           | <NewExpr>
                           | <CastExpr>
                           | <SizeOfExpr>
@@ -84,6 +85,7 @@
 <PrimitiveLiteral>      ::= Integer | Float | String | Bool | 'null'
 
 <StructLiteral>         ::= Identifier '{' ( Identifier '=' <Expr> ( ',' Identifier '=' <Expr> )* )? '}'
+<EnumLiteral>           ::= Identifier '::' Identifier ('{' ( Identifier '=' <Expr> ( ',' Identifier '=' <Expr> )* )? '}')?
 <NewExpr>               ::= 'new' '<' <TypePrefix>? <Type> '>' ( '[' <Expr> ']' | '(' (<StructLiteral> | <Expr>)? ')' )
 <CastExpr>              ::= 'cast' '<' <Type> '>' '(' <Expr> ')'
 <SizeOfExpr>            ::= 'sizeof' '<' <Type> '>'

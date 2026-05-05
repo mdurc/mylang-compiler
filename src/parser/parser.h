@@ -42,6 +42,9 @@ private:
 
   bool parse_mutability_prefix();
 
+  /* Enums */
+  AstPtr parse_enum_decl();
+
   /* Structs */
   AstPtr parse_struct_decl();
   StructFieldPtr parse_struct_field();
@@ -92,6 +95,7 @@ private:
   ExprPtr parse_primary();
   ExprPtr parse_primitive_literal();
   ExprPtr parse_struct_literal(StructDeclPtr struct_decl);
+  ExprPtr parse_enum_literal(EnumDeclPtr enum_decl);
   ExprPtr parse_new_expr();
   ExprPtr parse_explicit_cast();
   ExprPtr parse_sizeof();

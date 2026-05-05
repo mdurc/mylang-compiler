@@ -46,6 +46,7 @@ public:
   void visit(ArrayIndexNode& node) override;
   void visit(GroupedExprNode& node) override;
   void visit(StructLiteralNode& node) override;
+  void visit(EnumLiteralNode& node) override;
   void visit(NewExprNode& node) override;
 
   // Statement Nodes
@@ -74,6 +75,7 @@ public:
   void visit(ParamNode& node) override;
   void visit(FunctionDeclNode& node) override;
   void visit(StructDeclNode& node) override;
+  void visit(EnumDeclNode& node) override;
 
 private:
   const SymTab* m_symtab;

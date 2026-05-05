@@ -23,6 +23,8 @@ using StructFieldPtr = class StructFieldNode*;
 using ParamPtr = class ParamNode*;
 using FuncDeclPtr = class FunctionDeclNode*;
 using StructDeclPtr = class StructDeclNode*;
+using EnumDeclPtr = class EnumDeclNode*;
+using EnumLiteralPtr = class EnumLiteralNode*;
 
 class Visitor;
 
@@ -231,6 +233,16 @@ public:
   void accept(Visitor& v) override;
 };
 
+class EnumLiteralNode : public ExpressionNode {
+public:
+  EnumDeclPtr enum_decl;
+  IdentPtr variant_name;
+  std::vector<StructFieldInitPtr> initializers; /* empty if no payload */
+  EnumLiteralNode(const Token* tok, size_t sc, EnumDeclPtr ed, IdentPtr vn, std::vector<StructFieldInitPtr> init)
+      : ExpressionNode(tok, sc), enum_decl(ed), variant_name(vn), initializers(std::move(init)) {}
+  void accept(Visitor& v) override;
+};
+
 class NewExprNode : public ExpressionNode {
 public:
   bool is_memory_mutable;
@@ -299,10 +311,32 @@ public:
 
 class CaseNode : public AstNode {
 public:
-  ExprPtr value; /* nullptr for default case */
+  bool is_default;
+  ExprPtr condition; /* used for value-equality match (integers for now) */
+
+  /* enum pattern match properties */
+  bool is_enum_match;
+  IdentPtr enum_name;
+  IdentPtr variant_name;
+  IdentPtr payload_name; /* optional variable to bind the payload to */
+
   BlockPtr body;
-  CaseNode(const Token* tok, size_t sc, BlockPtr b, ExprPtr val)
-      : AstNode(tok, sc), value(val), body(b) {}
+
+  /* default: */
+  CaseNode(const Token* tok, size_t sc, BlockPtr body)
+      : AstNode(tok, sc), is_default(true), condition(nullptr),
+        is_enum_match(false), enum_name(nullptr), variant_name(nullptr), payload_name(nullptr), body(body) {}
+
+  /* value-equality (integers) */
+  CaseNode(const Token* tok, size_t sc, ExprPtr cond, BlockPtr body)
+      : AstNode(tok, sc), is_default(false), condition(cond),
+        is_enum_match(false), enum_name(nullptr), variant_name(nullptr), payload_name(nullptr), body(body) {}
+
+  /* enum match: 'case AstNode::IntLit(payload):' */
+  CaseNode(const Token* tok, size_t sc, IdentPtr ename, IdentPtr vname, IdentPtr pname, BlockPtr body)
+      : AstNode(tok, sc), is_default(false), condition(nullptr),
+        is_enum_match(true), enum_name(ename), variant_name(vname), payload_name(pname), body(body) {}
+
   void accept(Visitor& v) override;
 };
 
@@ -399,6 +433,21 @@ public:
   std::vector<StructFieldPtr> fields; /* only fields, no methods */
   StructDeclNode(const Token* tok, size_t sc, Type* type, std::vector<StructFieldPtr> f)
       : AstNode(tok, sc), type(type), fields(std::move(f)) {}
+  void accept(Visitor& v) override;
+};
+
+struct EnumVariantAST {
+  IdentPtr name;
+  std::vector<StructFieldPtr> fields; /* empty if no payload */
+};
+
+class EnumDeclNode : public AstNode {
+public:
+  IdentPtr name;
+  Type* type; /* new type to be set after type creation in parser */
+  std::vector<EnumVariantAST> variants;
+  EnumDeclNode(const Token* tok, size_t sc, IdentPtr name, std::vector<EnumVariantAST> variants)
+      : AstNode(tok, sc), name(name), type(nullptr), variants(std::move(variants)) {}
   void accept(Visitor& v) override;
 };
 

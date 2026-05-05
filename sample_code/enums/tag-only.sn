@@ -1,0 +1,15 @@
+enum TrafficLight {
+  Red,
+  Yellow,
+  Green
+}
+
+mut light : TrafficLight = TrafficLight::Yellow;
+
+func main() {
+  switch (light) {
+    case TrafficLight::Red: { print 1, "\n"; }
+    case TrafficLight::Yellow: { print 2, "\n"; }
+    case TrafficLight::Green: { print 3, "\n"; }
+  }
+}

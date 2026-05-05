@@ -638,6 +638,53 @@ void TypeChecker::visit(StructFieldNode& node) {
   node.name->expr_type = node.type; // just resolve the identifier expr within
 }
 
+// Enum declaration
+void TypeChecker::visit(EnumDeclNode& node) {
+  std::uint64_t max_payload_size = 0;
+  std::uint64_t max_payload_align = 1;
+
+  for (size_t i = 0; i < node.variants.size(); ++i) {
+    EnumVariantAST& ast_variant = node.variants[i];
+    Type::EnumVariant& type_variant = node.type->as<Type::Enum>().variants[i];
+
+    std::uint64_t current_offset = 0;
+    std::uint64_t current_align = 1;
+
+    for (const StructFieldPtr& field : ast_variant.fields) {
+      field->accept(*this);
+      if (field->type->is<Type::ErrorType>()) continue;
+
+      std::uint64_t field_size = field->type->get_byte_size();
+      std::uint64_t field_align = field->type->get_alignment();
+
+      current_align = std::max(current_align, field_align);
+      current_offset = (current_offset + field_align - 1) & ~(field_align - 1);
+      field->offset = current_offset;
+      current_offset += field_size;
+    }
+
+    std::uint64_t variant_size = (current_offset + current_align - 1) & ~(current_align - 1);
+    if (type_variant.payload_type) {
+      type_variant.payload_type->set_byte_size(variant_size);
+      type_variant.payload_type->set_alignment(current_align);
+    }
+
+    max_payload_size = std::max(max_payload_size, variant_size);
+    max_payload_align = std::max(max_payload_align, current_align);
+  }
+
+  std::uint64_t tag_size = 4; // u32
+  std::uint64_t tag_align = 4;
+
+  std::uint64_t enum_align = std::max(tag_align, max_payload_align);
+  std::uint64_t payload_start_offset = (tag_size + max_payload_align - 1) & ~(max_payload_align - 1);
+  std::uint64_t total_enum_size = payload_start_offset + max_payload_size;
+  total_enum_size = (total_enum_size + enum_align - 1) & ~(enum_align - 1);
+
+  node.type->set_byte_size(total_enum_size);
+  node.type->set_alignment(enum_align);
+}
+
 // == Binary Operations ==
 void TypeChecker::visit(BinaryOpExprNode& node) {
   Type* left_type = get_expr_type(node.left);
@@ -1033,6 +1080,34 @@ void TypeChecker::visit(StructLiteralNode& node) {
   }
 }
 
+void TypeChecker::visit(EnumLiteralNode& node) {
+  if (!node.enum_decl || !node.enum_decl->type) {
+    node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
+    return;
+  }
+
+  const Type::Enum& enum_t = node.enum_decl->type->as<Type::Enum>();
+  const Type::EnumVariant* matched_variant = nullptr;
+  for (const auto& v : enum_t.variants) {
+    if (v.name == node.variant_name->name_str) {
+      matched_variant = &v;
+      break;
+    }
+  }
+  if (!matched_variant) {
+    m_logger->report(Diag::Error(node.variant_name->token->get_span(), "Variant does not exist in Enum"));
+    node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
+    return;
+  }
+
+  // evaluate initializers
+  for (const StructFieldInitPtr& init : node.initializers) {
+    init->value->accept(*this);
+  }
+
+  node.expr_type = node.enum_decl->type;
+}
+
 void TypeChecker::visit(NewExprNode& node) {
   _assert(node.type_to_allocate != nullptr, "Parser must provide type_to_allocate");
 
@@ -1140,9 +1215,10 @@ void TypeChecker::visit(SwitchStmtNode& node) {
   } else {
     // Check if switch expression type is comparable.
     // Allow types that have an operator== override
-    if (switch_expr_type->is<Type::Function>() ||
+    bool complex = switch_expr_type->is<Type::Function>() ||
         (switch_expr_type->is<Type::Named>() &&
-         switch_expr_type->as<Type::Named>().identifier == "f64")) {
+         switch_expr_type->as<Type::Named>().identifier == "f64");
+    if (complex && !switch_expr_type->is<Type::Enum>()) {
       // Disallow switching on functions or floats for now due to complexity
       m_logger->report(Diag::Error(node.expression->token->get_span(),
                     "Switch expression cannot be of type '" +
@@ -1159,7 +1235,7 @@ void TypeChecker::visit(SwitchStmtNode& node) {
   bool has_default = false;
   for (const CasePtr& case_node : node.cases) {
     case_node->accept(*this);
-    if (!case_node->value) {
+    if (case_node->is_default) {
       // default
       if (has_default) {
         m_logger->report(Diag::Error(case_node->token->get_span(),
@@ -1174,18 +1250,49 @@ void TypeChecker::visit(SwitchStmtNode& node) {
 }
 
 void TypeChecker::visit(CaseNode& node) {
-  if (node.value) {
-    // not the 'default' case
-    Type* case_value_type = get_expr_type(node.value);
+  if (node.is_enum_match) {
+    if (!m_current_switch_expr_type || !m_current_switch_expr_type->is<Type::Enum>()) {
+      m_logger->report(Diag::Error(node.token->get_span(), "Cannot use enum case match on non-enum switch expression"));
+      return;
+    }
+
+    const Type::Enum& enum_type = m_current_switch_expr_type->as<Type::Enum>();
+    const Type::EnumVariant* matched_variant = nullptr;
+    for (const auto& v : enum_type.variants) {
+      if (v.name == node.variant_name->name_str) {
+        matched_variant = &v;
+        break;
+      }
+    }
+
+    if (!matched_variant) {
+      m_logger->report(Diag::Error(node.variant_name->token->get_span(), "Variant does not exist in Enum"));
+      return;
+    }
+
+    // bind payload to a new local variable for the block
+    if (node.payload_name) {
+      if (!matched_variant->payload_type) {
+        m_logger->report(Diag::Error(node.payload_name->token->get_span(), "Variant has no payload to bind"));
+      } else {
+        Variable* payload_var = m_arena->make<Variable>(
+            node.payload_name->name_str, node.payload_name->token->get_span(),
+            true, matched_variant->payload_type, node.body->scope_id);
+        m_symtab->declare_variable(payload_var->name, payload_var, node.body->scope_id);
+      }
+    }
+  } else if (!node.is_default) {
+    Type* case_type = get_expr_type(node.condition);
     if (m_current_switch_expr_type && !m_current_switch_expr_type->is<Type::ErrorType>()) {
-      if (case_value_type && !case_value_type->is<Type::ErrorType>()) {
-        if (check_type_assignable(m_current_switch_expr_type, case_value_type,
-                              node.value->token->get_span())) {
-          try_apply_implicit_cast(node.value, m_current_switch_expr_type);
+      if (case_type && !case_type->is<Type::ErrorType>()) {
+        if (check_type_assignable(m_current_switch_expr_type, case_type,
+                              node.condition->token->get_span())) {
+          try_apply_implicit_cast(node.condition, m_current_switch_expr_type);
         }
       }
     }
   }
+
   // check the contents of the case body
   _assert(node.body, "case body should be non-null");
   node.body->accept(*this);

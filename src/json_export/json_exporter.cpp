@@ -152,7 +152,7 @@ static void collect_hover(const AstPtr& node, json& hover, const SymTab* symtab)
       }
     }
   } else if (auto cs = dynamic_cast<const CaseNode*>(node)) {
-    if (cs->value) collect_hover(cs->value, hover, symtab);
+    if (cs->condition) collect_hover(cs->condition, hover, symtab);
     if (cs->body) collect_hover(cs->body, hover, symtab);
   } else if (auto print = dynamic_cast<const PrintStmtNode*>(node)) {
     for (const ExprPtr& e : print->expressions) {

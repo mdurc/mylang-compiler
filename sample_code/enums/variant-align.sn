@@ -1,0 +1,17 @@
+enum Shape {
+  Circle { radius: i32 },         // Payload: 4 bytes
+  Rectangle { w: i64, h: i64 },   // Payload: 16 bytes
+  Point                           // Payload: 0 bytes
+}
+
+func main() {
+  // we expect the total size to be:
+  // 4 (Tag) + 4 (Padding for 8-byte align) + 16 (Max Payload) = 24 bytes
+  print sizeof<Shape>, "\n";
+  mut s := Shape::Rectangle{ w = 100, h = 200 };
+  switch (s) {
+    case Shape::Circle(c): { print 1; }
+    case Shape::Rectangle(rect): { print rect.w, " ", rect.h, "\n"; }
+    case Shape::Point: { print 3; }
+  }
+}

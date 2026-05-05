@@ -35,30 +35,43 @@ public:
     return m_symbols;
   }
 
+  const Symbol* lookup(std::string_view name) const {
+    auto it = m_symbols.find(name);
+    return it != m_symbols.end() ? &it->second : nullptr;
+  }
   Variable* add_variable(std::string_view name, Variable* var) {
     auto itr = m_symbols.insert({name, {Symbol::Variable, var}});
     return itr.second ? var : nullptr;
   }
-
   Type* add_type(std::string_view name, Type* type) {
     auto itr = m_symbols.insert({name, {Symbol::Type, type}});
     return itr.second ? type : nullptr;
   }
 
+  StructDeclPtr lookup_struct(std::string_view name) const {
+    auto it = m_structs.find(name);
+    return it != m_structs.end() ? it->second : nullptr;
+  }
   StructDeclPtr add_struct(std::string_view name, StructDeclPtr decl) {
     auto itr = m_structs.insert({name, decl});
     return itr.second ? decl : nullptr;
   }
 
-  const Symbol* lookup(std::string_view name) const;
-  StructDeclPtr lookup_struct(std::string_view name) const;
-
+  EnumDeclPtr lookup_enum(std::string_view name) const {
+    auto it = m_enums.find(name);
+    return it != m_enums.end() ? it->second : nullptr;
+  }
+  EnumDeclPtr add_enum(std::string_view name, EnumDeclPtr decl) {
+    auto itr = m_enums.insert({name, decl});
+    return itr.second ? decl : nullptr;
+  }
   void print(std::ostream& out, const std::string& indent = "") const;
 
 private:
   size_t m_parent_scope;
   std::unordered_map<std::string_view, Symbol> m_symbols;
   std::unordered_map<std::string_view, StructDeclPtr> m_structs;
+  std::unordered_map<std::string_view, EnumDeclPtr> m_enums;
 };
 
 class SymTab {
@@ -83,16 +96,21 @@ public:
     }
     return nullptr;
   }
-  StructDeclPtr lookup_struct(std::string_view name, size_t start_scope) const;
-
   Variable* declare_variable(std::string_view name, Variable* var, size_t scope) {
     return m_scopes[scope].add_variable(name, var);
   }
   Type* declare_type(std::string_view name, Type* type, size_t scope) {
     return m_scopes[scope].add_type(name, type);
   }
+
+  StructDeclPtr lookup_struct(std::string_view name, size_t start_scope) const;
   StructDeclPtr declare_struct(std::string_view name, StructDeclPtr decl, size_t scope) {
     return m_scopes[scope].add_struct(name, decl);
+  }
+
+  EnumDeclPtr lookup_enum(std::string_view name, size_t start_scope) const;
+  EnumDeclPtr declare_enum(std::string_view name, EnumDeclPtr decl, size_t scope) {
+    return m_scopes[scope].add_enum(name, decl);
   }
 
   void print(std::ostream& out) const;
