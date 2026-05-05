@@ -2,16 +2,6 @@
 
 #include <map>
 
-std::string variable_borrowed_state_to_string(BorrowState bs) {
-  switch (bs) {
-    case BorrowState::MutablyOwned:
-    case BorrowState::MutablyBorrowed: return "mut";
-    case BorrowState::ImmutablyOwned:
-    case BorrowState::ImmutablyBorrowed: return "imm";
-    default: return "";
-  }
-}
-
 const Symbol* Scope::lookup(std::string_view name) const {
   auto it = m_symbols.find(name);
   return it != m_symbols.end() ? &it->second : nullptr;
@@ -38,7 +28,7 @@ void Scope::print(std::ostream& out, const std::string& indent) const {
         out << "var " << var->name
             << " (type: " << (var->type ? var->type->to_string() : "?")
             << ", scope: " << var->scope_id << ", modifier: "
-            << variable_borrowed_state_to_string(var->modifier) << ")";
+            << (var->is_mutable ? "mut": "imm") << ")";
         break;
       }
       case Symbol::Type: {

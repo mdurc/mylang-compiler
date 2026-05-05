@@ -10,7 +10,6 @@
 #include "../memory/arena.h"
 #include "types.h"
 
-std::string variable_borrowed_state_to_string(BorrowState bs);
 using SymbolData = std::variant<std::monostate, Variable*, Type*>;
 
 struct Symbol {

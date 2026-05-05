@@ -33,8 +33,6 @@ enum class TokenType {
   DEFAULT,  // default
   IMM,      // imm
   MUT,      // mut
-  TAKE,     // take
-  GIVE,     // give
   PTR,      // ptr
   NEW,      // new
   CAST,     // cast

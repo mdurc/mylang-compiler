@@ -41,8 +41,11 @@ Core language builtins:
 
 Harder tasks:
 - [ ] Enums/Tagged Unions for AST and token stream
-- [ ] Implement the argument-parameter semantics
-  - [ ] give, take, imm, mut
+- [x] Implement the argument-parameter semantics .. are these even that useful?
+  - [x] Should we just scrap this? What is the real benefit of this if we don't have a garbage collector?
+  - [x] give, take, imm, mut
+  - * We are just going to remove the argument semantics and MAYBE come back to it in the future.
+    * too much added complexity that isn't necessary or rewarding..
 
 Standard library to build (instead of adding them into the core-language, we can derive these):
 - [ ] String lib that tracks length/capacity, and performs common string operations

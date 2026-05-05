@@ -40,13 +40,14 @@ private:
 
   AstPtr parse_toplevel_declaration();
 
+  bool parse_mutability_prefix();
+
   /* Structs */
   AstPtr parse_struct_decl();
   StructFieldPtr parse_struct_field();
 
   /* Functions */
   FuncDeclPtr parse_function_decl();
-  BorrowState parse_function_param_prefix();
   ParamPtr parse_function_param();
   std::pair<IdentPtr, Type*> parse_function_return_type();
 

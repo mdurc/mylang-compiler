@@ -79,7 +79,6 @@ public:
 
   static std::string bin_op_to_string(BinOperator op);
   static std::string unary_op_to_string(UnaryOperator op);
-  static std::string borrow_state_to_string(BorrowState bs);
 
   void visit(PoisonExprNode&) override {
     print_indent();
@@ -637,7 +636,7 @@ public:
   // Other Nodes
   void visit(ArgumentNode& node) override {
     print_indent();
-    out << "Argument(IsGive: " << (node.is_give ? "true" : "false") << ",\n";
+    out << "Argument(\n";
     indent++;
     node.expression->accept(*this);
     indent--;
@@ -714,7 +713,7 @@ public:
 
   void visit(ParamNode& node) override {
     print_indent();
-    out << "Param(Modifier: " << borrow_state_to_string(node.modifier) << ",\n";
+    out << "Param(Modifier: " << (node.is_mutable ? "mutable": "immutable") << ",\n";
     indent++;
     print_indent();
     out << "Name:\n";

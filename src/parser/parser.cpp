@@ -114,6 +114,17 @@ AstPtr Parser::parse_toplevel_declaration() {
   }
 }
 
+bool Parser::parse_mutability_prefix() {
+  bool is_mut = false; // imm by default
+  if (match(TokenType::MUT)) {
+    advance();
+    is_mut = true;
+  } else if (match(TokenType::IMM)) {
+    advance();
+  }
+  return is_mut;
+}
+
 // Structs
 // <StructDecl> ::= 'struct' Identifier ('{' <StructFields>? '}' | ';')
 AstPtr Parser::parse_struct_decl() {
@@ -195,9 +206,9 @@ StructFieldPtr Parser::parse_struct_field() {
 
   Type* type = parse_type();
 
-  // field variables are always MutablyOwned
+  // field variables are always mutable
   Variable* field_var = _alloc(Variable, field_name, name_tok->get_span(),
-      BorrowState::MutablyOwned, type, scope_id);
+      true, type, scope_id);
 
   // check if the field is a duplicate to another field
   if (!m_symtab->declare_variable(field_var->name, field_var, field_var->scope_id)) {
@@ -266,7 +277,7 @@ FuncDeclPtr Parser::parse_function_decl() {
   // construct FunctionType for the symbol table declaration
   std::vector<Type::ParamInfo> ft_params;
   for (const ParamPtr& ast_param : params_vec) {
-    ft_params.push_back({ast_param->type, ast_param->modifier});
+    ft_params.push_back({ast_param->type, ast_param->is_mutable});
   }
 
   // it must be at the global scope (no struct methods)
@@ -290,7 +301,7 @@ FuncDeclPtr Parser::parse_function_decl() {
   } else {
     // declare it as a var with the associated type
     Variable* var = _alloc(Variable, func_name, name_tok->get_span(),
-                 BorrowState::ImmutablyOwned, fn_type, 0);
+                 false, fn_type, 0);
     m_symtab->declare_variable(var->name, var, 0);
   }
 
@@ -298,31 +309,11 @@ FuncDeclPtr Parser::parse_function_decl() {
               std::move(params_vec), return_t.first, return_t.second, body_block);
 }
 
-BorrowState Parser::parse_function_param_prefix() {
-  BorrowState modifier = BorrowState::ImmutablyBorrowed; // default
-  if (match(TokenType::MUT)) {
-    modifier = BorrowState::MutablyBorrowed;
-    advance();
-  } else if (match(TokenType::IMM)) {
-    advance(); // imm borrowed is already the default
-  } else if (match(TokenType::TAKE)) {
-    advance();
-    modifier = BorrowState::ImmutablyOwned; // Take ==> imm owned by default
-    if (match(TokenType::MUT)) {
-      modifier = BorrowState::MutablyOwned;
-      advance();
-    } else if (match(TokenType::IMM)) {
-      advance();
-    }
-  }
-  return modifier;
-}
-
-// <Param> ::= <FunctionParamPrefix>? Identifier ':' <Type>
+// <Param> ::= <TypePrefix>? Identifier ':' <Type>
 ParamPtr Parser::parse_function_param() {
   const Token* first_tok = current();
 
-  BorrowState modifier = parse_function_param_prefix();
+  bool is_mutable = parse_mutability_prefix();
 
   const Token* name_tok = current();
   _consume(TokenType::IDENTIFIER);
@@ -337,12 +328,12 @@ ParamPtr Parser::parse_function_param() {
   Type* type_val = parse_type();
 
   // declare the parameter as a variable in current scope
-  Variable* param_var = _alloc(Variable, param_name, name_tok->get_span(), modifier, type_val, scope_id);
+  Variable* param_var = _alloc(Variable, param_name, name_tok->get_span(), is_mutable, type_val, scope_id);
   if (!m_symtab->declare_variable(param_var->name, param_var, param_var->scope_id)) {
     m_logger->report(Diag::DuplicateDeclaration(name_tok->get_span(), std::string(param_name)));
     throw ParsePanic();
   }
-  return _alloc(ParamNode, first_tok, scope_id, modifier, name_ident, type_val);
+  return _alloc(ParamNode, first_tok, scope_id, is_mutable, name_ident, type_val);
 }
 
 // <ReturnType> ::= 'returns' '(' Identifier ':' <Type> ')'
@@ -363,7 +354,7 @@ std::pair<IdentPtr, Type*> Parser::parse_function_return_type() {
 
   // MutablyOwned is required in a return type variable
   Variable* return_var = _alloc(Variable, retvar_name, name_tok->get_span(),
-                      BorrowState::MutablyOwned, type_val, scope_id, true);
+                      true, type_val, scope_id, true);
   if (!m_symtab->declare_variable(return_var->name, return_var, return_var->scope_id)) {
     m_logger->report(Diag::DuplicateDeclaration(name_tok->get_span(), std::string(retvar_name)));
     throw ParsePanic();
@@ -436,13 +427,7 @@ StmtPtr Parser::parse_statement() {
 StmtPtr Parser::parse_var_decl() {
   const Token* start_tok = current();
 
-  bool is_mutable = false; // imm by default
-  if (match(TokenType::MUT)) {
-    advance();
-    is_mutable = true;
-  } else if (match(TokenType::IMM)) {
-    advance();
-  }
+  bool is_mutable = parse_mutability_prefix();
 
   const Token* name_tok = current();
   _consume(TokenType::IDENTIFIER);
@@ -474,8 +459,7 @@ StmtPtr Parser::parse_var_decl() {
 
   _consume(TokenType::SEMICOLON);
 
-  BorrowState bs = is_mutable ? BorrowState::MutablyOwned : BorrowState::ImmutablyOwned;
-  Variable* var_sym = _alloc(Variable, var_name, name_tok->get_span(), bs, type_val, scope_id);
+  Variable* var_sym = _alloc(Variable, var_name, name_tok->get_span(), is_mutable, type_val, scope_id);
 
   // check if it is a duplicate variable
   if (!m_symtab->declare_variable(var_sym->name, var_sym, var_sym->scope_id)) {
@@ -1033,7 +1017,7 @@ ExprPtr Parser::parse_postfix() {
   return expr;
 }
 
-// <Args> ::= <Arg> ( ',' <Arg> )*
+// <Args> ::= <Expr> ( ',' <Expr> )*
 std::vector<ArgPtr> Parser::parse_args() {
   std::vector<ArgPtr> args_vec;
   if (match(TokenType::RPAREN)) {
@@ -1041,16 +1025,9 @@ std::vector<ArgPtr> Parser::parse_args() {
   }
 
   do {
-    // <Arg> ::= 'give'? <Expr>
     const Token* arg_tok = current();
-    bool is_give = false;
-    if (match(TokenType::GIVE)) {
-      advance();
-      is_give = true;
-    }
-
     ExprPtr arg_expr = parse_expression();
-    args_vec.push_back(_alloc(ArgumentNode, arg_tok, m_symtab->current_scope(), is_give, arg_expr));
+    args_vec.push_back(_alloc(ArgumentNode, arg_tok, m_symtab->current_scope(), arg_expr));
   } while (match(TokenType::COMMA) && advance());
 
   return args_vec;
@@ -1117,7 +1094,7 @@ Type* Parser::parse_type() {
     }
     return ptr_type;
   } else if (match(TokenType::FUNC)) {
-    // <FunctionType> ::= 'func' '(' (<Type> ( ',' <Type> )*)? ')' '->' <Type>
+    // <FunctionType> ::= 'func' '(' ((<TypePrefix> ':')? <Type> ( ',' (<TypePrefix> ':')? <Type> )*)? ')' '->' <Type>
     advance();
     _consume(TokenType::LPAREN);
 
@@ -1125,12 +1102,12 @@ Type* Parser::parse_type() {
     if (!match(TokenType::RPAREN)) {
       do {
         size_t pos = m_pos;
-        BorrowState modifier = parse_function_param_prefix();
+        bool is_mutable = parse_mutability_prefix();
         if (pos != m_pos) {
           // we must have parsed the prefix
           _consume(TokenType::COLON);
         }
-        param_types.push_back({parse_type(), modifier});
+        param_types.push_back({parse_type(), is_mutable});
       } while (match(TokenType::COMMA) && advance());
     }
     _consume(TokenType::RPAREN);

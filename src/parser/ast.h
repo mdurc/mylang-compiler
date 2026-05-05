@@ -172,10 +172,9 @@ public:
 
 class ArgumentNode : public AstNode {
 public:
-  bool is_give; /* for 'give' keyword */
   ExprPtr expression;
-  ArgumentNode(const Token* tok, size_t sc, bool give, ExprPtr expr)
-      : AstNode(tok, sc), is_give(give), expression(expr) {}
+  ArgumentNode(const Token* tok, size_t sc, ExprPtr expr)
+      : AstNode(tok, sc), expression(expr) {}
   void accept(Visitor& v) override;
 };
 
@@ -405,11 +404,11 @@ public:
 
 class ParamNode : public AstNode {
 public:
-  BorrowState modifier;
+  bool is_mutable;
   IdentPtr name;
   Type* type;
-  ParamNode(const Token* tok, size_t sc, BorrowState mod, IdentPtr name, Type* tk)
-      : AstNode(tok, sc), modifier(mod), name(name), type(tk) {}
+  ParamNode(const Token* tok, size_t sc, bool is_mut, IdentPtr name, Type* tk)
+      : AstNode(tok, sc), is_mutable(is_mut), name(name), type(tk) {}
   void accept(Visitor& v) override;
 };
 

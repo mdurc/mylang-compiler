@@ -97,10 +97,10 @@ Functions are top-level declarations.
     extern func malloc(size: i64) returns (ptr: ptr<mut u0>);
     ```
 
-- **Parameters and Ownership (not currently enforced -- defaultly pass by value)**:
-    - `imm` (default): Immutable borrow. The argument is passed by reference, but cannot be modified.
-    - `mut`: Mutable borrow. The argument is passed by reference and can be modified. The passed variable must be mutable.
-    - `take`: The function takes ownership of the argument. This results in a copy/move. The `give` keyword on the call-site can be used to signify an explicit move.
+- **Parameters and Ownership**:
+    - Aggregate and primitive types are all passed by value. Use pointers for pass by reference.
+    - `imm` (default): Immutable. Cannot be modified.
+    - `mut`: Mutable. Can be modified.
 
 ### Structs
 

@@ -90,8 +90,6 @@ std::string token_type_to_string(TokenType type) {
 
     case TokenType::IMM: return "IMM";
     case TokenType::MUT: return "MUT";
-    case TokenType::TAKE: return "TAKE";
-    case TokenType::GIVE: return "GIVE";
 
     case TokenType::PTR: return "PTR";
     case TokenType::NEW: return "NEW";

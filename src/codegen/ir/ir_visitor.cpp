@@ -687,8 +687,6 @@ void IrVisitor::visit(FunctionDeclNode& node) {
 }
 
 void IrVisitor::visit(ArgumentNode& node) {
-  // Much later on we will be include handling of different forms of copying, vs
-  // 'give'ing and 'take'ing. For now, just accept from the expression.
   node.expression->accept(*this);
 }
 
@@ -700,7 +698,7 @@ void IrVisitor::visit(FunctionCallNode& node) {
   _assert(node.callee->expr_type, "Callee must have a type");
   _assert(node.callee->expr_type->is<Type::Function>(),
           "Callee in a function call must have a function type");
-  const Type::Function& func_type = node.callee->expr_type->as<Type::Function>();
+  // const Type::Function& func_type = node.callee->expr_type->as<Type::Function>();
 
   /* evaluate callee to prevent argument clobbering (fn ptrs) */
   node.callee->accept(*this);
@@ -723,14 +721,6 @@ void IrVisitor::visit(FunctionCallNode& node) {
     ExprPtr arg_expr = arg_node->expression;
     Type* arg_type = arg_expr->expr_type;
     _assert(arg_type, "Types should be resolved by Typechecker");
-
-    const Type::ParamInfo& param_info = func_type.params[i];
-    if (param_info.modifier == BorrowState::ImmutablyOwned ||
-        param_info.modifier == BorrowState::MutablyOwned) { // take
-      if (arg_node->is_give) {
-        /* todo: somehow transfer ownership */
-      }
-    }
 
     if (arg_type->is_aggregate()) {
       // passing an aggregate by value means: create a copy here, pass address to that copy

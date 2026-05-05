@@ -214,10 +214,7 @@ Type* TypeChecker::get_lvalue_type_if_mutable(const ExprPtr& expr) {
 
   if (auto ident_node = dynamic_cast<IdentifierNode*>(expr)) {
     Variable* var_sym = m_symtab->lookup<Variable>(ident_node->name_str, ident_node->scope_id);
-    if (var_sym && var_sym->type &&
-        (var_sym->modifier == BorrowState::MutablyOwned ||
-         var_sym->modifier == BorrowState::MutablyBorrowed ||
-         var_sym->is_return_var)) {
+    if (var_sym && var_sym->type && (var_sym->is_mutable || var_sym->is_return_var)) {
       return var_sym->type;
     }
     return nullptr;
@@ -574,7 +571,7 @@ void TypeChecker::visit(FunctionDeclNode& node) {
   std::vector<Type::ParamInfo> param_infos;
   for (ParamPtr param : node.params) {
     param->accept(*this);
-    param_infos.push_back({param->type, param->modifier});
+    param_infos.push_back({param->type, param->is_mutable});
   }
 
   // Type check the function body
@@ -883,12 +880,7 @@ void TypeChecker::visit(FunctionCallNode& node) {
 
     const Span& span = node.arguments[i]->expression->token->get_span();
 
-    if (param_info.modifier == BorrowState::MutablyBorrowed) {
-      if (!get_lvalue_type_if_mutable(node.arguments[i]->expression)) {
-        m_logger->report(Diag::Error(span, "Argument for 'mut' parameter must be a mutable l-value."));
-        node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
-        return;
-      }
+    if (param_info.is_mutable) {
       // implicit cast is not allowed for mutable references, they must be the same type
       if (!(*param_type == *arg_t)) {
         m_logger->report(Diag::TypeMismatch(span,
@@ -904,16 +896,6 @@ void TypeChecker::visit(FunctionCallNode& node) {
         return;
       } else {
         try_apply_implicit_cast(node.arguments[i]->expression, param_type);
-      }
-    }
-
-    if (arg->is_give) {
-      // the parameter must be either mutably owned or imm owned (take keyword)
-      if (param_info.modifier != BorrowState::MutablyOwned &&
-          param_info.modifier != BorrowState::ImmutablyOwned) {
-        m_logger->report(Diag::Error(span, "Argument passed with 'give' must be associated with a parameter that has the 'take' keyword"));
-        node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
-        return;
       }
     }
   }
@@ -1263,6 +1245,5 @@ void TypeChecker::visit(StructFieldInitializerNode& node) {
   get_expr_type(node.value);
 }
 void TypeChecker::visit(ArgumentNode& node) {
-  // 'give' argument is handled from within function call node
   get_expr_type(node.expression);
 }

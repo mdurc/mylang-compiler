@@ -40,7 +40,7 @@ static void collect_hover(const AstPtr& node, json& hover, const SymTab* symtab)
     }
     if (auto var_sym = symtab->lookup<Variable>(ident->name_str, ident->scope_id)) {
       h["def_scope_id"] = var_sym->scope_id;
-      h["modifier"] = variable_borrowed_state_to_string(var_sym->modifier);
+      h["modifier"] = (var_sym->is_mutable ? "mut": "imm");
     }
     hover.push_back(h);
   }

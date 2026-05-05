@@ -9,7 +9,6 @@ This compiler is a complete rewrite of a previous attempt, designed from the gro
 
 ### Motives
 Purely for learning purposes and to build upon the experience that I've gotten since the last time that I tried to build a compiler. Hopefully this can eventually be designed well enough to self-host. There are still some unimplemented complex features, and has not been tested too extensibly in large programs, however it's still usable.
-- Attempts to adopt C/Rust/Mojo-like semantics with ownership/borrowing semantics, however these are very loosely enforced due to complexity.
 - Performs a recursive descent parse, following a CFG for the language. It would be an interesting experiment to write and implement an LL(1) or LR(k) grammar, though it is not suitable for this project.
 - Targets x86-64 directly (System V ABI conventions)
 

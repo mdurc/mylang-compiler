@@ -5,13 +5,6 @@
 
 // == Type System ==
 
-enum BorrowState {
-  MutablyOwned,      // as param: take mut
-  ImmutablyOwned,    // as param: take | take imm
-  MutablyBorrowed,   // as param: mut
-  ImmutablyBorrowed, // as param: imm
-};
-
 class Type {
 public:
   struct Named {
@@ -25,11 +18,11 @@ public:
 
   struct ParamInfo {
     Type* type; /* points to type defined by symbol table */
-    BorrowState modifier;
+    bool is_mutable;
 
     friend bool operator==(const ParamInfo& a, const ParamInfo& b) {
       if (!a.type || !b.type) return a.type == b.type;
-      return a.type == b.type && a.modifier == b.modifier;
+      return a.type == b.type && a.is_mutable == b.is_mutable;
     }
   };
 
@@ -122,14 +115,14 @@ public:
   std::string_view name; /* points to name allocated for symbol table */
   Span span; /* span at variable declaration */
 
-  BorrowState modifier;
+  bool is_mutable;
   Type* type; /* nullptr means it must be inferred by the type-checker */
   size_t scope_id;
   bool is_return_var;
 
-  Variable(std::string_view name, const Span& span, BorrowState mod,
+  Variable(std::string_view name, const Span& span, bool is_mut,
            Type* tk, size_t sc, bool ret_var = false)
-      : name(name), span(span), modifier(mod), type(tk),
+      : name(name), span(span), is_mutable(is_mut), type(tk),
         scope_id(sc), is_return_var(ret_var) {}
 
   friend bool operator==(const Variable& a, const Variable& b) {
