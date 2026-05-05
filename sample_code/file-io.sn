@@ -1,0 +1,53 @@
+extern func string_length(s: string) returns (len: i64);
+
+extern func sys_open(filename: string, flags: i64, mode: i64) returns (fd: i64);
+extern func sys_read(fd: i64, buf: ptr<mut u8>, count: i64) returns (bytes: i64);
+extern func sys_write(fd: i64, buf: ptr<imm u8>, count: i64) returns (bytes: i64);
+extern func sys_lseek(fd: i64, offset: i64, whence: i64) returns (pos: i64);
+extern func sys_close(fd: i64) returns (res: i64);
+
+extern func malloc(size: i64) returns (p: ptr<mut u0>);
+
+func read_file(path: string) returns (content: ptr<mut u8>) {
+  mut fd := sys_open(path, 0, 0 /* O_RDONLY */);
+  if (fd < 0) { return null; }
+
+  mut size := sys_lseek(fd, 0, 2 /* SEEK_END */);
+  sys_lseek(fd, 0, 0 /* SEEK_SET */);
+
+  // +1 for null byte
+  mut raw_mem := malloc(size + 1);
+  mut buffer := cast<ptr<mut u8> >(raw_mem);
+
+  sys_read(fd, buffer, size);
+  sys_close(fd);
+
+  *(buffer + size) = 0;
+  return buffer;
+}
+
+func write_file(path: string, content: string, length: i64) returns (success: bool) {
+  // 1537 = O_WRONLY (1) | O_CREAT (512) | O_TRUNC (1024)
+  // 420  = 0644 in octal (rw-r--r--)
+  mut fd := sys_open(path, 1537, 420);
+  if (fd < 0) { return false; }
+
+  mut written := sys_write(fd, cast<ptr<imm u8> >(content), length);
+  sys_close(fd);
+
+  return written == length;
+}
+
+func main() {
+  mut s := "this is sample text!!!";
+  mut success := write_file("SAMPLE.txt", s, string_length(s));
+
+  if (success) {
+    print "File written successfully\n";
+  }
+
+  mut content := read_file("SAMPLE.txt");
+  if (content != null) {
+    print "File contents from read: ", cast<string>(content), "\n";
+  }
+}

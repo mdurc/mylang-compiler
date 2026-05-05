@@ -478,6 +478,65 @@ string_concat:
   pop rbx
   ret
 
+; --- File I/O ---
+
+; rdi <- filename (null terminated)
+; rsi <- flags (0 = O_RDONLY, 1537 = O_WRONLY|O_CREAT|O_TRUNC)
+; rdx <- mode (permissions, 420 for 0644)
+; rax -> file descriptor, or negative on error
+sys_open:
+  mov rax, 0x2000005
+  syscall
+  jnc .success
+  neg rax ; on error, carry flag is set; return negative errno
+.success:
+  ret
+
+; rdi <- file descriptor
+; rsi <- buffer address
+; rdx <- number of bytes to read
+; rax -> bytes read, or negative on error
+sys_read:
+  mov rax, 0x2000003
+  syscall
+  jnc .success
+  neg rax
+.success:
+  ret
+
+; rdi <- file descriptor
+; rsi <- buffer address
+; rdx <- number of bytes to write
+; rax -> bytes written, or negative on error
+sys_write:
+  mov rax, 0x2000004
+  syscall
+  jnc .success
+  neg rax
+.success:
+  ret
+
+; rdi <- file descriptor
+sys_close:
+  mov rax, 0x2000006
+  syscall
+  jnc .success
+  neg rax
+.success:
+  ret
+
+; rdi <- file descriptor
+; rsi <- offset
+; rdx <- whence (0 = SEEK_SET, 1 = SEEK_CUR, 2 = SEEK_END)
+; rax -> new offset, or negative on error
+sys_lseek:
+  mov rax, 0x20000C7
+  syscall
+  jnc .success
+  neg rax
+.success:
+  ret
+
 section .data
   clr_scr: db 0x1B, '[', '2', 'J', 0x1B, '[', 'H'  ; "\x1B[2J\x1B[H"
   free_err: db "[ASM Error] Invalid free of memory not allocated by 'malloc' / not 16-bit aligned", 10, 0

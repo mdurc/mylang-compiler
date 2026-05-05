@@ -24,8 +24,8 @@ Core language builtins:
     - ** normal prototypes are just regular declarations without a body
 - [x] Proper header files with some sort of guard
   - [x] ~~ decided to simply do single-include per file for simplicity, relying on forward declarations and opaque types
-- [ ] Subprocess / System Command Execution (fork()/system()/exec() to call nasm, ld, etc)
-  - [ ] File IO for reading and parsing, outputting files, etc.
+- [x] Subprocess / System Command Execution (fork()/system()/exec() to call nasm, ld, etc)
+  - [x] File IO for reading and parsing, outputting files, etc.
   - [ ] More supported stdin types to read? Right now it is only integers.
 - [x] Global/static variables?
   - [x] This may already work fine, as long as different modules/files can have their own static/global data, with some exposed API
@@ -40,7 +40,7 @@ Core language builtins:
 
 
 Harder tasks:
-- [ ] Enums/Tagged Unions for AST and token stream
+- [x] Enums/Tagged Unions for AST and token stream
 - [x] Implement the argument-parameter semantics .. are these even that useful?
   - [x] Should we just scrap this? What is the real benefit of this if we don't have a garbage collector?
   - [x] give, take, imm, mut
