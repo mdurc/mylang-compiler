@@ -41,7 +41,9 @@
 <ContinueStmt>          ::= 'continue'
 
 <SwitchStmt>            ::= 'switch' '(' <Expr> ')' '{' <Case>* '}'
-<Case>                  ::= 'case' <Expr> ':' <Block> | 'default' ':' <Block>
+<Case>                  ::= 'case' <CasePattern> ':' <Block> | 'default' ':' <Block>
+<CasePattern>           ::= <Identifier> '::' <Identifier> ('(' <Identifier> ')')?  // Enum Match
+                          | <Expr>                                                  // Standard Match
 
 <PrintStmt>             ::= 'print'  <Expr> ( ',' <Expr> )*
 <ErrorStmt>             ::= 'error' <Expr> ( ',' <Expr> )*

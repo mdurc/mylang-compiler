@@ -27,6 +27,7 @@ enum class TokenType {
   NULL_,    // null
   AND,      // and
   OR,       // or
+  ENUM,     // enum
   STRUCT,   // struct
   SWITCH,   // switch
   CASE,     // case
@@ -95,6 +96,7 @@ enum class TokenType {
 
   // Compound operators:
   WALRUS,          // :=
+  COLON_COLON,     // ::
   EQUAL_EQUAL,     // ==
   BANG_EQUAL,      // !=
   LESS_EQUAL,      // <=

@@ -10,7 +10,7 @@ const std::unordered_map<std::string_view, TokenType> Lexer::s_keyword_map = {
     {"else", TokenType::ELSE},     {"for", TokenType::FOR}, {"cast", TokenType::CAST},
     {"while", TokenType::WHILE},   {"read", TokenType::READ}, {"sizeof", TokenType::SIZEOF},
     {"return", TokenType::RETURN}, {"print", TokenType::PRINT},
-    {"struct", TokenType::STRUCT}, {"returns", TokenType::RETURNS},
+    {"struct", TokenType::STRUCT}, {"enum", TokenType::ENUM}, {"returns", TokenType::RETURNS},
     {"case", TokenType::CASE},     {"switch", TokenType::SWITCH},
     {"break", TokenType::BREAK},   {"default", TokenType::DEFAULT},
     {"mut", TokenType::MUT},       {"continue", TokenType::CONTINUE},
@@ -288,7 +288,9 @@ void Lexer::scan_token() {
     case '^': add_token(TokenType::CARET); break;
 
     case ':':
-      add_token(match('=') ? TokenType::WALRUS : TokenType::COLON);
+      if (match(':')) add_token(TokenType::COLON_COLON);
+      else if (match('=')) add_token(TokenType::WALRUS);
+      else add_token(TokenType::COLON);
       break;
     case '=':
       add_token(match('=') ? TokenType::EQUAL_EQUAL : TokenType::EQUAL);

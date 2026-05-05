@@ -83,6 +83,7 @@ std::string token_type_to_string(TokenType type) {
     case TokenType::ERROR_KW: return "ERROR_KEYWORD";
     case TokenType::EXIT_KW: return "EXIT_KEYWORD";
 
+    case TokenType::ENUM: return "ENUM";
     case TokenType::STRUCT: return "STRUCT";
     case TokenType::SWITCH: return "SWITCH";
     case TokenType::CASE: return "CASE";
@@ -148,6 +149,7 @@ std::string token_type_to_string(TokenType type) {
 
     // compound operators
     case TokenType::WALRUS: return "WALRUS";
+    case TokenType::COLON_COLON: return "COLON_COLON";
     case TokenType::EQUAL_EQUAL: return "EQUAL_EQUAL";
     case TokenType::BANG_EQUAL: return "BANG_EQUAL";
     case TokenType::LESS_EQUAL: return "LESS_EQUAL";
