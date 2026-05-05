@@ -32,7 +32,6 @@ private:
   Logger* m_logger;
   std::ostringstream m_out;
 
-  bool m_handling_top_level;
   size_t m_global_var_alloc;
   std::unordered_map<std::string, std::string> m_var_locations; // in stack
   std::unordered_map<std::string, std::string> m_glob_var_locations;

@@ -9,7 +9,6 @@ static bool is_imm(IROperand op) { return std::holds_alternative<IR_Immediate>(o
 
 X86_64CodeGenerator::X86_64CodeGenerator(Logger* logger)
     : m_logger(logger),
-      m_handling_top_level(false),
       m_global_var_alloc(0),
       m_is_buffering_function(false),
       m_current_func_alloc_placeholder_idx(0),
@@ -128,7 +127,7 @@ std::string X86_64CodeGenerator::operand_to_string(const IROperand& operand) {
       }
 
       std::string relative_addr;
-      if (m_handling_top_level) {
+      if (ir_var.is_global) {
         m_global_var_alloc = (m_global_var_alloc + align - 1) & ~(align - 1);
         relative_addr = "[rel global_vars + " + std::to_string(m_global_var_alloc) + "]";
         // the relative addresses start at 'global_vars + 0', then we add
@@ -397,11 +396,9 @@ std::string X86_64CodeGenerator::generate_assembly(const std::vector<IRInstructi
   emit("mov [rbp-16], rsi ; save argv (provided by macos CRT)");
 
   // emit the top level instructions only, within _start procedure
-  m_handling_top_level = true;
   for (const IRInstruction& instr : top_level) {
     handle_instruction(instr);
   }
-  m_handling_top_level = false;
 
   if (is_main_defined) {
     emit("mov rdi, [rbp-8] ; restore argc -> 1st arg for main");

@@ -64,7 +64,7 @@ bool IrVisitor::var_exists(std::string_view name, size_t scope_id) {
   _assert(var->type, "variable type should be resolved (even if inferred)");
   std::uint64_t size = var->type->get_byte_size();
   std::uint64_t align = var->type->get_alignment();
-  return m_vars.find(IR_Variable(make_ir_var_name(var), size, align)) != m_vars.end();
+  return m_vars.find(IR_Variable(make_ir_var_name(var), size, align, false, false, var->scope_id == 0)) != m_vars.end();
 }
 
 const IR_Variable& IrVisitor::get_var(std::string_view name, size_t scope_id) {
@@ -72,7 +72,7 @@ const IR_Variable& IrVisitor::get_var(std::string_view name, size_t scope_id) {
   if (!var_exists(name, scope_id)) _assert(false, "var is expected to exist: " + std::string(name));
   std::uint64_t size = var->type->get_byte_size();
   std::uint64_t align = var->type->get_alignment();
-  return *m_vars.find(IR_Variable(make_ir_var_name(var), size, align));
+  return *m_vars.find(IR_Variable(make_ir_var_name(var), size, align, false, false, var->scope_id == 0));
 }
 
 const IR_Variable* IrVisitor::add_var(std::string_view name, size_t scope_id,
@@ -81,7 +81,7 @@ const IR_Variable* IrVisitor::add_var(std::string_view name, size_t scope_id,
   if (var_exists(name, scope_id)) _assert(false, "var already exists: " + std::string(name));
   std::uint64_t size = var->type->get_byte_size();
   std::uint64_t align = var->type->get_alignment();
-  auto itr = m_vars.insert(IR_Variable(make_ir_var_name(var), size, align, is_func_decl, is_extern));
+  auto itr = m_vars.insert(IR_Variable(make_ir_var_name(var), size, align, is_func_decl, is_extern, var->scope_id == 0));
   return &(*itr.first);
 }
 
@@ -89,7 +89,8 @@ IR_Register IrVisitor::allocate_temp_local(std::uint64_t size, std::uint64_t ali
   static int s_tmp_id = 0;
   std::string tmp_name = ".tmp_local_" + std::to_string(s_tmp_id++);
 
-  IR_Variable tmp_var(tmp_name, size, alignment, false, false);
+  // explicitly mark as NOT global so they sit on _start's stack frame instead of .bss
+  IR_Variable tmp_var(tmp_name, size, alignment, false, false, false);
   m_vars.insert(tmp_var); /* allocate on the stack */
 
   IR_Register addr_reg = m_ir_gen.new_temp_reg();
@@ -603,7 +604,7 @@ void IrVisitor::visit(FunctionDeclNode& node) {
   if (returns_aggregate) {
     // make a local variable for the first register which holds return struct addr
     m_current_hidden_ret_ptr = ".hidden_ret_ptr_" + std::to_string(node.body->scope_id);
-    IR_Variable hidden_ret_var(m_current_hidden_ret_ptr.value(), Type::PTR_SIZE, Type::PTR_SIZE, false, false);
+    IR_Variable hidden_ret_var(m_current_hidden_ret_ptr.value(), Type::PTR_SIZE, Type::PTR_SIZE, false, false, false);
     m_vars.insert(hidden_ret_var);
     // assign param 0 to this variable
     m_ir_gen.emit_assign(hidden_ret_var, IR_ParameterSlot(0, total_p_amt, Type::PTR_SIZE, Type::PTR_SIZE), Type::PTR_SIZE);
@@ -662,7 +663,7 @@ void IrVisitor::visit(FunctionDeclNode& node) {
     // named return, defaultly return the value within the return variable
     IROperand named_operand = get_var(node.retvar_name->name_str, node.retvar_name->scope_id);
     if (returns_aggregate) {
-      IR_Variable hidden_ret_var(m_current_hidden_ret_ptr.value(), Type::PTR_SIZE, Type::PTR_SIZE, false, false);
+      IR_Variable hidden_ret_var(m_current_hidden_ret_ptr.value(), Type::PTR_SIZE, Type::PTR_SIZE, false, false, false);
       IR_Register ret_ptr_reg = m_ir_gen.new_temp_reg();
       m_ir_gen.emit_assign(ret_ptr_reg, hidden_ret_var, Type::PTR_SIZE);
 

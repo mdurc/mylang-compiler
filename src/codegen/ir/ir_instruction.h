@@ -105,9 +105,12 @@ struct IR_Variable {
   std::uint64_t alignment;
   bool is_func_decl;
   bool is_extern;
+  bool is_global;
 
-  IR_Variable(const std::string& name, std::uint64_t size, std::uint64_t align, bool func = false, bool is_ext = false)
-      : name(name), size(size), alignment(align), is_func_decl(func), is_extern(is_ext) {}
+  IR_Variable(const std::string& name, std::uint64_t size, std::uint64_t align,
+              bool func = false, bool is_ext = false, bool is_glob = false)
+      : name(name), size(size), alignment(align),
+        is_func_decl(func), is_extern(is_ext), is_global(is_glob) {}
 
   bool operator==(const IR_Variable& other) const { return name == other.name; }
   bool operator<(const IR_Variable& other) const { return name < other.name; }
