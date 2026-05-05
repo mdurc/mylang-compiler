@@ -40,6 +40,9 @@
 <BreakStmt>             ::= 'break'
 <ContinueStmt>          ::= 'continue'
 
+<EnumDecl>              ::= 'enum' <Identifier> '{' <EnumVariant> (',' <EnumVariant>)* '}'
+<EnumVariant>           ::= <Identifier> ('{' <StructField>* '}')?
+
 <SwitchStmt>            ::= 'switch' '(' <Expr> ')' '{' <Case>* '}'
 <Case>                  ::= 'case' <CasePattern> ':' <Block> | 'default' ':' <Block>
 <CasePattern>           ::= <Identifier> '::' <Identifier> ('(' <Identifier> ')')?  // Enum Match
