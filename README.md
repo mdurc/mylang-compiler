@@ -1,4 +1,4 @@
-**Statically-typed, compiled language. Compiles to a standalone x86-64 Mach-O binary.**
+**Statically-typed, compiled language targeting x86-64. Compiles to a standalone Mach-O or ELF binary.**
 
 This compiler is a complete rewrite of a previous attempt, designed from the ground up to prioritize a well-designed and easily extenisible architecture.
 
@@ -20,23 +20,29 @@ Purely written as an exercise and to learn from the experiences I've gained sinc
 - Being able to print the state of the various modules within the compilation process (for testing and debugging).
 
 ### OS Support & Dependencies & Building
-I am developing on an Apple M1 (14.8.3). As of now I haven't done extensive cross-compatibility with other machines, although this is a future task.
+I am developing on an Apple M1 (14.8.3). The compiler has been tested to work on **macOS (Darwin)** and **Linux (x86_64)**.
 
-Because the language compiles to x86-64 binaries, running the generated output on Apple Silicon requires specific translation tools.
-
-1. **Xcode Command Line Tools:** c++20 compiler `clang++`, `make`, and the macOS linker `ld`.
+**MacOS (Apple Silicon) Toolchain**
+1. Requires `clang++` (C++20), `make`, `nasm`, native macOS `ld`
    ```bash
    xcode-select --install
+   brew install nasm
+
+   # only required for test suite compilation
+   brew install cmake googletest
    ```
-2. **Homebrew Packages:** `nasm` for assembling x86-64; if you plan to run the test suite, you will also need `cmake` and `googletest`.
-   ```bash
-   brew install nasm                # for compiler source
-   brew install cmake googletest    # for test suite compilation
-   ```
-3. **Rosetta 2 (apple silicon users):** Because the compiler outputs x86_64 Mach-O binaries, running your compiled `.exe` files on an M-series Mac natively will result in a `Bad CPU type in executable` error. You must install Rosetta 2, a background translation process that allows Apple Silicon to run x86_64 software:
+2. Requires *Rosetta 2*.
+    - Running your compiled Mach-O binaries on an M-series Mac natively will result in a `Bad CPU type in executable` error. You must install Rosetta 2, a background translation process that allows Apple Silicon to run x86_64 software:
    ```bash
    softwareupdate --install-rosetta --agree-to-license
    ```
+
+**Linux Toolchain**
+1. `clang++`, `make`, `nasm`, `GNU ld`
+    ```bash
+    sudo apt update
+    sudo apt install -y build-essential clang nasm binutils make
+    ```
 
 **Building the Compiler:**
 Compile the project using the root Makefile:
@@ -48,7 +54,10 @@ This produces the `./compiler_build_files/mycompiler` binary which accepts argum
 As described in my focuses in this project, I wanted to be able to inspect the output of any stage of the compiler. This is mostly for learning and debugging. It can be performing through the compiler's CLI:
 
 ```bash
-./compiler_build_files/mycompiler [stage] <input.sn> [output_file]
+./compiler_build_files/mycompiler [target] [stage] <input.sn> [output_file]
+
+--target=macos  : Force Mach-O/Darwin ABI (default for macOS)
+--target=linux  : Force ELF/SYSV ABI (default for Linux)
 
 --tokens: Output lexer tokens.
 --ast: Output the Abstract Syntax Tree.
@@ -56,6 +65,8 @@ As described in my focuses in this project, I wanted to be able to inspect the o
 --ir: Output the 3-Address Code Intermediate Representation.
 --asm: Output the generated NASM assembly.
 --exe: Compile, assemble, and link into an executable.
+       * a.out: Mach-O 64-bit executable x86_64
+       * a.out: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), statically linked not, stripped
 --json: Export compiler data for the LSP.
 --repl: Start an interactive REPL. (MacOS only)
 ```

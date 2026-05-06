@@ -43,6 +43,17 @@ This wasn't a part of the original design, although it makes a lot of sense in t
 - It also revealed an additional advantage: storing strings in the memory chunks allows for easy copying with `std::string_view` instead of copying by value in various locations.
 
 
+### Target OS Support
+
+**OS Recognition & Global Constants**
+- The compiler performs native OS recognition during its own initialization. This state is injected into the code the lexing phase, where the OS macros are converted into boolean literals. This is the simplest approach and incurs very minimal overhead.
+    - **`__TARGET_LINUX__`**: Lexed as true on Linux/WSL, false otherwise.
+    - **`__TARGET_MACOS__`**: Lexed as true on macOS, false otherwise.
+
+**Unified Runtime Assembly Library**
+- The assembly runtime library is no longer platform-exclusive. It uses NASM preprocessor directives to select architecture-specific syscall numbers and ABI behaviors.
+- This is particularly relevent for how command-line arguments are handled (stored directly in `rdi` and `rsi` registers on Darwin, but stored on the `_start` stack frame on Linux), and for syscall error handling.
+
 ## Pipeline
 
 Follows a standard flow of passes until producing the assembly:
