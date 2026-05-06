@@ -2,3 +2,8 @@
    better efficiency if we decide to add automatic zero-initialization with the new keyword. */
 extern func malloc(size: i64) returns (p: ptr<mut u0>);
 extern func memcpy(dst: ptr<mut u0>, src: ptr<imm u0>, size: i64) returns (res: ptr<mut u0>);
+
+/* mmap and munmap are even faster than runtime malloc/free
+   since the custom malloc procedure embedds a header segment */
+extern func sys_mmap(size: i64) returns (p: ptr<mut u0>);
+extern func sys_munmap(p: ptr<mut u0>, size: i64) returns (res: i64);

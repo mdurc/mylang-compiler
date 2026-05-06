@@ -1,0 +1,137 @@
+#include "memory.sn"
+#include "string.sn"
+
+struct map_entry_t {
+  key: string,
+  value: ptr<mut u0>,
+  occupied: bool
+}
+
+struct map_t {
+  entries: ptr<mut map_entry_t>,
+  len: i64,
+  cap: i64
+}
+
+/* djb2 hashing algorithm */
+func map_hash(key: string) returns (hash: u64) {
+  mut h := cast<u64>(5381);
+  mut len := string_length(key);
+
+  for (mut i := 0; i < len; i = i + 1) {
+    // h = (h * 33) + c  -> implemented as ((h << 5) + h) + c
+    h = ((h << cast<u64>(5)) + h) + cast<u64>(key[i]);
+  }
+  return h;
+}
+
+/* returns the map as a value-type allocated on the caller's stack */
+func map_init(mut initial_capacity: i64) returns (m: map_t) {
+  if (initial_capacity <= 0) { initial_capacity = 16; }
+
+  // ensure all 'occupied' booleans start as false
+  mut entries := cast<ptr<mut map_entry_t> >(malloc(initial_capacity * sizeof<map_entry_t>));
+  for (mut i := 0; i < initial_capacity; i = i + 1) {
+    entries[i].occupied = false;
+  }
+
+  return map_t {
+    entries = entries,
+    len = 0,
+    cap = initial_capacity
+  };
+}
+
+/* internal function to place entries without checking load factor */
+func map_insert_internal(entries: ptr<mut map_entry_t>, cap: i64, key: string, value: ptr<mut u0>) {
+  mut index := cast<i64>(map_hash(key) % cast<u64>(cap));
+
+  while (entries[index].occupied) {
+    // if key already exists, overwrite the value
+    if (string_equals(entries[index].key, key)) {
+      entries[index].value = value;
+      return;
+    }
+    // linear probe
+    index = (index + 1) % cap;
+  }
+
+  entries[index].key = key;
+  entries[index].value = value;
+  entries[index].occupied = true;
+}
+
+func map_put(m: ptr<mut map_t>, key: string, value: ptr<mut u0>) {
+  if (m == null or key == null) { return; }
+
+  // resize if load factor exceeds 50%
+  if (m.len * 2 >= m.cap) {
+    new_cap := m.cap * 2;
+    mut new_entries := cast<ptr<mut map_entry_t> >(malloc(new_cap * sizeof<map_entry_t>));
+
+    // initialize new array
+    for (mut i := 0; i < new_cap; i = i + 1) {
+      new_entries[i].occupied = false;
+    }
+
+    // rehash old entries
+    for (mut i := 0; i < m.cap; i = i + 1) {
+      if (m.entries[i].occupied) {
+        map_insert_internal(new_entries, new_cap, m.entries[i].key, m.entries[i].value);
+      }
+    }
+
+    free m.entries;
+    m.entries = new_entries;
+    m.cap = new_cap;
+  }
+
+  map_insert_internal(m.entries, m.cap, key, value);
+  m.len = m.len + 1;
+}
+
+/* safe retrieval of a value */
+func map_get(m: ptr<imm map_t>, key: string) returns (item: ptr<mut u0>) {
+  if (m == null or key == null or m.len == 0) { return null; }
+
+  mut index := cast<i64>(map_hash(key) % cast<u64>(m.cap));
+  mut start_index := index;
+  while (m.entries[index].occupied) {
+    if (string_equals(m.entries[index].key, key)) {
+      return m.entries[index].value;
+    }
+    index = (index + 1) % m.cap;
+    // full loop check to prevent infinite hang
+    if (index == start_index) { break; }
+  }
+
+  return null;
+}
+
+/* return an allocated array of keys */
+func map_keys(m: ptr<imm map_t>) returns (keys: ptr<mut string>) {
+  if (m == null or m.len == 0) { return null; }
+
+  // 8 bytes per string pointer
+  mut raw := malloc(m.len * 8);
+  mut key_array := cast<ptr<mut string> >(raw);
+  mut current_idx := 0;
+  for (mut i := 0; i < m.cap; i = i + 1) {
+    if (m.entries[i].occupied) {
+      key_array[current_idx] = m.entries[i].key;
+      current_idx = current_idx + 1;
+    }
+  }
+
+  return key_array;
+}
+
+func map_destroy(m: ptr<mut map_t>) {
+  if (m == null) { return; }
+  if (m.entries != null) {
+    free m.entries;
+    m.entries = null;
+  }
+  m.len = 0;
+  m.cap = 0;
+}

@@ -1,0 +1,56 @@
+#include "memory.sn"
+
+struct arena_t {
+  base: ptr<mut u8>,
+  offset: i64,
+  cap: i64
+}
+
+/* requests a continuous block of memory */
+func arena_init(mut size: i64) returns (a: arena_t) {
+  // 4096-byte page alignment
+  mut rem := size % 4096;
+  if (rem != 0) { size = size + (4096 - rem); }
+
+  mut raw := sys_mmap(size);
+  return arena_t {
+    base = cast<ptr<mut u8> >(raw),
+    offset = 0,
+    cap = size
+  };
+}
+
+/* bump-pointer allocation */
+func arena_alloc(a: ptr<mut arena_t>, mut size: i64) returns (p: ptr<mut u0>) {
+  if (a == null or size <= 0) { return null; }
+
+  // 8-byte alignment
+  mut rem := size % 8;
+  if (rem != 0) { size = size + (8 - rem); }
+
+  if (a.offset + size > a.cap) {
+    // arena is out of memory (todo later to chain a new block)
+    print "stdlib<arena>: arena is out of memory\n";
+    return null;
+  }
+
+  mut alloc_ptr := a.base + a.offset;
+  a.offset = a.offset + size;
+  return cast<ptr<mut u0> >(alloc_ptr);
+}
+
+/* reset arena offset without freeing any memory */
+func arena_reset(a: ptr<mut arena_t>) {
+  if (a != null) {
+    a.offset = 0;
+  }
+}
+
+/* frees the memory page block */
+func arena_destroy(a: ptr<mut arena_t>) {
+  if (a == null or a.base == null) { return; }
+  sys_munmap(cast<ptr<mut u0> >(a.base), a.cap);
+  a.base = null;
+  a.offset = 0;
+  a.cap = 0;
+}
