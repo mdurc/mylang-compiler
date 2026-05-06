@@ -677,17 +677,6 @@ void X86_64CodeGenerator::handle_assign(const IRInstruction& instr) {
   std::string dst_str = get_sized_component(dst, dst_size);
   std::string src_str = resolve_source_operand(src, src_size);
 
-  bool is_func_decl = std::holds_alternative<IR_Variable>(src) &&
-                      std::get<IR_Variable>(src).is_func_decl;
-  bool is_string_literal = std::holds_alternative<std::string>(src);
-
-  // case for if the source is a function, where destination is a func ptr
-  if (is_func_decl || is_string_literal) {
-    std::string temp = get_temp_x86_reg(Type::PTR_SIZE);
-    emit("lea " + temp + ", [rel " + src_str + "]");
-    src_str = temp;
-  }
-
   if (dst_str.back() == ']' && src_str.back() == ']') {
     // Memory to memory assignment
     std::string temp = get_temp_x86_reg(Type::PTR_SIZE);
@@ -960,18 +949,16 @@ void X86_64CodeGenerator::handle_push_arg(const IRInstruction& instr) {
   std::uint64_t arg_size = instr.size;
   CallContext& ctx = m_call_stack.top();
 
+  std::string src_str = resolve_source_operand(src, arg_size);
   if (ctx.current_args_passed < m_arg_regs.size()) {
     // handle register arguments (first 6 args)
     const std::string& arg_64 = m_arg_regs[ctx.current_args_passed++];
-    std::string src_str = get_sized_component(src, arg_size);
     std::string mov = get_mov_instr(arg_64, src_str, is_imm(src), arg_size);
     ctx.arg_instrs.push_back(mov + "; value stored in arg reg");
     return;
   }
 
   // handle stack arguments (args beyond the first 6), note it requires QWORD sz
-  std::string src_str = resolve_source_operand(src, arg_size);
-
   // right now it should be save to use RAX, no potential clobbering
   std::string mov = get_mov_instr("rax", src_str, is_imm(src), instr.size);
 
