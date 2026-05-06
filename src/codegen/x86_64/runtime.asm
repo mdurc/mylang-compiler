@@ -1,16 +1,44 @@
-	global exit, string_length, print_string, print_char, print_newline
-	global print_uint, print_int, read_char, read_word, parse_uint
-	global parse_int, string_equals, string_copy
-	global memcpy, malloc, free, clrscr, string_concat
-
+; --- Embedded Runtime Library ---
 	section .text
+
+; architecture-specific syscall numbers
+%ifdef TARGET_MACOS
+    %define SYS_READ   0x2000003
+    %define SYS_WRITE  0x2000004
+    %define SYS_OPEN   0x2000005
+    %define SYS_CLOSE  0x2000006
+    %define SYS_EXIT   0x2000001
+    %define SYS_MMAP   0x20000C5
+    %define SYS_MUNMAP 0x2000049
+    %define SYS_LSEEK  0x20000C7
+    %define MAP_FLAGS  0x1002 ; MAP_PRIVATE | MAP_ANON
+%elifdef TARGET_LINUX
+    %define SYS_READ   0
+    %define SYS_WRITE  1
+    %define SYS_OPEN   2
+    %define SYS_CLOSE  3
+    %define SYS_EXIT   60
+    %define SYS_MMAP   9
+    %define SYS_MUNMAP 11
+    %define SYS_LSEEK  8
+    %define MAP_FLAGS  0x22 ; MAP_PRIVATE | MAP_ANONYMOUS
+%endif
+
+; architecture-specific macro to check syscall success
+%macro EXEC_SYSCALL 1
+    mov rax, %1
+    syscall
+%ifdef TARGET_MACOS
+    jnc %%success ; macOS carry bit is set if an error occurred
+    neg rax       ; macOS errno -> negate to match linux negative errno
+%%success:
+%endif
+%endmacro
 
 ; rdi <- exit code
 ; exits program with provided `rdi` value
 exit:
-	; mov rax, 60
-  mov rax, 0x2000001
-	syscall
+  EXEC_SYSCALL SYS_EXIT
 
 ; rdi <- address of string
 ; rax -> length of string
@@ -36,9 +64,7 @@ print_string:
   pop rsi
   pop rdi
 
-	; mov rax, 1
-  mov rax, 0x2000004
-	syscall
+  EXEC_SYSCALL SYS_WRITE
 	ret
 
 ; rdi <- file descriptor
@@ -48,9 +74,8 @@ print_char:
 	mov rsi, rsp	; start at this address, treating it as a string
   mov rdx, 1    ; strlen of 1
 
-	; mov rax, 1	; sys_write the char that is now a string
-  mov rax, 0x2000004
-  syscall
+  ; write the char that is now a string
+  EXEC_SYSCALL SYS_WRITE
 	add rsp, 8	; restore the address
 	ret
 
@@ -61,9 +86,7 @@ print_newline:
 	mov rsi, rsp	; alternative to having a newline buffer in .data.
 	mov rdx, 1    ; 1 byte for char
 
-	; mov rax, 1
-  mov rax, 0x2000004
-	syscall
+  EXEC_SYSCALL SYS_WRITE
 	add rsp, 8	; undo the 0x0A push
 	ret
 
@@ -142,13 +165,11 @@ print_int:
 
 ; al -> character read from stdin, else 0 if the end of input stream occurs
 read_char:
-	; mov rax, 0	; sys_read
-  mov rax, 0x2000003
 	mov rdi, 0	; stdin
 	sub rsp, 8	; make room for 8 bytes on stack
 	mov rsi, rsp	; ptr to new space on the stack
 	mov rdx, 1	; only want to read 1 byte
-	syscall
+	EXEC_SYSCALL SYS_READ
 	test rax, rax
 	jz .eof
 	mov al, byte[rsp]
@@ -356,13 +377,12 @@ malloc:
   mov rsi, rdi       ; length = total_size
   xor rdi, rdi       ; addr = NULL (let kernel choose)
   mov rdx, 3         ; prot = PROT_READ | PROT_WRITE
-  mov r10, 0x1002    ; flags = MAP_ANON | MAP_PRIVATE
+  mov r10, MAP_FLAGS ; flags = MAP_ANON | MAP_PRIVATE
   mov r8, -1         ; fd = -1
   xor r9, r9         ; offset = 0
-  mov rax, 0x20000C5 ; mmap syscall
-  syscall
+  EXEC_SYSCALL SYS_MMAP
   cmp rax, -1
-  je .error
+  jle .error
   mov r8, SIGNATURE
   mov QWORD[rax], r8      ; store signature for identification in 'free'
   mov QWORD[rax + 8], rsi ; store total_size at the start of the block
@@ -387,8 +407,7 @@ free:
 
   mov rsi, [rdi - 8]  ; get our total size from the header from malloc
   lea rdi, [rdi - 16] ; get base address
-  mov rax, 0x2000049  ; munmap syscall
-  syscall
+  EXEC_SYSCALL SYS_MUNMAP
   jmp .end
   .err:
   mov rdi, 2        ; arg for stderr
@@ -403,11 +422,10 @@ clrscr:
   push rsi
   push rdx
   push rax
-  mov rax, 0x2000004
   mov rdi, 1        ; fd hardcoded for stdout
   mov rsi, clr_scr  ; load address to rsi
   mov rdx, 7
-  syscall
+  EXEC_SYSCALL SYS_WRITE
   pop rax
   pop rdx
   pop rsi
@@ -475,18 +493,14 @@ string_concat:
   pop rbx
   ret
 
-; --- File I/O ---
+; --- File I/O --- macro handles setting negative errno on failure
 
 ; rdi <- filename (null terminated)
 ; rsi <- flags (0 = O_RDONLY, 1537 = O_WRONLY|O_CREAT|O_TRUNC)
 ; rdx <- mode (permissions, 420 for 0644)
 ; rax -> file descriptor, or negative on error
 sys_open:
-  mov rax, 0x2000005
-  syscall
-  jnc .success
-  neg rax ; on error, carry flag is set; return negative errno
-.success:
+  EXEC_SYSCALL SYS_OPEN
   ret
 
 ; rdi <- file descriptor
@@ -494,11 +508,7 @@ sys_open:
 ; rdx <- number of bytes to read
 ; rax -> bytes read, or negative on error
 sys_read:
-  mov rax, 0x2000003
-  syscall
-  jnc .success
-  neg rax
-.success:
+  EXEC_SYSCALL SYS_READ
   ret
 
 ; rdi <- file descriptor
@@ -506,20 +516,12 @@ sys_read:
 ; rdx <- number of bytes to write
 ; rax -> bytes written, or negative on error
 sys_write:
-  mov rax, 0x2000004
-  syscall
-  jnc .success
-  neg rax
-.success:
+  EXEC_SYSCALL SYS_WRITE
   ret
 
 ; rdi <- file descriptor
 sys_close:
-  mov rax, 0x2000006
-  syscall
-  jnc .success
-  neg rax
-.success:
+  EXEC_SYSCALL SYS_CLOSE
   ret
 
 ; rdi <- file descriptor
@@ -527,11 +529,7 @@ sys_close:
 ; rdx <- whence (0 = SEEK_SET, 1 = SEEK_CUR, 2 = SEEK_END)
 ; rax -> new offset, or negative on error
 sys_lseek:
-  mov rax, 0x20000C7
-  syscall
-  jnc .success
-  neg rax
-.success:
+  EXEC_SYSCALL SYS_LSEEK
   ret
 
 ; --- Memory wrappers for arena allocator ---
@@ -544,18 +542,16 @@ sys_mmap:
   mov rsi, rdi       ; length = total_size
   xor rdi, rdi       ; addr = NULL (kernel)
   mov rdx, 3         ; prot = PROT_READ | PROT_WRITE
-  mov r10, 0x1002    ; flags = MAP_PRIVATE | MAP_ANON
+  mov r10, MAP_FLAGS ; flags = MAP_PRIVATE | MAP_ANON
   mov r8, -1         ; fd = -1
   xor r9, r9         ; offset = 0
-  mov rax, 0x20000C5 ; mmap syscall
-  syscall
+  EXEC_SYSCALL SYS_MMAP
   ret
 
 ; rdi <- addr
 ; rsi <- len
 sys_munmap:
-  mov rax, 0x2000049 ; munmap syscall
-  syscall
+  EXEC_SYSCALL SYS_MUNMAP
   ret
 
 section .data

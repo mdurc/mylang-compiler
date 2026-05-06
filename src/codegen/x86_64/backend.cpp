@@ -1,7 +1,7 @@
-#include "asm.h"
+#include "backend.h"
+#include "runtime_raw.h"
 
 #include "../../parser/types.h"
-#include "../runtime/builtins.h"
 #include "../../util.h"
 
 static size_t get_align(size_t s) { return ((s + 15) & ~15); }
@@ -376,18 +376,6 @@ std::string X86_64CodeGenerator::generate_assembly(const std::vector<IRInstructi
   m_string_literals_data.clear();
   m_string_literal_to_label.clear();
 
-  /*
-  // not necessary anymore to to automatic inclusion of all stdlib
-  // in the future perhaps we have an import system for stdlib
-
-  m_out << "extern exit, string_length, print_string, print_char\n";
-  m_out << "extern print_newline, print_uint, print_int\n";
-  m_out << "extern read_char, read_word, parse_uint\n";
-  m_out << "extern parse_int, string_equals, string_copy\n";
-  m_out << "extern memcpy, malloc, free, clrscr, string_concat\n";
-  m_out << "\n";
-  */
-
   std::vector<IRInstruction> top_level;
   std::vector<IRInstruction> functions;
   bool in_func = false;
@@ -409,8 +397,19 @@ std::string X86_64CodeGenerator::generate_assembly(const std::vector<IRInstructi
   handle_begin_func(IRInstruction(IROpCode::BEGIN_FUNC, IR_Label("_start"), {}));
 
   m_current_func_stack_offset += 16;
-  emit("mov [rbp-8], rdi ; save argc (provided by macos CRT)");
-  emit("mov [rbp-16], rsi ; save argv (provided by macos CRT)");
+
+  // OS-Specific entrypoint for command-line arguments
+  if (m_target == TargetOS::MacOS) {
+    emit("mov [rbp-8], rdi ; save argc (provided by MacOS CRT)");
+    emit("mov [rbp-16], rsi ; save argv (provided by MacOS CRT)");
+  } else {
+    // linux kernel places argc at [rsp] before _start.
+    // after our 'push rbp' in handle_begin_func, argc is at [rbp+8]
+    emit("mov rdi, [rbp+8] ; grab argc (provided by linux kernal on stack)");
+    emit("mov [rbp-8], rdi ; save argc");
+    emit("lea rsi, [rbp+16] ; grab address of argv array");
+    emit("mov [rbp-16], rsi ; save argv");
+  }
 
   // emit the top level instructions only, within _start procedure
   for (const IRInstruction& instr : top_level) {
@@ -471,8 +470,14 @@ void X86_64CodeGenerator::emit_program_footer() {
     m_out << "\tglobal_vars resb " << std::to_string(get_align(m_global_var_alloc)) << "\n";
   }
 
-  /* insert runtime stdlib */
-  m_out << "\n" << RUNTIME_ASM_CODE << "\n";
+  if (m_target == TargetOS::MacOS) {
+    m_out << "\n%define TARGET_MACOS\n";
+  } else {
+    m_out << "\n%define TARGET_LINUX\n";
+  }
+
+  /* insert asm runtime library */
+  m_out << RUNTIME_ASM << "\n";
 }
 
 void X86_64CodeGenerator::emit_debug_stack_align() {

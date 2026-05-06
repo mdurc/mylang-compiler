@@ -15,7 +15,7 @@
 #include "checker/typechecker.h"
 #include "codegen/ir/ir_printer.h"
 #include "codegen/ir/ir_visitor.h"
-#include "codegen/x86_64/asm.h"
+#include "codegen/x86_64/backend.h"
 #include "lexer/lexer.h"
 #include "loader/source_loader.h"
 #include "parser/parser.h"

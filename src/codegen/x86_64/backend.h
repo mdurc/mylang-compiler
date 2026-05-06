@@ -1,5 +1,5 @@
-#ifndef CODEGEN_X86_64_ASM_H
-#define CODEGEN_X86_64_ASM_H
+#ifndef CODEGEN_X86_64_BACKEND_H
+#define CODEGEN_X86_64_BACKEND_H
 
 #include <iostream>
 #include <list>
@@ -144,4 +144,4 @@ private:
   void handle_mem_set(const IRInstruction& instr);
 };
 
-#endif // CODEGEN_X86_64_ASM_H
+#endif // CODEGEN_X86_64_BACKEND_H

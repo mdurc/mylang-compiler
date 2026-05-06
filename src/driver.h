@@ -1,7 +1,7 @@
 #ifndef SRC_DRIVER_H
 #define SRC_DRIVER_H
 
-#include "codegen/x86_64/asm.h"
+#include "codegen/x86_64/backend.h"
 #include <string>
 
 bool drive(const std::string& arg, const std::string& infile,

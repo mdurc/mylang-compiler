@@ -36,7 +36,7 @@ set(CODEGEN_SOURCES
     ../src/codegen/ir/ir_printer.cpp
     ../src/codegen/ir/ir_generator.cpp
     ../src/codegen/ir/ir_visitor.cpp
-    ../src/codegen/x86_64/asm.cpp
+    ../src/codegen/x86_64/backend.cpp
 )
 
 set(CHECKER_SOURCES
@@ -87,7 +87,6 @@ add_executable(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
     GTest::gtest
-    GTest::gtest_main
 )
 
 add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})

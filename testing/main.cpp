@@ -19,7 +19,7 @@ std::string rtrim(const std::string& s) {
 std::string generate_compiler_output(const std::string& flag, const std::string& input_filepath) {
   std::string temp_out = std::filesystem::temp_directory_path().string() + "/test_out.tmp";
 
-  drive(flag, input_filepath, temp_out);
+  drive(flag, input_filepath, temp_out, TargetOS::MacOS);
 
   std::ifstream ifs(temp_out);
   std::stringstream ss;
