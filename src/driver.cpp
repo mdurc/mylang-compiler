@@ -48,7 +48,7 @@ static void assemble_and_link(const std::string& asm_code, const std::string& ou
                " -syslibroot $(xcrun --sdk macosx --show-sdk-path)";
   } else {
     assemble_cmd = "nasm -f elf64 " + asm_path.string() + " -o " + obj_path.string();
-    link_cmd = "ld.lld -flavor gnu " + obj_path.string() + " -o " + exe_path.string();
+    link_cmd = "ld " + obj_path.string() + " -o " + exe_path.string();
   }
 
   if (std::system(assemble_cmd.c_str()) != 0) {
@@ -189,7 +189,7 @@ bool drive(const std::string& arg, const std::string& infile, const std::string&
   else return false;
 
   if (stage == TargetStage::EXE) {
-    return run_pipeline(stage, infile, std::cout, "a.out", target);
+    return run_pipeline(stage, infile, std::cout, outfile.empty() ? "a.out": outfile, target);
   }
 
   if (outfile.empty()) {

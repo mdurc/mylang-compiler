@@ -63,36 +63,45 @@ uninstall:
 
 # test workflow
 TFILE = tfile.sn
-update_test: $(PROGRAM)
-	mkdir -p $(BUILD_DIR)
-	./$(PROGRAM) \
-	--tokens $(TFILE) $(TFILE).tokens \
-	--ast $(TFILE) $(TFILE).ast \
-	--symtab $(TFILE) $(TFILE).symtab \
-	--ir $(TFILE) $(TFILE).ir \
-	--asm $(TFILE) $(TFILE).asm \
-	--json $(TFILE) $(TFILE).json \
-	--exe $(TFILE) $(TFILE).exe
+CMD_LINE_FLAGS := \
+	--tokens  $(TFILE).tokens \
+	--ast     $(TFILE).ast \
+	--symtab  $(TFILE).symtab \
+	--ir      $(TFILE).ir \
+	--asm     $(TFILE).asm \
+	--json    $(TFILE).json \
+	--exe     $(TFILE).exe
 
-compile_test_macos:
+update_test_macos: $(PROGRAM)
+	mkdir -p $(BUILD_DIR)
+	./$(PROGRAM) --target=macos $(CMD_LINE_FLAGS)
+
+update_test_linux: $(PROGRAM)
+	mkdir -p $(BUILD_DIR)
+	./$(PROGRAM) --target=linux $(CMD_LINE_FLAGS)
+
+compile_test_macos: update_test_macos
 	nasm -f macho64 $(TFILE).asm -o $(BUILD_DIR)/test_main.o
 	ld $(BUILD_DIR)/test_main.o -o $(TFILE).exe \
 	-macos_version_min 10.13 -e _start -lSystem -no_pie \
 	-syslibroot $(shell xcrun --sdk macosx --show-sdk-path)
 
-compile_test_linux:
+compile_test_linux: update_test_linux
 	nasm -f elf64 $(TFILE).asm -o $(BUILD_DIR)/test_main.o
-	ld.lld -flavor gnu $(BUILD_DIR)/test_main.o -o $(TFILE).exe
+	ld $(BUILD_DIR)/test_main.o -o $(TFILE).exe
 
-test: update_test compile_test_macos
+test: compile_test_macos
 	./$(TFILE).exe
 
-test_linux: update_test compile_test_linux
+test_linux: compile_test_linux
 	./$(TFILE).exe
 
 clean:
 	rm -rf $(MYLIB)
 	rm -f $(TFILE).* a.out DATA.txt .DS_Store
 
-.PHONY: all clean update_test compile_test_macos compile_test_linux test test_linux install uninstall
+.PHONY: all clean \
+	update_test_macos update_test_linux \
+	compile_test_macos compile_test_linux \
+	test test_linux install uninstall
 -include $(PROGRAM_OBJS:.o=.d)
