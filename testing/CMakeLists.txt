@@ -5,6 +5,8 @@ project(test_runner)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+find_package(GTest REQUIRED)
+
 set(VENDOR_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor)
 set(APPROVAL_TESTS_HEADER ${VENDOR_DIR}/ApprovalTests.hpp)
 
@@ -83,8 +85,9 @@ add_executable(${PROJECT_NAME}
 )
 
 target_link_libraries(${PROJECT_NAME}
-    gtest
-    gtest_main
+    PRIVATE
+    GTest::gtest
+    GTest::gtest_main
 )
 
 add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})
