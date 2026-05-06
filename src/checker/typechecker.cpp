@@ -1302,14 +1302,6 @@ void TypeChecker::visit(FreeStmtNode& node) {
   Type* expr_type = get_expr_type(node.expression);
   if (!expr_type || expr_type->is<Type::ErrorType>()) return;
 
-  if (expr_type->is<Type::Pointer>()) {
-    if (!expr_type->as<Type::Pointer>().is_pointee_mutable) {
-      m_logger->report(Diag::Error(node.expression->token->get_span(),
-            "Cannot 'free' an immutable pointer. Pointer must be 'ptr<mut T>'."));
-      return;
-    }
-  }
-
   if (!is_pointer_like(expr_type)) {
     m_logger->report(Diag::TypeMismatch(
         node.expression->token->get_span(), "pointer type",
