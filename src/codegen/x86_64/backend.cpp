@@ -759,7 +759,7 @@ void X86_64CodeGenerator::handle_div(const IRInstruction& instr) {
   } else if (instr.size == 4) {
     emit("movsxd rax, " + src1_str + " ; sign-extend 32-bit dividend");
   } else {
-    emit("movsx rax, " + get_size_prefix(instr.size) + " " + src1_str + " ; sign-extend small dividend");
+    emit("movsx rax, " + src1_str + " ; sign-extend small dividend");
   }
 
   emit("cqo");
@@ -795,7 +795,7 @@ void X86_64CodeGenerator::handle_mod(const IRInstruction& instr) {
   } else if (instr.size == 4) {
     emit("movsxd rax, " + src1_str + " ; sign-extend 32-bit dividend");
   } else {
-    emit("movsx rax, " + get_size_prefix(instr.size) + " " + src1_str + " ; sign-extend small dividend");
+    emit("movsx rax, " + src1_str + " ; sign-extend small dividend");
   }
 
   emit("cqo");
@@ -828,12 +828,23 @@ void X86_64CodeGenerator::handle_logical_not(const IRInstruction& instr) {
   std::string dst_str = get_sized_register_name(dst_reg, instr.size);
   std::string src_str = get_sized_component(instr.operands[0], instr.size);
 
+  // protect rax if we are using al for the set instruction
+  bool rax_pushed = false;
+  if (dst_reg != "rax") {
+    emit("push rax");
+    rax_pushed = true;
+  }
+
   emit(get_mov_instr(dst_reg, src_str, is_imm(instr.operands[0]), instr.size));
 
   // evaluate if equal to zero
   emit("cmp " + dst_str + ", 0");
   emit("sete al");
-  emit("movzx " + dst_str + ", al");
+
+  // zero extend into destination
+  std::string dst_64 = get_sized_register_name(dst_reg, Type::PTR_SIZE);
+  emit("movzx " + dst_64 + ", al");
+  if (rax_pushed) emit("pop rax");
 }
 
 void X86_64CodeGenerator::handle_logical_and_or(
