@@ -1,17 +1,28 @@
 #include "json_exporter.h"
 
-#include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
 
-using json = nlohmann::json;
+#include "json.cpp"
 
 static json span_to_range(const Span& span) {
   int row = std::max(0, (int)span.row - 1);
   int s_col = std::max(0, (int)span.start_col - 1);
   int e_col = std::max(0, (int)span.end_col - 1);
-  return {{"start", {{"line", row}, {"character", s_col}}},
-          {"end", {{"line", row}, {"character", e_col}}}};
+
+  json start = json::object();
+  start["line"] = row;
+  start["character"] = s_col;
+
+  json end = json::object();
+  end["line"] = row;
+  end["character"] = e_col;
+
+  json range = json::object();
+  range["start"] = start;
+  range["end"] = end;
+
+  return range;
 }
 
 /* standard hover on a node */
@@ -247,25 +258,30 @@ static void collect_definitions(const SymTab* symtab, json& definitions) {
 }
 
 std::string JsonExporter::export_to_json() {
-  json result;
+  json result = json::object();
 
   // == Diagnostics ==
   json diagnostics = json::array();
   for (const Diagnostic& d : m_logger->get_fatals()) {
-    diagnostics.push_back({{"range", span_to_range(d.span)},
-                           {"message", d.to_string()},
-                           {"severity", 3}});
-    // mark as information to LSP, as it is usually an internal error
+    json diag = json::object();
+    diag["range"] = span_to_range(d.span);
+    diag["message"] = d.to_string();
+    diag["severity"] = 3;
+    diagnostics.push_back(diag);
   }
   for (const Diagnostic& d : m_logger->get_errors()) {
-    diagnostics.push_back({{"range", span_to_range(d.span)},
-                           {"message", d.to_string()},
-                           {"severity", 1}});
+    json diag = json::object();
+    diag["range"] = span_to_range(d.span);
+    diag["message"] = d.to_string();
+    diag["severity"] = 1;
+    diagnostics.push_back(diag);
   }
   for (const Diagnostic& d : m_logger->get_warnings()) {
-    diagnostics.push_back({{"range", span_to_range(d.span)},
-                           {"message", d.to_string()},
-                           {"severity", 2}});
+    json diag = json::object();
+    diag["range"] = span_to_range(d.span);
+    diag["message"] = d.to_string();
+    diag["severity"] = 2;
+    diagnostics.push_back(diag);
   }
   result["diagnostics"] = diagnostics;
 

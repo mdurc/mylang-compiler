@@ -13,6 +13,7 @@ static void usage() {
             << "       [ --ir     <infile> <outfile> ]\n"
             << "       [ --asm    <infile> <outfile> ]\n"
             << "       [ --exe    <infile> <outfile> ]\n"
+            << "       [ --json   <infile> <outfile> ]\n"
             << "       [ --repl ]\n";
 }
 
