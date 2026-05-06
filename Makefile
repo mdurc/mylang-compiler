@@ -1,4 +1,4 @@
-CC = g++
+CC = clang++
 MYLIB = compiler_build_files
 BINARY = mycompiler
 PROGRAM = $(MYLIB)/$(BINARY)
@@ -64,6 +64,7 @@ update_test: $(PROGRAM)
 	--symtab $(TFILE) $(TFILE).symtab \
 	--ir $(TFILE) $(TFILE).ir \
 	--asm $(TFILE) $(TFILE).asm \
+	--json $(TFILE) $(TFILE).json \
 	--exe $(TFILE) $(TFILE).exe
 
 compile_test_asm:

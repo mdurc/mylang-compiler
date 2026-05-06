@@ -22,13 +22,23 @@ Purely written as an exercise and to learn from the experiences I've gained sinc
 ### OS Support & Dependencies & Building
 I am developing on an Apple M1 (14.8.3). As of now I haven't done extensive cross-compatibility with other machines, although this is a future task.
 
-**Build Dependencies:**
-- `g++` (built with C++20)
-- `make`
-- `nasm` (assembling the x86-64 output)
-- `ld` (macOS linker)
-- `cmake` (for snapshot-testing suite only)
+Because the language compiles to x86-64 binaries, running the generated output on Apple Silicon requires specific translation tools.
 
+1. **Xcode Command Line Tools:** c++20 compiler `clang++`, `make`, and the macOS linker `ld`.
+   ```bash
+   xcode-select --install
+   ```
+2. **Homebrew Packages:** `nasm` for assembling x86-64; if you plan to run the test suite, you will also need `cmake` and `googletest`.
+   ```bash
+   brew install nasm                # for compiler source
+   brew install cmake googletest    # for test suite compilation
+   ```
+3. **Rosetta 2 (apple silicon users):** Because the compiler outputs x86_64 Mach-O binaries, running your compiled `.exe` files on an M-series Mac natively will result in a `Bad CPU type in executable` error. You must install Rosetta 2, a background translation process that allows Apple Silicon to run x86_64 software:
+   ```bash
+   softwareupdate --install-rosetta --agree-to-license
+   ```
+
+**Building the Compiler:**
 Compile the project using the root Makefile:
 ```bash
 make
