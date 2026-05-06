@@ -14,6 +14,11 @@
 #include "../../logging/logger.h"
 #include "../ir/ir_instruction.h"
 
+enum class TargetOS {
+  MacOS, // default
+  Linux
+};
+
 struct CallContext {
   size_t stack_args_size = 0;
   size_t current_args_passed = 0;
@@ -23,13 +28,14 @@ struct CallContext {
 
 class X86_64CodeGenerator {
 public:
-  X86_64CodeGenerator(Logger* logger);
+  X86_64CodeGenerator(Logger* logger, TargetOS target);
 
   std::string generate(const std::vector<IRInstruction>& instructions,
                        bool is_main_defined);
 
 private:
   Logger* m_logger;
+  TargetOS m_target;
   std::ostringstream m_out;
 
   size_t m_global_var_alloc;
@@ -52,8 +58,7 @@ private:
   // {x86_reg_str, <IR_reg_id, reg_size>}
   std::unordered_map<std::string, std::pair<int, std::uint64_t>> m_x86_reg_to_ir_reg;
   std::unordered_map<int, std::string> m_ir_reg_to_x86_reg;
-  std::unordered_map<int, std::pair<std::string, std::uint64_t>>
-      m_spilled_ir_reg_locations;
+  std::unordered_map<int, std::pair<std::string, std::uint64_t>> m_spilled_ir_reg_locations;
   size_t m_reg_count;
 
   std::vector<std::string> m_temp_regs;

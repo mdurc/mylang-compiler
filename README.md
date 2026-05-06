@@ -57,5 +57,5 @@ As described in my focuses in this project, I wanted to be able to inspect the o
 --asm: Output the generated NASM assembly.
 --exe: Compile, assemble, and link into an executable.
 --json: Export compiler data for the LSP.
---repl: Start an interactive REPL.
+--repl: Start an interactive REPL. (MacOS only)
 ```

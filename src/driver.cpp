@@ -27,7 +27,7 @@ namespace fs = std::filesystem;
 enum class TargetStage { TOKENS, AST, SYMTAB, IR, ASM, EXE, JSON };
 struct CompileAbort {}; // used to stop IR/asm generation if parser/checker finds errors
 
-static void assemble_and_link(const std::string& asm_code, const std::string& output_exe) {
+static void assemble_and_link(const std::string& asm_code, const std::string& output_exe, TargetOS target) {
   fs::path temp_dir = fs::temp_directory_path();
   std::string temp_prefix = "mycomp_" + std::to_string(getpid()) + "_" +
                             std::to_string(std::time(nullptr)) + "_";
@@ -39,17 +39,23 @@ static void assemble_and_link(const std::string& asm_code, const std::string& ou
   asm_out << asm_code;
   asm_out.close();
 
-  std::string assemble_cmd = "nasm -f macho64 " + asm_path.string() + " -o " + obj_path.string();
+  std::string assemble_cmd;
+  std::string link_cmd;
+  if (target == TargetOS::MacOS) {
+    assemble_cmd = "nasm -f macho64 " + asm_path.string() + " -o " + obj_path.string();
+    link_cmd = "ld " + obj_path.string() + " -o " + exe_path.string() +
+               " -macos_version_min 10.13 -e _start -lSystem -no_pie" +
+               " -syslibroot $(xcrun --sdk macosx --show-sdk-path)";
+  } else {
+    assemble_cmd = "nasm -f elf64 " + asm_path.string() + " -o " + obj_path.string();
+    link_cmd = "ld.lld -flavor gnu " + obj_path.string() + " -o " + exe_path.string();
+  }
+
   if (std::system(assemble_cmd.c_str()) != 0) {
     fs::remove(asm_path);
     fs::remove(obj_path);
     throw std::runtime_error("Assembly failed");
   }
-
-  std::string link_cmd =
-      "ld " + obj_path.string() + " -o " + exe_path.string() +
-      " -macos_version_min 10.13 -e _start -lSystem -no_pie" +
-      " -syslibroot $(xcrun --sdk macosx --show-sdk-path)";
 
   if (std::system(link_cmd.c_str()) != 0) {
     fs::remove(asm_path);
@@ -62,7 +68,7 @@ static void assemble_and_link(const std::string& asm_code, const std::string& ou
 }
 
 static bool run_pipeline(TargetStage stage, const std::string& infile,
-                         std::ostream& out, const std::string& exe_out = "") {
+                         std::ostream& out, const std::string& exe_out, TargetOS target) {
   Logger logger;
   SourceLoader loader(&logger);
 
@@ -79,7 +85,7 @@ static bool run_pipeline(TargetStage stage, const std::string& infile,
   Parser parser(&logger, &arena);
   TypeChecker type_checker(&logger, &arena);
   IrVisitor ir_visitor(&symtab, &logger);
-  X86_64CodeGenerator codegen(&logger);
+  X86_64CodeGenerator codegen(&logger, target);
 
   // diagnostic-driven success (no abort)
   auto check_diags = [&]() {
@@ -128,7 +134,7 @@ static bool run_pipeline(TargetStage stage, const std::string& infile,
 
     // assembly and linking
     if (stage == TargetStage::EXE) {
-      assemble_and_link(asm_code, exe_out);
+      assemble_and_link(asm_code, exe_out, target);
       return true;
     }
 
@@ -169,7 +175,7 @@ static bool run_pipeline(TargetStage stage, const std::string& infile,
   return false;
 }
 
-bool drive(const std::string& arg, const std::string& infile, const std::string& outfile) {
+bool drive(const std::string& arg, const std::string& infile, const std::string& outfile, TargetOS target) {
   if (arg == "--repl") { run_repl(); return true; }
 
   TargetStage stage;
@@ -183,14 +189,14 @@ bool drive(const std::string& arg, const std::string& infile, const std::string&
   else return false;
 
   if (stage == TargetStage::EXE) {
-    return run_pipeline(stage, infile, std::cout, "a.out");
+    return run_pipeline(stage, infile, std::cout, "a.out", target);
   }
 
   if (outfile.empty()) {
-    return run_pipeline(stage, infile, std::cout);
+    return run_pipeline(stage, infile, std::cout, "", target);
   } else {
     std::ofstream out(outfile);
-    bool ret = run_pipeline(stage, infile, out);
+    bool ret = run_pipeline(stage, infile, out, "", target);
     out.close();
     return ret;
   }
@@ -256,7 +262,7 @@ void run_repl() {
         continue;
       }
       std::string temp_input = make_temp(join_lines(lines));
-      drive("--" + line, temp_input, "");
+      drive("--" + line, temp_input, "", TargetOS::MacOS);
       std::remove(temp_input.c_str());
       continue;
     }
@@ -271,7 +277,7 @@ void run_repl() {
       std::string temp_exe = "/tmp/repl_temp_" + pid + ".tmp.exe";
       std::string temp_input = make_temp(join_lines(lines));
 
-      if (drive("--exe", temp_input, temp_exe)) {
+      if (drive("--exe", temp_input, temp_exe, TargetOS::MacOS)) {
         int result = std::system(temp_exe.c_str());
         if (result != 0) std::cout << "Program exited with code " << result << "\n";
         std::remove(temp_exe.c_str());

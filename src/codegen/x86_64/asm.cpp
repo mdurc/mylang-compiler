@@ -7,8 +7,9 @@
 static size_t get_align(size_t s) { return ((s + 15) & ~15); }
 static bool is_imm(IROperand op) { return std::holds_alternative<IR_Immediate>(op); }
 
-X86_64CodeGenerator::X86_64CodeGenerator(Logger* logger)
+X86_64CodeGenerator::X86_64CodeGenerator(Logger* logger, TargetOS target)
     : m_logger(logger),
+      m_target(target),
       m_global_var_alloc(0),
       m_is_buffering_function(false),
       m_current_func_alloc_placeholder_idx(0),
