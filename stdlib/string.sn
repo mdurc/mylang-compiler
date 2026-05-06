@@ -1,0 +1,44 @@
+#include "memory.sn"
+
+extern func print_char(fd: i64, c: u8);
+extern func string_length(s: string) returns (len: i64);
+extern func string_equals(a: string, b: string) returns (is_eq: bool);
+extern func string_copy(src: string) returns (copy: string);
+extern func string_concat(a: string, b: string) returns (new_str: string);
+extern func clrscr();
+
+func substring(str: string, mut start: i64, mut length: i64) returns (sub: string) {
+  if (str == null) { return null; }
+  mut sz := string_length(str);
+
+  if (start < 0) { start = 0; }
+  if (start >= sz) { return null; }
+
+  if (start + length > sz) { length = sz - start; }
+
+  mut dst := cast<ptr<mut u8> >(malloc(length + 1));
+  memcpy(cast<ptr<mut u0> >(dst), cast<ptr<imm u0> >(str + start), length);
+  *(dst + length) = 0;
+
+  return cast<string>(dst);
+}
+
+func starts_with(str: string, prefix: string) returns (res: bool) {
+  if (str == null || prefix == null) { return false };
+  sz := string_length(str);
+  pf_sz := string_length(prefix);
+  if (pf_sz > sz) { return false; }
+  for (mut i := 0; i < pf_sz; i = i + 1) {
+    if (str[i] != prefix[i]) { return false; }
+  }
+  return true;
+}
+
+func index_of(str: string, target: u8) returns (idx: i64) {
+  if (str == null) { return -1; }
+  len := string_length(str);
+  for (mut i := 0; i < len; i = i + 1) {
+    if (str[i] == target) { return i; }
+  }
+  return -1;
+}
