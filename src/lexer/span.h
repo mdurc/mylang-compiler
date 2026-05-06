@@ -2,6 +2,7 @@
 #define LEXER_SPAN_H
 
 #include <cstddef>
+#include <cstdint>
 #include <ostream>
 
 /* stored within each token as the location within the raw text */

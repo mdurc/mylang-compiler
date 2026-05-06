@@ -1,5 +1,6 @@
 #include "arena.h"
 #include <cstdlib>
+#include <cstring>
 #include <algorithm>
 
 ArenaAllocator::ArenaAllocator(size_t chunk_size) : m_chunk_size(chunk_size) {
