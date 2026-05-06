@@ -21,6 +21,7 @@
 #include "parser/parser.h"
 #include "parser/symtab.h"
 #include "json_export/json_exporter.h"
+#include "util.h"
 
 
 namespace fs = std::filesystem;
@@ -46,7 +47,7 @@ static void assemble_and_link(const std::string& asm_code, const std::string& ou
     link_cmd = "ld " + obj_path.string() + " -o " + exe_path.string() +
                " -macos_version_min 10.13 -e _start -lSystem -no_pie" +
                " -syslibroot $(xcrun --sdk macosx --show-sdk-path)";
-  } else {
+  } else if (target == TargetOS::Linux) {
     assemble_cmd = "nasm -f elf64 " + asm_path.string() + " -o " + obj_path.string();
     link_cmd = "ld " + obj_path.string() + " -o " + exe_path.string();
   }
@@ -176,7 +177,7 @@ static bool run_pipeline(TargetStage stage, const std::string& infile,
 }
 
 bool drive(const std::string& arg, const std::string& infile, const std::string& outfile, TargetOS target) {
-  if (arg == "--repl") { run_repl(); return true; }
+  if (arg == "--repl") { run_repl(target); return true; }
 
   TargetStage stage;
   if (arg == "--tokens") stage = TargetStage::TOKENS;
@@ -221,7 +222,7 @@ static std::string join_lines(const std::vector<std::string>& lines) {
   return ss.str();
 }
 
-void run_repl() {
+void run_repl(TargetOS target) {
   std::string line;
   std::vector<std::string> lines;
   bool in_multiline = false;
@@ -262,7 +263,7 @@ void run_repl() {
         continue;
       }
       std::string temp_input = make_temp(join_lines(lines));
-      drive("--" + line, temp_input, "", TargetOS::MacOS);
+      drive("--" + line, temp_input, "", target);
       std::remove(temp_input.c_str());
       continue;
     }
@@ -277,7 +278,7 @@ void run_repl() {
       std::string temp_exe = "/tmp/repl_temp_" + pid + ".tmp.exe";
       std::string temp_input = make_temp(join_lines(lines));
 
-      if (drive("--exe", temp_input, temp_exe, TargetOS::MacOS)) {
+      if (drive("--exe", temp_input, temp_exe, target)) {
         int result = std::system(temp_exe.c_str());
         if (result != 0) std::cout << "Program exited with code " << result << "\n";
         std::remove(temp_exe.c_str());

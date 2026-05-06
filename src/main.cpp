@@ -9,6 +9,7 @@
 
 static void usage() {
   std::cerr << "Usage: ./a.out        \n"
+            << "       [ --target=<macos|linux>      ]\n"
             << "       [ --tokens <infile> <outfile> ]\n"
             << "       [ --ast    <infile> <outfile> ]\n"
             << "       [ --symtab <infile> <outfile> ]\n"
@@ -22,7 +23,7 @@ static void usage() {
 int main(int argc, char** argv) {
   if (argc < 2) { usage(); return EXIT_FAILURE; }
 
-  TargetOS target = TargetOS::MacOS; // default
+  TargetOS target = DEFAULT_TARGET_OS;
   std::vector<std::string> args;
   args.push_back(argv[0]);
 

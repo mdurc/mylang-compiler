@@ -63,7 +63,9 @@ uninstall:
 
 # test workflow
 TFILE = tfile.sn
-CMD_LINE_FLAGS := \
+update_test: $(PROGRAM)
+	mkdir -p $(BUILD_DIR)
+	./$(PROGRAM) \
 	--tokens $(TFILE) $(TFILE).tokens \
 	--ast $(TFILE) $(TFILE).ast \
 	--symtab $(TFILE) $(TFILE).symtab \
@@ -72,21 +74,13 @@ CMD_LINE_FLAGS := \
 	--json $(TFILE) $(TFILE).json \
 	--exe $(TFILE) $(TFILE).exe
 
-update_test_macos: $(PROGRAM)
-	mkdir -p $(BUILD_DIR)
-	./$(PROGRAM) --target=macos $(CMD_LINE_FLAGS)
-
-update_test_linux: $(PROGRAM)
-	mkdir -p $(BUILD_DIR)
-	./$(PROGRAM) --target=linux $(CMD_LINE_FLAGS)
-
-compile_test_macos: update_test_macos
+compile_test_macos: update_test
 	nasm -f macho64 $(TFILE).asm -o $(BUILD_DIR)/test_main.o
 	ld $(BUILD_DIR)/test_main.o -o $(TFILE).exe \
 	-macos_version_min 10.13 -e _start -lSystem -no_pie \
 	-syslibroot $(shell xcrun --sdk macosx --show-sdk-path)
 
-compile_test_linux: update_test_linux
+compile_test_linux: update_test
 	nasm -f elf64 $(TFILE).asm -o $(BUILD_DIR)/test_main.o
 	ld $(BUILD_DIR)/test_main.o -o $(TFILE).exe
 
@@ -101,7 +95,8 @@ clean:
 	rm -f $(TFILE).* a.out DATA.txt .DS_Store
 
 .PHONY: all clean \
-	update_test_macos update_test_linux \
+	update_test  \
 	compile_test_macos compile_test_linux \
-	test test_linux install uninstall
+	test test_linux \
+	install uninstall
 -include $(PROGRAM_OBJS:.o=.d)

@@ -6,9 +6,17 @@
 #include <stdexcept>
 
 enum class TargetOS {
-  MacOS, // default
+  MacOS,
   Linux
 };
+
+#if defined(__APPLE__) || defined(__MACH__)
+    #define DEFAULT_TARGET_OS TargetOS::MacOS
+#elif defined(__linux__)
+    #define DEFAULT_TARGET_OS TargetOS::Linux
+#else
+    #define DEFAULT_TARGET_OS TargetOS::MacOS // Fallback
+#endif
 
 #define _assert(cond, msg)                                  \
   do {                                                      \
