@@ -64,13 +64,13 @@ uninstall:
 # test workflow
 TFILE = tfile.sn
 CMD_LINE_FLAGS := \
-	--tokens  $(TFILE).tokens \
-	--ast     $(TFILE).ast \
-	--symtab  $(TFILE).symtab \
-	--ir      $(TFILE).ir \
-	--asm     $(TFILE).asm \
-	--json    $(TFILE).json \
-	--exe     $(TFILE).exe
+	--tokens $(TFILE) $(TFILE).tokens \
+	--ast $(TFILE) $(TFILE).ast \
+	--symtab $(TFILE) $(TFILE).symtab \
+	--ir $(TFILE) $(TFILE).ir \
+	--asm $(TFILE) $(TFILE).asm \
+	--json $(TFILE) $(TFILE).json \
+	--exe $(TFILE) $(TFILE).exe
 
 update_test_macos: $(PROGRAM)
 	mkdir -p $(BUILD_DIR)
