@@ -201,7 +201,7 @@ free a;
 - `#define <identifier> ...`: Preprocessor definition
 
 ### Native File I/O (macOS syscalls)
-The language runtime provides direct, access to the macOS kernel for file operations. You do not need to link against a C standard library to read or write files. See [sample_code/file-io.sn](sample_code/file-io.sn) for example file io operations.
+The language runtime provides direct, access to the macOS kernel for file operations. You do not need to link against a C standard library to read or write files. See [sample_code/file-io.sn](../sample_code/file-io.sn) for example file io operations.
 
 - **Exposed Syscall Externs**:
   You can declare the raw system calls as `extern` functions and interact with the kernel directly using standard UNIX flags and permissions.
