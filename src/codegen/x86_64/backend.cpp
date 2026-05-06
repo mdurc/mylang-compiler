@@ -404,10 +404,10 @@ std::string X86_64CodeGenerator::generate_assembly(const std::vector<IRInstructi
     emit("mov [rbp-16], rsi ; save argv (provided by MacOS CRT)");
   } else {
     // linux kernel places argc at [rsp] before _start.
-    // after our 'push rbp' in handle_begin_func, argc is at [rbp+8]
-    emit("mov rdi, [rbp+8] ; grab argc (provided by linux kernal on stack)");
+    // after our `sub rsp, 8` and `push rbp`, argc is at [rbp+16]
+    emit("mov rdi, [rbp+16] ; grab argc (provided by linux kernal on stack)");
     emit("mov [rbp-8], rdi ; save argc");
-    emit("lea rsi, [rbp+16] ; grab address of argv array");
+    emit("lea rsi, [rbp+24] ; grab address of argv array");
     emit("mov [rbp-16], rsi ; save argv");
   }
 

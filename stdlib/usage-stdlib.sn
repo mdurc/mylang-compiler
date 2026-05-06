@@ -9,15 +9,31 @@ func sample_file_io() {
   print "[1] file-io...\n";
   mut filepath := "DATA.txt";
   mut message := "this is data being written to a file!";
-  file_write(filepath, message, string_length(message));
+
+  /* O_WRONLY | O_CREAT | O_TRUNC */
+  macos_flags := 1 | 512 | 1024; // 1537
+  linux_flags := 1 | 64 | 512; // 577
+  rc := file_write(filepath, message, string_length(message), macos_flags);
+  if (!rc) {
+    error "ERROR: file_write() failed (may have to change flag argument)\n";
+    return;
+  }
 
   mut read_content := cast<string>(file_read(filepath));
   if (read_content != null) {
     print "  -> Read from disk: ", read_content, "\n";
+
     mut sub := substring(read_content, 0, 14);
+    if (sub == null) {
+      error "ERROR: substring() failed\n";
+      return;
+    }
+
     print "  -> Substring (0,14): ", sub, "\n";
     free cast<ptr<mut u0> >(sub);
     free cast<ptr<mut u0> >(read_content);
+  } else {
+    error "ERROR: file_read() failed\n";
   }
 }
 
@@ -114,6 +130,10 @@ func sample_arena() {
 }
 
 func main(argc: i64, argv: ptr<string>) {
+  if (argc < 1) {
+    error "ERROR: argc and argv are not being processed correctly\n";
+  }
+
   print "argc = ", argc, "; argv = {";
   for (mut i := 0; i < argc; i = i + 1) {
     print " ", argv[i];

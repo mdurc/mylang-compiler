@@ -25,10 +25,12 @@ func file_read(path: string) returns (content: ptr<mut u8>) {
   return buffer;
 }
 
-func file_write(path: string, content: string, length: i64) returns (success: bool) {
-  // 1537 = O_WRONLY (1) | O_CREAT (512) | O_TRUNC (1024)
-  // 420  = 0644 in octal (rw-r--r--)
-  mut fd := sys_open(path, 1537, 420);
+
+// MacOS flags: 1537 = O_WRONLY (1) | O_CREAT (512) | O_TRUNC (1024)
+// Linux flags: 577  = O_WRONLY (1) | O_CREAT (64) | O_TRUNC (512)
+func file_write(path: string, content: string, length: i64, flags: i64) returns (success: bool) {
+  perms : i64 = 420; // 0644 in octal (rw-r--r--)
+  mut fd := sys_open(path, flags, perms);
   if (fd < 0) { return false; }
 
   mut written := sys_write(fd, cast<ptr<imm u8> >(content), length);

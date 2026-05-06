@@ -498,7 +498,7 @@ string_concat:
 ; --- File I/O --- macro handles setting negative errno on failure
 
 ; rdi <- filename (null terminated)
-; rsi <- flags (0 = O_RDONLY, 1537 = O_WRONLY|O_CREAT|O_TRUNC)
+; rsi <- flags (0 = O_RDONLY, O_WRONLY|O_CREAT|O_TRUNC: 1537 on macos, 577 on linux)
 ; rdx <- mode (permissions, 420 for 0644)
 ; rax -> file descriptor, or negative on error
 sys_open:
