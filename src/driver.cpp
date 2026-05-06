@@ -68,7 +68,7 @@ static bool run_pipeline(TargetStage stage, const std::string& infile,
 
   std::uint32_t file_id = loader.load_file(infile);
   if (file_id == 0) {
-    std::cerr << logger.get_diagnostic_str();
+    std::cerr << logger.get_diagnostic_str(&loader);
     return false;
   }
 
@@ -86,7 +86,7 @@ static bool run_pipeline(TargetStage stage, const std::string& infile,
     if (stage == TargetStage::JSON) return; // report LSP errors later
     if (logger.num_fatals() || logger.num_errors()) throw CompileAbort();
     if (logger.num_warnings()) {
-      std::cerr << logger.get_diagnostic_str();
+      std::cerr << logger.get_diagnostic_str(&loader);
       logger.clear_warnings();
     }
   };
@@ -144,7 +144,7 @@ static bool run_pipeline(TargetStage stage, const std::string& infile,
       out << exporter.export_to_json() << "\n";
       return true;
     }
-    std::cerr << "Compilation aborted\n" << logger.get_diagnostic_str();
+    std::cerr << "Compilation aborted\n" << logger.get_diagnostic_str(&loader);
     return false;
 
   } catch (const std::runtime_error& internal_error) {
@@ -154,7 +154,7 @@ static bool run_pipeline(TargetStage stage, const std::string& infile,
       out << exporter.export_to_json() << "\n";
       return true;
     }
-    std::cerr << "CRITICAL ERROR\n" << logger.get_diagnostic_str();
+    std::cerr << "CRITICAL ERROR\n" << logger.get_diagnostic_str(&loader);
     return false;
   } catch (const std::exception& e) {
     logger.report(Diag::Fatal(Span{}, std::string("Unhandled System Exception: ") + e.what()));
@@ -163,7 +163,7 @@ static bool run_pipeline(TargetStage stage, const std::string& infile,
       out << exporter.export_to_json() << "\n";
       return true;
     }
-    std::cerr << "CRITICAL ERROR\n" << logger.get_diagnostic_str();
+    std::cerr << "CRITICAL ERROR\n" << logger.get_diagnostic_str(&loader);
     return false;
   }
   return false;

@@ -6,17 +6,13 @@
 
 #include "diagnostic.h"
 
+class SourceLoader;
+
 class Logger {
 public:
   Logger() = default;
 
-  void report(Diagnostic diag) {
-    switch (diag.type) {
-      case DiagType::FATAL_ERROR: m_fatals.push_back(std::move(diag)); break;
-      case DiagType::ERROR: m_errors.push_back(std::move(diag)); break;
-      case DiagType::WARNING: m_warnings.push_back(std::move(diag)); break;
-    }
-  }
+  void report(Diagnostic diag);
 
   const std::vector<Diagnostic>& get_errors() const { return m_errors; }
   const std::vector<Diagnostic>& get_warnings() const { return m_warnings; }
@@ -26,21 +22,10 @@ public:
   size_t num_warnings() const { return m_warnings.size(); }
   size_t num_fatals() const { return m_fatals.size(); }
 
-  void clear() {
-    m_errors.clear();
-    m_warnings.clear();
-    m_fatals.clear();
-  }
-
+  void clear();
   void clear_warnings() { m_warnings.clear(); }
 
-  std::string get_diagnostic_str() const {
-    std::stringstream ss;
-    for (const auto& d : m_warnings) ss << d.to_string() << "\n";
-    for (const auto& d : m_errors)   ss << d.to_string() << "\n";
-    for (const auto& d : m_fatals)   ss << d.to_string() << "\n";
-    return ss.str();
-  }
+  std::string get_diagnostic_str(const SourceLoader* loader) const;
 
 private:
   std::vector<Diagnostic> m_errors;

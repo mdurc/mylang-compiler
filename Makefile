@@ -9,7 +9,8 @@ CFLAGS = -std=c++20 -Wall -Wextra -g -MMD -MP
 LEXER_SRCS = src/lexer/lexer.cpp \
 						 src/lexer/token.cpp
 PREPROCESSOR_SRCS = src/preprocessor/preprocessor.cpp
-DIAG_SRCS = src/logging/diagnostic.cpp
+DIAG_SRCS = src/logging/diagnostic.cpp \
+						src/logging/logger.cpp
 LOADER_SRCS = src/loader/source_loader.cpp
 MEMORY_SRCS = src/memory/arena.cpp
 PARSER_SRC = src/parser/parser.cpp \

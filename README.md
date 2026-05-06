@@ -1,20 +1,18 @@
-Statically-typed, compiled language.
+**Statically-typed, compiled language. Compiles to a standalone x86-64 Mach-O binary.**
+
 This compiler is a complete rewrite of a previous attempt, designed from the ground up to prioritize a well-designed and easily extenisible architecture.
-
-The best place to see how the language works is in [sample_code/](sample_code/). This is where most testing, debugging, and experimenting occurs.
-
-The standard library provides a collection of data structures and utilities that demonstrate some capabilities of the language. Because the language compiles to freestanding x86_64 Mach-O binaries, the standard library minimizes reliance on standard C runtimes, favoring direct XNU kernel syscalls. See [stdlib/usage-stdlib.sn](stdlib/usage-stdlib.sn) that shows how each module can be used.
 
 - [Syntax](docs/syntax.md)
     - [Grammar](docs/grammar.txt)
+    - The best place to see how the language works is in [sample_code/](sample_code/). This is where most testing, debugging, and experimenting occurs.
+- **Standard library** [stdlib/](stdlib/): provides a collection of data structures and utilities that demonstrate some capabilities of the language. Because the language compiles to freestanding x86-64 Mach-O binaries, the standard library minimizes reliance on standard C runtimes, favoring direct XNU kernel syscalls. See [stdlib/usage-stdlib.sn](stdlib/usage-stdlib.sn) that shows how each module can be used.
 - [Compiler Architecture](docs/architecture.md)
 - [Testing](docs/testing.md)
 - [Todo](todo.txt)
 
 ### Motives
-Purely for learning purposes and to build upon the experience that I've gotten since the last time that I tried to build a compiler. Hopefully this can eventually be designed well enough to self-host. There are still some unimplemented complex features, and has not been tested too extensibly in large programs, however it's still usable.
+Purely written as an exercise and to learn from the experiences I've gained since I last attempted a compiler. Goal is to eventaully be designed well enough to self-host without too much difficulty.
 - Performs a recursive descent parse, following a CFG for the language. It would be an interesting experiment to write and implement an LL(1) or LR(k) grammar, though it is not suitable for this project.
-- Targets x86-64 directly (System V ABI conventions)
 
 **Primary focus in development:**
 - Well-deisgned error handling systems within each module

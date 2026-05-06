@@ -279,7 +279,10 @@ AstPtr Parser::parse_struct_decl() {
     _consume(TokenType::RBRACE);
   } catch (const ParsePanic&) {
     m_symtab->exit_scope();
-    throw; /* synchronize at top level decl */
+    synchronize();
+    if (match(TokenType::RBRACE)) advance();
+    return struct_node; // return partially-built struct
+
   }
   m_symtab->exit_scope();
 
@@ -815,7 +818,9 @@ BlockPtr Parser::parse_block(bool create_scope) {
     _consume(TokenType::RBRACE);
   } catch (const ParsePanic&) {
     if (create_scope) m_symtab->exit_scope();
-    throw;
+    synchronize();
+    if (match(TokenType::RBRACE)) advance();
+    return _alloc(BlockNode, lbrace_tok, m_symtab->current_scope(), std::move(statements_vec)); // partially error'd block
   }
   if (create_scope) m_symtab->exit_scope();
 

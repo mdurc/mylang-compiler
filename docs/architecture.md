@@ -24,6 +24,19 @@ The compiler is only as useful as what it is able to compile, and what it is abl
 - When the checker finds a poisoned node, it evaluates the type of the current expression to an `ErrorType`. This error type is then propogated up the decorated ast/type tree (skipping checks and error logs) until we start evaluating a safe branch again.
 - After the typechecker, if we logged any errors, it isn't worth-while to continue with IR or ASM generation, so we stop here. However, it is important to note that we still want to perform "internal" compiler assertions, even though they shouldn't ever make it to the logger or user.
 
+```
+[ERROR] (file=1, row=6, col=19-23): Type Not Found: 'here'
+  7 |   invalid_syntax: here;
+    |                   ^~~~
+
+[ERROR] (file=1, row=7, col=22-23): Expected token 'RBRACE', got 'SEMICOLON'
+  7 |   invalid_syntax: i32;
+    |        
+[ERROR] (file=1, row=13, col=7-25): Type mismatch: Expected 'i64', got 'ptr<imm u8>'
+  13 |   z = "This is a string"; // Should output a Type Mismatch with a nice ^~~~~~~
+     |       ^~~~~~~~~~~~~~~~~~
+```
+
 ### Memory Management: Arena Allocation
 This wasn't a part of the original design, although it makes a lot of sense in this use-case. Our AST was entirely composed of shared pointers to each node representing the components of a program. This seems to be terribly inefficient, although it's possible that there are some advantages with this design. It seems like a safer option to have one location where the memory that should persist across modules can live.
 - This speeds up each allocation and the full deallocation at the end of the program.
