@@ -5,19 +5,21 @@
 #include <unordered_map>
 #include <vector>
 
+#include "../util.h"
 #include "../logging/logger.h"
 #include "token.h"
 
 class Lexer {
 public:
-  Lexer(Logger* logger, std::uint32_t file_id)
-    : m_logger(logger), m_file_id(file_id) {}
+  Lexer(Logger* logger, std::uint32_t file_id, TargetOS target)
+    : m_logger(logger), m_target(target), m_file_id(file_id) {}
 
   /* returns a tokenized version of a source code stream */
   std::vector<Token> tokenize(std::string_view source);
 
 private:
   Logger* m_logger;
+  TargetOS m_target;
   std::uint32_t m_file_id;
 
   const char* m_start = nullptr;

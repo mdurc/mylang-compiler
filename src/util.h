@@ -5,6 +5,11 @@
 #include <sstream>
 #include <stdexcept>
 
+enum class TargetOS {
+  MacOS, // default
+  Linux
+};
+
 #define _assert(cond, msg)                                  \
   do {                                                      \
     if (!(cond)) {                                          \

@@ -11,13 +11,9 @@
 #include <unordered_map>
 #include <vector>
 
+#include "../../util.h"
 #include "../../logging/logger.h"
 #include "../ir/ir_instruction.h"
-
-enum class TargetOS {
-  MacOS, // default
-  Linux
-};
 
 struct CallContext {
   size_t stack_args_size = 0;

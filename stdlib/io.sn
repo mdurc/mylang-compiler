@@ -26,10 +26,17 @@ func file_read(path: string) returns (content: ptr<mut u8>) {
 }
 
 
-// MacOS flags: 1537 = O_WRONLY (1) | O_CREAT (512) | O_TRUNC (1024)
-// Linux flags: 577  = O_WRONLY (1) | O_CREAT (64) | O_TRUNC (512)
-func file_write(path: string, content: string, length: i64, flags: i64) returns (success: bool) {
+func file_write(path: string, content: string, length: i64) returns (success: bool) {
   perms : i64 = 420; // 0644 in octal (rw-r--r--)
+  mut flags : i64 = 0; // O_WRONLY | O_CREAT | O_TRUNC
+  if (__TARGET_MACOS__) {
+    flags = 1 | 512 | 1024; // 1537
+  } else if (__TARGET_LINUX__) {
+    flags = 1 | 64 | 512; // 577
+  } else {
+    error "ERROR: stdlib.io target OS not found\n";
+    return false;
+  }
   mut fd := sys_open(path, flags, perms);
   if (fd < 0) { return false; }
 

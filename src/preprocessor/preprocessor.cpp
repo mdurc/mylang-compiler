@@ -84,7 +84,7 @@ void Preprocessor::handle_include(const std::vector<Token>& tokens, size_t& i, s
     // never seen this file before.. recursively lex and preprocess the included file
     m_included_files.insert(file_id);
 
-    Lexer lexer(m_logger, file_id);
+    Lexer lexer(m_logger, file_id, m_target);
     std::vector<Token> raw_included_tokens = lexer.tokenize(m_loader->get_source(file_id));
     std::vector<Token> processed_included_tokens = process(raw_included_tokens);
 

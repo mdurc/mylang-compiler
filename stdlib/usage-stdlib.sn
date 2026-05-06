@@ -5,17 +5,25 @@
 #include "stdlib/collections.sn"
 #include "stdlib/arena.sn"
 
+func sample_target_os() {
+  print "[0] target OS: ";
+  if (__TARGET_MACOS__) {
+    print "MacOS\n\n";
+  } else if (__TARGET_LINUX__) {
+    print "Linux\n\n";
+  } else {
+    error "N/A (error/unsupported OS)\n\n";
+  }
+}
+
 func sample_file_io() {
   print "[1] file-io...\n";
   mut filepath := "DATA.txt";
   mut message := "this is data being written to a file!";
 
-  /* O_WRONLY | O_CREAT | O_TRUNC */
-  macos_flags := 1 | 512 | 1024; // 1537
-  linux_flags := 1 | 64 | 512; // 577
-  rc := file_write(filepath, message, string_length(message), macos_flags);
+  rc := file_write(filepath, message, string_length(message));
   if (!rc) {
-    error "ERROR: file_write() failed (may have to change flag argument)\n";
+    error "ERROR: file_write() failed\n";
     return;
   }
 
@@ -140,6 +148,7 @@ func main(argc: i64, argv: ptr<string>) {
   }
   print " }\n\n";
 
+  sample_target_os();
   sample_file_io();
   sample_vector();
   sample_hashmap();

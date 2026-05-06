@@ -79,8 +79,8 @@ static bool run_pipeline(TargetStage stage, const std::string& infile,
   }
 
   ArenaAllocator arena;
-  Lexer lexer(&logger, file_id);
-  Preprocessor preprocessor(&logger, &loader);
+  Lexer lexer(&logger, file_id, target);
+  Preprocessor preprocessor(&logger, &loader, target);
   SymTab symtab(&arena);
   Parser parser(&logger, &arena);
   TypeChecker type_checker(&logger, &arena);

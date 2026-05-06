@@ -243,6 +243,16 @@ void Lexer::lex_identifier_or_keyword() {
   // first char is already checked to be isalpha or '_', but not consumed
   std::string_view text = read_identifier();
 
+  // handle target-specific macros
+  if (text == "__TARGET_LINUX__") {
+    add_token(m_target == TargetOS::Linux ? TokenType::TRUE : TokenType::FALSE);
+    return;
+  }
+  if (text == "__TARGET_MACOS__") {
+    add_token(m_target == TargetOS::MacOS ? TokenType::TRUE : TokenType::FALSE);
+    return;
+  }
+
   // regular keyword or identifier
   auto i = s_keyword_map.find(text);
   if (i != s_keyword_map.end()) {
