@@ -5,9 +5,9 @@
 I found that snapshot testing is great for this kind of project, where it is hard to make unit tests due to the often-changing details of larger programs (and refactoring). Though I'm sure they could be designed, I am satisfied with the larger scale testing functions.
 - Using CMake, Catch2, and ApprovalTests
 
-NOTE: _Some of the sample `.sn` files in the [testing/](testing/) directory may be outdated. The [sample_code/](sample_code/) directory has up-to-date syntax and usage_.
+NOTE: _Some of the sample `.sn` files in the [testing/](../testing/) directory may be outdated. The [sample_code/](../sample_code/) directory has up-to-date syntax and usage_.
 
-From within the [testing/](testing/) directory, you can run the make file to build the compiler and testing suite via Cmake.
+From within the [testing/](../testing/) directory, you can run the make file to build the compiler and testing suite via Cmake.
 ```bash
 make test
 
