@@ -537,6 +537,30 @@ sys_lseek:
 .success:
   ret
 
+; --- Memory wrappers for arena allocator ---
+; * no error checking, no internal fragmentation from header overhead
+; * that is found in the malloc procedure
+
+; rdi <- size in bytes
+; rax -> allocated memory address
+sys_mmap:
+  mov rsi, rdi       ; length = total_size
+  xor rdi, rdi       ; addr = NULL (kernel)
+  mov rdx, 3         ; prot = PROT_READ | PROT_WRITE
+  mov r10, 0x1002    ; flags = MAP_PRIVATE | MAP_ANON
+  mov r8, -1         ; fd = -1
+  xor r9, r9         ; offset = 0
+  mov rax, 0x20000C5 ; mmap syscall
+  syscall
+  ret
+
+; rdi <- addr
+; rsi <- len
+sys_munmap:
+  mov rax, 0x2000049 ; munmap syscall
+  syscall
+  ret
+
 section .data
   clr_scr: db 0x1B, '[', '2', 'J', 0x1B, '[', 'H'  ; "\x1B[2J\x1B[H"
   free_err: db "[ASM Error] Invalid free of memory not allocated by 'malloc' / not 16-bit aligned", 10, 0
