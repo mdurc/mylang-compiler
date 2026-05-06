@@ -1122,8 +1122,13 @@ void IrVisitor::visit(NewExprNode& node) {
       _assert(node.allocation_specifier->expr_type, "Initializer for new must have a type");
       initializer_type_size = node.allocation_specifier->expr_type->get_byte_size();
     }
-    m_ir_gen.emit_alloc(result_ptr_reg, node.type_to_allocate->get_byte_size(),
-                        init_op_opt, initializer_type_size);
+    if (node.type_to_allocate->is_aggregate() && init_op_opt.has_value()) {
+      m_ir_gen.emit_alloc(result_ptr_reg, node.type_to_allocate->get_byte_size(), std::nullopt, 0);
+      m_ir_gen.emit_mem_copy(result_ptr_reg, init_op_opt.value(), initializer_type_size);
+    } else {
+      m_ir_gen.emit_alloc(result_ptr_reg, node.type_to_allocate->get_byte_size(),
+                          init_op_opt, initializer_type_size);
+    }
   }
   m_last_expr_operand = result_ptr_reg;
 }

@@ -1117,32 +1117,18 @@ void TypeChecker::visit(NewExprNode& node) {
     return;
   }
 
-  /*
-     Result is `ptr<[mut] type_to_allocate>`
-     - where [mut] is based on is_memory_mutable
-
-     If the allocation type is an array, the specifier is size (integer)
-     Else it must be a constructor, where specifier is initializer args
-
-     Right now, if it is a constructor, it can be any of the named types:
-      - Primitive
-        - Check its resolved type is valid
-      - Struct
-        - The specifier should be of type StructLiteralNode, because
-     StructLiteralNode is a valid expression, in which we can just call
-     ->accept(*this) and it will be checked
-  */
-
   // The result of `new <T>` is `ptr<imm T>`
   // The result of `new <mut T>` is `ptr<mut T>`
   // The result of `new <T>[size]` is array of the above case
 
+  /* constructor will accept any named type, primitive, or pointer */
   bool is_prim_alloc = is_primitive_type(node.type_to_allocate);
   bool is_valid_alloc_type = is_prim_alloc ||
                              node.type_to_allocate->is<Type::Named>() ||
-                             node.type_to_allocate->is<Type::Pointer>();
+                             node.type_to_allocate->is<Type::Pointer>() ||
+                             node.type_to_allocate->is<Type::Enum>();
   if (!is_valid_alloc_type) {
-    m_logger->report(Diag::Error(node.token->get_span(), "Allocation type must be a primitive, struct, or pointer."));
+    m_logger->report(Diag::Error(node.token->get_span(), "Allocation type must be a primitive, struct, pointer, or enum."));
     node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
     return;
   }
@@ -1169,7 +1155,6 @@ void TypeChecker::visit(NewExprNode& node) {
 
     if (node.is_array_allocation) {
       // new <T>[size], size must be an integer type
-
       if (!is_integer_type(spec_type)) {
         m_logger->report(Diag::TypeMismatch(
             node.allocation_specifier->token->get_span(), "i64",

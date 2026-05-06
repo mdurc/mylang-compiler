@@ -69,6 +69,8 @@ private:
 
   void clear_func_data();
 
+  std::string resolve_source_operand(const IROperand& src, std::uint64_t size);
+
   std::string get_size_prefix(std::uint64_t size);
   std::string get_sized_register_name(const std::string& reg64_name,
                                       std::uint64_t size);

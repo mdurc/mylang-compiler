@@ -54,6 +54,22 @@ void X86_64CodeGenerator::emit_runtime_call(const std::string& func_name, const 
   if (padding > 0) emit("add rsp, " + std::to_string(padding) + " ; remove alignment padding");
 }
 
+std::string X86_64CodeGenerator::resolve_source_operand(const IROperand& src, std::uint64_t size) {
+  // raw string representation ("LC0", "rdi", "33", "[rbp-8]")
+  std::string raw_str = get_sized_component(src, size);
+
+  // check if it is a Mach-O label (function ptr or string literal) -- intercept and normalize
+  bool is_func_decl = std::holds_alternative<IR_Variable>(src) && std::get<IR_Variable>(src).is_func_decl;
+  bool is_string_literal = std::holds_alternative<std::string>(src);
+  if (is_func_decl || is_string_literal) {
+    std::string temp = get_temp_x86_reg(Type::PTR_SIZE);
+    emit("lea " + temp + ", [rel " + raw_str + "] ; PIC label intercept");
+    return get_sized_register_name(temp, size);
+  }
+
+  return raw_str;
+}
+
 std::string X86_64CodeGenerator::get_sized_register_name(
     const std::string& reg64_name, std::uint64_t size) {
   if (size == Type::PTR_SIZE) return reg64_name;
@@ -637,7 +653,7 @@ void X86_64CodeGenerator::handle_exit(const IRInstruction& instr) {
 void X86_64CodeGenerator::handle_return(const IRInstruction& instr) {
   if (!instr.operands.empty()) {
     IROperand op = instr.operands[0];
-    std::string return_str = get_sized_component(op, instr.size);
+    std::string return_str = resolve_source_operand(op, instr.size);
     emit(get_mov_instr("rax", return_str, is_imm(op), instr.size) +
          " ; set return value");
   } else {
@@ -659,7 +675,7 @@ void X86_64CodeGenerator::handle_assign(const IRInstruction& instr) {
   }
 
   std::string dst_str = get_sized_component(dst, dst_size);
-  std::string src_str = get_sized_component(src, src_size);
+  std::string src_str = resolve_source_operand(src, src_size);
 
   bool is_func_decl = std::holds_alternative<IR_Variable>(src) &&
                       std::get<IR_Variable>(src).is_func_decl;
@@ -954,7 +970,7 @@ void X86_64CodeGenerator::handle_push_arg(const IRInstruction& instr) {
   }
 
   // handle stack arguments (args beyond the first 6), note it requires QWORD sz
-  std::string src_str = get_sized_component(src, arg_size);
+  std::string src_str = resolve_source_operand(src, arg_size);
 
   // right now it should be save to use RAX, no potential clobbering
   std::string mov = get_mov_instr("rax", src_str, is_imm(src), instr.size);
@@ -1099,7 +1115,7 @@ void X86_64CodeGenerator::handle_store(const IRInstruction& instr) {
   IROperand src_val = instr.operands[0];
 
   std::string dst_addr_str = get_sized_component(dst_addr, Type::PTR_SIZE);
-  std::string src_val_str = get_sized_component(src_val, instr.size);
+  std::string src_val_str = resolve_source_operand(src_val, instr.size);
 
   // if dst pointer is in memory, move it to a register
   if (dst_addr_str.back() == ']') {
@@ -1157,10 +1173,10 @@ void X86_64CodeGenerator::handle_alloc(const IRInstruction& instr) {
 
   if (instr.operands.size() > 1) {
     const IROperand& initializer_op = instr.operands[1];
-    std::uint64_t init_type_size = instr.size;
+    std::uint64_t init_type_size = type_alloc_size;
     _assert(init_type_size > 0, "Initializer present but its type size is 0");
 
-    std::string init_val = get_sized_component(initializer_op, init_type_size);
+    std::string init_val = resolve_source_operand(initializer_op, init_type_size);
     std::string allocated = get_size_prefix(init_type_size) + " [rax]";
     emit_one_operand_memory_operation(allocated, init_val, "mov", init_type_size);
   }
