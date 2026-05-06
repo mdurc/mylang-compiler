@@ -36,7 +36,7 @@ Follows a standard flow of passes until producing the assembly:
 1. **Source loader**: this is in charge of loading source files and tracking them with a `file_id` so that we don't perform redundant loads.
 2. **Lexer**: converts the source text that we loadded into a stream of tokens.
 3. **Preprocessor**: this walks through the tokens and performs macro substitution on tokens for `#define` directives, and re-runs the lexer for any other `#include`d files, to insert the tokens into the final token stream.
-    - File paths are relative for inclusion, see `sample_code/modules`
+    - File paths are relative for inclusion, see [sample_code/modules](sample_code/modules)
     - Idempotent preprocessor will only include a given file once, without the need for guards.
     - Single-pass preprocessing will require the user to favor forward-declarations for any cyclic type/function dependencies.
 4. **Parser**: Builds an Abstract Syntax Tree (AST) from the token stream and populates the symbol table with initial declarations of types and variables.

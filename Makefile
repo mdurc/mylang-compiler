@@ -76,7 +76,7 @@ test: update_test compile_test_asm
 
 clean:
 	rm -rf $(MYLIB)
-	rm -f $(TFILE).* a.out
+	rm -f $(TFILE).* a.out DATA.txt .DS_Store
 
 .PHONY: all clean update_test compile_test_asm test install uninstall
 -include $(PROGRAM_OBJS:.o=.d)

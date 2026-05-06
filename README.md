@@ -1,6 +1,10 @@
 Statically-typed, compiled language.
 This compiler is a complete rewrite of a previous attempt, designed from the ground up to prioritize a well-designed and easily extenisible architecture.
 
+The best place to see how the language works is in [sample_code/](sample_code/). This is where most testing, debugging, and experimenting occurs.
+
+The standard library provides a collection of data structures and utilities that demonstrate some capabilities of the language. Because the language compiles to freestanding x86_64 Mach-O binaries, the standard library minimizes reliance on standard C runtimes, favoring direct XNU kernel syscalls. See [stdlib/usage-stdlib.sn](stdlib/usage-stdlib.sn) that shows how each module can be used.
+
 - [Syntax](docs/syntax.md)
     - [Grammar](docs/grammar.txt)
 - [Compiler Architecture](docs/architecture.md)

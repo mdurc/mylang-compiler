@@ -1,7 +1,5 @@
 ## Syntax
-The formal grammar is defined in EBNF format in `info/grammar.txt`.
-
-The best place to see how the language works is in `sample_code/`. This is where I do most of my testing, debugging, and experimenting.
+The formal grammar is defined in EBNF format in [info/grammar.txt](info/grammar.txt).
 
 ### Entrypoint
 
@@ -90,12 +88,12 @@ Functions are top-level declarations.
 
 - **External Functions**:
     - Use the `extern` keyword to declare a function signature without a body. This allows the compiler to type-check calls to functions that will be provided by the linker (e.g., from the x86_64 runtime library).
-    - See `sample_code/strings.sn` for an example
+    - See [sample_code/strings.sn](sample_code/strings.sn) for an example
 
     ```mylang
     extern func print_char(fd: i64, c: u8);
     extern func string_length(str: string) returns (len: i64);
-    extern func malloc(size: i64) returns (ptr: ptr<mut u0>);
+    extern func malloc(size: i64) returns (p: ptr<mut u0>);
     ```
 
 - **Parameters and Ownership**:
@@ -108,7 +106,7 @@ Functions are top-level declarations.
 - **Old model**: structs were allocated on the heap, and treated as pointers, which made passing them to functions/variables very simple. Unfortunately this is not very efficient, and also requires the user to manually `free` each struct that is created. And even worse, if somebody doesn't read the documentation, it is not clear that any allocation has occured, and a memory leak will likely occur.
 - **New model**: they have been refactored to act as **value-types**, with statically sized stack allocations.
 
-- **Sample usage of structs**: see `sample_code/struct-unit-tests.sn` 
+- **Sample usage of structs**: see [sample_code/struct-unit-tests.sn](sample_code/struct-unit-tests.sn)
 
 - **Initialization**:
     - Compiler computes the `sizeof<StructType>` in the typechecker. This involved integrating byte-alignment checks into the typesystem so that the stack is correctly word-aligned. I tried to mimic the padding system that C uses.
@@ -185,7 +183,7 @@ free a;
 - **Old model**: Stored on the heap as null-terminated byte sequences, and must be freed with the use of the `free` keyword.
 - **New model**: reduced to raw memory pointers to immutable bytes to avoid the complexity of hidden heap allocations from string copies and operations.
 
-- **Sample usage of strings**: see `sample_code/strings.sn`  
+- **Sample usage of strings**: see [sample_code/strings.sn](sample_code/strings.sn)  
 
 - **Implementation details**
     - **String Literals**: a string literal (e.g., "hello"), the characters are embedded directly into the .data section of the final assembly binary.
@@ -203,7 +201,7 @@ free a;
 - `#define <identifier> ...`: Preprocessor definition
 
 ### Native File I/O (macOS syscalls)
-The language runtime provides direct, access to the macOS kernel for file operations. You do not need to link against a C standard library to read or write files. See `sample_code/file-io.sn` for example file io operations.
+The language runtime provides direct, access to the macOS kernel for file operations. You do not need to link against a C standard library to read or write files. See [sample_code/file-io.sn](sample_code/file-io.sn) for example file io operations.
 
 - **Exposed Syscall Externs**:
   You can declare the raw system calls as `extern` functions and interact with the kernel directly using standard UNIX flags and permissions.
