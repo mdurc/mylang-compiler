@@ -29,7 +29,7 @@ foo(&mut a);
 print "foo(&mut a) yields -> a.x: ", a.x, ", a.y: ", a.y, "\n\n";
 
 
-func bar(take mut p: Point) {
+func bar(mut p: Point) {
   p.x = 36;
   p.y = 19;
   print "bar(ref point):\n  set p.x to ", p.x, " and p.y to ", p.y, "\n";

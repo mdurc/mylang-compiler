@@ -26,7 +26,8 @@ Core language builtins:
   - [x] ~~ decided to simply do single-include per file for simplicity, relying on forward declarations and opaque types
 - [x] Subprocess / System Command Execution (fork()/system()/exec() to call nasm, ld, etc)
   - [x] File IO for reading and parsing, outputting files, etc.
-  - [ ] More supported stdin types to read? Right now it is only integers.
+  - [x] More supported stdin types to read? Right now it is only integers.
+    - ** We are just going to rely on file io for now
 - [x] Global/static variables?
   - [x] This may already work fine, as long as different modules/files can have their own static/global data, with some exposed API
   - [x] Do we even need these? Maybe we can just program in a way where everything includes into a single file...
@@ -48,6 +49,6 @@ Harder tasks:
     * too much added complexity that isn't necessary or rewarding..
 
 Standard library to build (instead of adding them into the core-language, we can derive these):
-- [ ] String lib that tracks length/capacity, and performs common string operations
+- [x] String lib that tracks length/capacity, and performs common string operations
   - string.sn, etc.
-- [ ] vector, map, arena, etc...
+- [x] vector, map, arena, etc...
