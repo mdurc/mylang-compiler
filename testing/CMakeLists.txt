@@ -5,6 +5,18 @@ project(test_runner)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+set(VENDOR_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor)
+set(APPROVAL_TESTS_HEADER ${VENDOR_DIR}/ApprovalTests.hpp)
+
+if(NOT EXISTS ${APPROVAL_TESTS_HEADER})
+    message(STATUS "Downloading ApprovalTests.hpp...")
+    file(DOWNLOAD
+        "https://github.com/approvals/ApprovalTests.cpp/releases/download/v.10.13.0/ApprovalTests.v.10.13.0.hpp"
+        ${APPROVAL_TESTS_HEADER}
+        STATUS DOWNLOAD_STATUS
+    )
+endif()
+
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/lexer
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/parser
@@ -50,6 +62,7 @@ set(SHARED_SOURCES
 
 set(LOGGING_SOURCES
     ../src/logging/diagnostic.cpp
+    ../src/logging/logger.cpp
 )
 
 add_executable(${PROJECT_NAME}
