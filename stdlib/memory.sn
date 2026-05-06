@@ -1,4 +1,4 @@
-/* we use the asm library extern functions instead of new/free builtin keywords to ensure
+/* we use the asm library extern functions instead of new builtin keyword to ensure
    better efficiency if we decide to add automatic zero-initialization with the new keyword. */
 extern func malloc(size: i64) returns (p: ptr<mut u0>);
 extern func memcpy(dst: ptr<mut u0>, src: ptr<imm u0>, size: i64) returns (res: ptr<mut u0>);

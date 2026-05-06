@@ -24,7 +24,7 @@ func substring(str: string, mut start: i64, mut length: i64) returns (sub: strin
 }
 
 func starts_with(str: string, prefix: string) returns (res: bool) {
-  if (str == null || prefix == null) { return false };
+  if (str == null or prefix == null) { return false; }
   sz := string_length(str);
   pf_sz := string_length(prefix);
   if (pf_sz > sz) { return false; }

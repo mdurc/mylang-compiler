@@ -1,0 +1,53 @@
+#include "memory.sn"
+
+/* dynamic array that stores void pointers (ptr<mut u0>) */
+struct vector_t {
+  data: ptr<mut ptr<mut u0> >,
+  len: i64,
+  cap: i64
+}
+
+/* returns the vector as a value-type allocated on the caller's stack */
+func vector_init(mut initial_capacity: i64) returns (vec: vector_t) {
+  if (initial_capacity <= 0) { initial_capacity = 8; }
+  // array of ptrs
+  mut raw := malloc(initial_capacity * 8);
+  return vector_t {
+    data = cast<ptr<mut ptr<mut u0> > >(raw),
+    len = 0,
+    cap = initial_capacity
+  };
+}
+
+/* accepts a mutable pointer to the vector so it can update len and cap */
+func vector_push(vec: ptr<mut vector_t>, item: ptr<mut u0>) {
+  if (vec == null) { return; }
+  if (vec.len >= vec.cap) {
+    vec.cap = vec.cap * 2;
+
+    raw := malloc(vec.cap * 8);
+    memcpy(raw, cast<ptr<imm u0> >(vec.data), vec.len * 8);
+    free vec.data;
+
+    vec.data = cast<ptr<mut ptr<mut u0> > >(raw);
+  }
+  vec.data[vec.len] = item;
+  vec.len = vec.len + 1;
+}
+
+/* safe retrieval with bounds checking */
+func vector_get(vec: ptr<imm vector_t>, mut index: i64) returns (item: ptr<mut u0>) {
+  if (vec == null or index < 0 or index >= vec.len) { return null; }
+  return vec.data[index];
+}
+
+/* free vector data */
+func vector_destroy(vec: ptr<mut vector_t>) {
+  if (vec == null) { return; }
+  if (vec.data != null) {
+    free vec.data;
+    vec.data = null;
+  }
+  vec.len = 0;
+  vec.cap = 0;
+}
