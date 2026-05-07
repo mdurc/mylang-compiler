@@ -181,6 +181,11 @@ void IrGenerator::emit_begin_lcall_prep() {
   m_instructions.emplace_back(IROpCode::BEGIN_LCALL_PREP);
 }
 
+void IrGenerator::emit_set_hidden_arg(IROperand src) {
+  m_instructions.emplace_back(IROpCode::SET_HIDDEN_ARG, std::nullopt,
+                              std::vector<IROperand>{src}, Type::PTR_SIZE);
+}
+
 void IrGenerator::emit_push_arg(IROperand src, std::uint64_t size) {
   m_instructions.emplace_back(IROpCode::PUSH_ARG, std::nullopt,
                               std::vector<IROperand>{src}, size);

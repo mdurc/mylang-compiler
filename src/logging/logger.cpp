@@ -36,7 +36,6 @@ static void format_rich_diagnostic(std::stringstream& ss, const Diagnostic& d, c
       ss << "\n";
     }
   }
-  ss << "\n";
 }
 
 std::string Logger::get_diagnostic_str(const SourceLoader* loader) const {

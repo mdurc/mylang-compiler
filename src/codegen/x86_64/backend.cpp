@@ -14,6 +14,7 @@ X86_64CodeGenerator::X86_64CodeGenerator(Logger* logger, TargetOS target)
       m_is_buffering_function(false),
       m_current_func_alloc_placeholder_idx(0),
       m_current_func_stack_offset(0),
+      m_current_func_has_hidden_arg(false),
       m_string_count(0),
       m_reg_count(0) {
   _assert(Type::PTR_SIZE == 8, "ptr size is expected to be 8 bytes for x86_64");
@@ -165,13 +166,19 @@ std::string X86_64CodeGenerator::operand_to_string(const IROperand& operand) {
 
   if (std::holds_alternative<IR_ParameterSlot>(operand)) { // Parameter
     const IR_ParameterSlot& slot = std::get<IR_ParameterSlot>(operand);
-    if (slot.index < 6) { // first 6 args passed in registers
-      return m_arg_regs[slot.index];
+    // if this is the hidden return pointer, map it to rdi and set our flag
+    if (slot.is_hidden_ret_ptr) {
+      m_current_func_has_hidden_arg = true;
+      return m_arg_regs[0];
+    }
+    size_t physical_idx = slot.index + (m_current_func_has_hidden_arg ? 1 : 0);
+    if (physical_idx < 6) {
+      return m_arg_regs[physical_idx];
     } else {
       // remaining args passed on the stack above the return address
       // Stack frame: [rbp] is old rbp, [rbp+8] is return addr, [rbp+16] is 7th arg
       //  (assuming 8-byte stack slots)
-      size_t stack_offset = 16 + ((slot.index - 6) * 8);
+      size_t stack_offset = 16 + ((physical_idx - 6) * 8);
       return "[rbp + " + std::to_string(stack_offset) + "]";
     }
   }
@@ -530,6 +537,7 @@ void X86_64CodeGenerator::handle_instruction(const IRInstruction& instr) {
     case IROpCode::GOTO: handle_goto(instr); break;
     case IROpCode::IF_Z: handle_if_z(instr); break;
     case IROpCode::BEGIN_LCALL_PREP: m_call_stack.push(CallContext{}); break;
+    case IROpCode::SET_HIDDEN_ARG: handle_set_hidden_arg(instr); break;
     case IROpCode::PUSH_ARG: handle_push_arg(instr); break;
     case IROpCode::LCALL: handle_lcall(instr); break;
     case IROpCode::ASM_BLOCK: handle_asm_block(instr); break;
@@ -549,6 +557,7 @@ void X86_64CodeGenerator::clear_func_data() {
   m_is_buffering_function = false;
   m_current_func_asm_buffer.clear();
   m_current_func_stack_offset = 0;
+  m_current_func_has_hidden_arg = false;
   m_ir_reg_to_x86_reg.clear();
   m_x86_reg_to_ir_reg.clear();
   m_var_locations.clear();
@@ -960,30 +969,46 @@ void X86_64CodeGenerator::handle_if_z(const IRInstruction& instr) {
   }
 }
 
+void X86_64CodeGenerator::handle_set_hidden_arg(const IRInstruction& instr) {
+  IROperand src = instr.operands[0];
+  CallContext& ctx = m_call_stack.top();
+
+  // the hidden struct address is always PTR_SIZE
+  std::string src_str = resolve_source_operand(src, Type::PTR_SIZE);
+
+  // the hidden argument always goes into the first argument register (rdi)
+  const std::string& arg_64 = m_arg_regs[0];
+  std::string mov = get_mov_instr(arg_64, src_str, is_imm(src), Type::PTR_SIZE);
+  ctx.arg_instrs.push_back(mov + " ; hidden return pointer in first arg reg");
+  ctx.has_hidden_arg = true; // signal handle_push_arg to shift registers
+}
+
 void X86_64CodeGenerator::handle_push_arg(const IRInstruction& instr) {
   IROperand src = instr.operands[0];
-
   std::uint64_t arg_size = instr.size;
   CallContext& ctx = m_call_stack.top();
 
   std::string src_str = resolve_source_operand(src, arg_size);
-  if (ctx.current_args_passed < m_arg_regs.size()) {
-    // handle register arguments (first 6 args)
-    const std::string& arg_64 = m_arg_regs[ctx.current_args_passed++];
+
+  // calculate physical index based on hidden argument being used as first arg
+  size_t physical_idx = ctx.current_args_passed + (ctx.has_hidden_arg ? 1 : 0);
+  if (physical_idx < m_arg_regs.size()) {
+    // handle register arguments
+    const std::string& arg_64 = m_arg_regs[physical_idx];
     std::string mov = get_mov_instr(arg_64, src_str, is_imm(src), arg_size);
-    ctx.arg_instrs.push_back(mov + "; value stored in arg reg");
+    ctx.arg_instrs.push_back(mov + " ; value stored in arg reg");
+    ctx.current_args_passed++; // only increment logical args
     return;
   }
 
-  // handle stack arguments (args beyond the first 6), note it requires QWORD sz
-  // right now it should be save to use RAX, no potential clobbering
+  // handle stack arguments (args beyond the available registers)
   std::string mov = get_mov_instr("rax", src_str, is_imm(src), instr.size);
 
   size_t boundary_idx = ctx.current_args_passed;
   auto it = ctx.arg_instrs.begin() + boundary_idx;
   it = ctx.arg_instrs.insert(it, mov);
   ctx.arg_instrs.insert(it + 1, "push rax ; pushing arg to stack");
-  ctx.stack_args_size += Type::PTR_SIZE; // we must push 8 bytes
+  ctx.stack_args_size += Type::PTR_SIZE;
 }
 
 void X86_64CodeGenerator::save_caller_saved_regs() {

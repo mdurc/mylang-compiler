@@ -52,8 +52,9 @@ enum class IROpCode {
 
   // Procedure calls
   BEGIN_LCALL_PREP,
-  PUSH_ARG, // Operands: src_operand
-  LCALL,    // Result: opt_dst, Operands: func_label_operand/func ptr variable
+  SET_HIDDEN_ARG, // Result: null, Operands: src_operand (address of caller-allocated struct)
+  PUSH_ARG,       // Operands: src_operand
+  LCALL,          // Result: opt_dst, Operands: func_label_operand/func ptr variable
 
   ASM_BLOCK,
 
@@ -84,14 +85,17 @@ struct IR_ParameterSlot {
   size_t param_amt; // number of parameters in this group
   std::uint64_t size;    // size in bytes
   std::uint64_t alignment;
+  bool is_hidden_ret_ptr;
 
-  IR_ParameterSlot(size_t idx, size_t p_amt, std::uint64_t s, std::uint64_t a)
-      : index(idx), param_amt(p_amt), size(s), alignment(a) {}
+  IR_ParameterSlot(size_t idx, size_t p_amt, std::uint64_t s, std::uint64_t a, bool is_hidden)
+      : index(idx), param_amt(p_amt), size(s), alignment(a), is_hidden_ret_ptr(is_hidden) {}
 
   bool operator==(const IR_ParameterSlot& other) const {
-    return index == other.index && size == other.size && alignment == other.alignment;
+    return index == other.index && size == other.size &&
+           alignment == other.alignment && is_hidden_ret_ptr == other.is_hidden_ret_ptr;
   }
   bool operator<(const IR_ParameterSlot& other) const {
+    if (is_hidden_ret_ptr != other.is_hidden_ret_ptr) return is_hidden_ret_ptr < other.is_hidden_ret_ptr;
     if (index != other.index) return index < other.index;
     if (size != other.size) return size < other.size;
     return alignment < other.alignment;

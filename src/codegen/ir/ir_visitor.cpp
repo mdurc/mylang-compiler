@@ -596,8 +596,7 @@ void IrVisitor::visit(FunctionDeclNode& node) {
   }
 
   bool returns_aggregate = node.return_type && node.return_type->is_aggregate();
-  size_t param_offset = returns_aggregate ? 1 : 0;
-  size_t total_p_amt = ordered_param_vars.size() + param_offset;
+  size_t p_amt = ordered_param_vars.size();
 
   std::optional<std::string> prev_hidden_ret_ptr = m_current_hidden_ret_ptr;
 
@@ -606,8 +605,8 @@ void IrVisitor::visit(FunctionDeclNode& node) {
     m_current_hidden_ret_ptr = ".hidden_ret_ptr_" + std::to_string(node.body->scope_id);
     IR_Variable hidden_ret_var(m_current_hidden_ret_ptr.value(), Type::PTR_SIZE, Type::PTR_SIZE, false, false, false);
     m_vars.insert(hidden_ret_var);
-    // assign param 0 to this variable
-    m_ir_gen.emit_assign(hidden_ret_var, IR_ParameterSlot(0, total_p_amt, Type::PTR_SIZE, Type::PTR_SIZE), Type::PTR_SIZE);
+    // assign param to the hidden semantic slot to this variable. Index is ignored by backend in this case
+    m_ir_gen.emit_assign(hidden_ret_var, IR_ParameterSlot(0, p_amt, Type::PTR_SIZE, Type::PTR_SIZE, true), Type::PTR_SIZE);
   } else {
     m_current_hidden_ret_ptr = std::nullopt;
   }
@@ -618,7 +617,6 @@ void IrVisitor::visit(FunctionDeclNode& node) {
   captured_aggregate_ptrs.resize(ordered_param_vars.size(), IR_Register(-1));
   // we should only perform mem copies after gathering all of the initial parameter mappings
 
-  size_t p_amt = ordered_param_vars.size();
   for (size_t i = 0; i < p_amt; ++i) {
     const IR_Variable& param_var = ordered_param_vars[i];
     std::uint64_t param_size = node.params[i]->type->get_byte_size();
@@ -626,12 +624,12 @@ void IrVisitor::visit(FunctionDeclNode& node) {
     if (node.params[i]->type->is_aggregate()) {
       // param arrives as an 8-byte reference pointer
       IR_Register ptr_reg = m_ir_gen.new_temp_reg();
-      m_ir_gen.emit_assign(ptr_reg, IR_ParameterSlot(i + param_offset, total_p_amt, Type::PTR_SIZE, Type::PTR_SIZE), Type::PTR_SIZE);
+      m_ir_gen.emit_assign(ptr_reg, IR_ParameterSlot(i, p_amt, Type::PTR_SIZE, Type::PTR_SIZE, false), Type::PTR_SIZE);
       // copy the struct memory into our local parameter space
       captured_aggregate_ptrs[i] = ptr_reg;
     } else {
       // standard scalar parameter mapping
-      m_ir_gen.emit_assign(param_var, IR_ParameterSlot(i + param_offset, total_p_amt, param_size, param_align), param_size);
+      m_ir_gen.emit_assign(param_var, IR_ParameterSlot(i, p_amt, param_size, param_align, false), param_size);
     }
   }
 
@@ -735,8 +733,8 @@ void IrVisitor::visit(FunctionCallNode& node) {
 
   m_ir_gen.emit_begin_lcall_prep();
   if (returns_aggregate) {
-    // pass ptr to memory as first argument
-    m_ir_gen.emit_push_arg(hidden_ret_addr, Type::PTR_SIZE);
+    // semantically declare the hidden return buffer
+    m_ir_gen.emit_set_hidden_arg(hidden_ret_addr);
   }
 
   for (size_t i = 0; i < node.arguments.size(); ++i) {

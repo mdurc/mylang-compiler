@@ -18,6 +18,7 @@
 struct CallContext {
   size_t stack_args_size = 0;
   size_t current_args_passed = 0;
+  bool has_hidden_arg = false;
   std::vector<std::string> arg_instrs;
   std::vector<std::string> used_caller_saved;
 };
@@ -42,6 +43,7 @@ private:
   std::vector<std::string> m_current_func_asm_buffer;
   size_t m_current_func_alloc_placeholder_idx;
   size_t m_current_func_stack_offset;
+  bool m_current_func_has_hidden_arg;
 
   // argument handling
   std::vector<std::string> m_arg_regs;           // register argument order
@@ -128,6 +130,7 @@ private:
   void handle_goto(const IRInstruction& instr);
   void handle_if_z(const IRInstruction& instr);
 
+  void handle_set_hidden_arg(const IRInstruction& instr);
   void handle_push_arg(const IRInstruction& instr);
   void handle_lcall(const IRInstruction& instr);
   void handle_asm_block(const IRInstruction& instr);

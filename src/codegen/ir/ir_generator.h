@@ -61,6 +61,7 @@ public:
 
   /* Procedure Calls */
   void emit_begin_lcall_prep();
+  void emit_set_hidden_arg(IROperand src);
   void emit_push_arg(IROperand src, std::uint64_t arg_size);
   void emit_lcall(std::optional<IR_Register> dst, IROperand func_target,
                   std::uint64_t return_size);
