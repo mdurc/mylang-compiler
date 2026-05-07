@@ -10,12 +10,25 @@ enum class TargetOS {
   Linux
 };
 
+enum class TargetArch {
+  X86_64,
+  AArch64
+};
+
 #if defined(__APPLE__) || defined(__MACH__)
     #define DEFAULT_TARGET_OS TargetOS::MacOS
 #elif defined(__linux__)
     #define DEFAULT_TARGET_OS TargetOS::Linux
 #else
     #define DEFAULT_TARGET_OS TargetOS::MacOS // Fallback
+#endif
+
+#if defined(__aarch64__) || defined(_M_ARM64)
+    #define DEFAULT_TARGET_ARCH TargetArch::AArch64
+#elif defined(__x86_64__) || defined(_M_X64)
+    #define DEFAULT_TARGET_ARCH TargetArch::X86_64
+#else
+    #define DEFAULT_TARGET_ARCH TargetArch::X86_64 // Fallback
 #endif
 
 #define _assert(cond, msg)                                  \

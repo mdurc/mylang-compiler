@@ -15,8 +15,8 @@
 
 class Preprocessor {
 public:
-  Preprocessor(Logger* logger, SourceLoader* loader, TargetOS target)
-    : m_logger(logger), m_loader(loader), m_target(target) {}
+  Preprocessor(Logger* logger, SourceLoader* loader, TargetOS target, TargetArch arch)
+    : m_logger(logger), m_loader(loader), m_target(target), m_arch(arch) {}
 
   /* takes lexed tokens and returns the macro-expanded stream */
   std::vector<Token> process(const std::vector<Token>& raw_tokens);
@@ -25,6 +25,7 @@ private:
   Logger* m_logger;
   SourceLoader* m_loader;
   TargetOS m_target;
+  TargetArch m_arch;
 
   /* macros map an identifier to a sequence of replacement tokens */
   std::unordered_map<std::string_view, std::vector<Token>> m_macros;

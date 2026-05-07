@@ -11,8 +11,8 @@
 
 class Lexer {
 public:
-  Lexer(Logger* logger, std::uint32_t file_id, TargetOS target)
-    : m_logger(logger), m_target(target), m_file_id(file_id) {}
+  Lexer(Logger* logger, std::uint32_t file_id, TargetOS target, TargetArch arch)
+    : m_logger(logger), m_target(target), m_arch(arch), m_file_id(file_id) {}
 
   /* returns a tokenized version of a source code stream */
   std::vector<Token> tokenize(std::string_view source);
@@ -20,6 +20,7 @@ public:
 private:
   Logger* m_logger;
   TargetOS m_target;
+  TargetArch m_arch;
   std::uint32_t m_file_id;
 
   const char* m_start = nullptr;

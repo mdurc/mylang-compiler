@@ -5,14 +5,21 @@
 #include "stdlib/collections.sn"
 #include "stdlib/arena.sn"
 
-func sample_target_os() {
-  print "[0] target OS: ";
+func sample_target_os_arch() {
+  print "[0] target toolchain:\n";
   if (__TARGET_MACOS__) {
-    print "MacOS\n\n";
+    print "  -> MacOS\n";
   } else if (__TARGET_LINUX__) {
-    print "Linux\n\n";
+    print "  -> Linux\n";
   } else {
-    error "N/A (error/unsupported OS)\n\n";
+    error "  -> N/A (error/unsupported OS)\n";
+  }
+  if (__TARGET_X86_64__) {
+    print "  -> x86_64\n\n";
+  } else if (__TARGET_AARCH64__) {
+    print "  -> Aarch64\n\n";
+  } else {
+    error "  -> N/A (error/unsupported arch)\n\n";
   }
 }
 
@@ -148,7 +155,7 @@ func main(argc: i64, argv: ptr<string>) {
   }
   print " }\n\n";
 
-  sample_target_os();
+  sample_target_os_arch();
   sample_file_io();
   sample_vector();
   sample_hashmap();

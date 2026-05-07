@@ -16,6 +16,7 @@
 #include "codegen/ir/ir_printer.h"
 #include "codegen/ir/ir_visitor.h"
 #include "codegen/x86_64/backend.h"
+#include "codegen/aarch64/backend.h"
 #include "lexer/lexer.h"
 #include "loader/source_loader.h"
 #include "parser/parser.h"
@@ -28,7 +29,12 @@ namespace fs = std::filesystem;
 enum class TargetStage { TOKENS, AST, SYMTAB, IR, ASM, EXE, JSON };
 struct CompileAbort {}; // used to stop IR/asm generation if parser/checker finds errors
 
-static void assemble_and_link(const std::string& asm_code, const std::string& output_exe, TargetOS target) {
+struct Toolchain {
+  std::string assembler, assembler_flags;
+  std::string linker, linker_flags;
+};
+
+static void assemble_and_link(const std::string& asm_code, const std::string& output_exe, TargetOS target, TargetArch arch) {
   fs::path temp_dir = fs::temp_directory_path();
   std::string temp_prefix = "mycomp_" + std::to_string(getpid()) + "_" +
                             std::to_string(std::time(nullptr)) + "_";
@@ -40,17 +46,37 @@ static void assemble_and_link(const std::string& asm_code, const std::string& ou
   asm_out << asm_code;
   asm_out.close();
 
-  std::string assemble_cmd;
-  std::string link_cmd;
-  if (target == TargetOS::MacOS) {
-    assemble_cmd = "nasm -f macho64 " + asm_path.string() + " -o " + obj_path.string();
-    link_cmd = "ld " + obj_path.string() + " -o " + exe_path.string() +
-               " -macos_version_min 10.13 -e _start -lSystem -no_pie" +
-               " -syslibroot $(xcrun --sdk macosx --show-sdk-path)";
-  } else if (target == TargetOS::Linux) {
-    assemble_cmd = "nasm -f elf64 " + asm_path.string() + " -o " + obj_path.string();
-    link_cmd = "ld " + obj_path.string() + " -o " + exe_path.string();
+  Toolchain tc;
+  if (arch == TargetArch::X86_64) {
+    if (target == TargetOS::MacOS) {
+      tc.assembler = "nasm";
+      tc.assembler_flags = "-f macho64";
+      tc.linker = "ld";
+      tc.linker_flags = " -macos_version_min 10.13 -e _start -lSystem -no_pie"
+                        " -syslibroot $(xcrun --sdk macosx --show-sdk-path)";
+    } else if (target == TargetOS::Linux) {
+      tc.assembler = "nasm";
+      tc.assembler_flags = "-f elf64";
+      tc.linker = "ld";
+      tc.linker_flags = "";
+    }
+  } else if (arch == TargetArch::AArch64) {
+    if (target == TargetOS::MacOS) {
+      tc.assembler = "as";
+      tc.assembler_flags = "-arch arm64";
+      tc.linker = "ld";
+      tc.linker_flags = " -arch arm64 -e _start -lSystem"
+                        " -syslibroot $(xcrun --sdk macosx --show-sdk-path)";
+    } else if (target == TargetOS::Linux) {
+      tc.assembler = "as";
+      tc.assembler_flags = "";
+      tc.linker = "ld";
+      tc.linker_flags = "";
+    }
   }
+
+  std::string assemble_cmd = tc.assembler + " " + tc.assembler_flags + " " + asm_path.string() + " -o " + obj_path.string();
+  std::string link_cmd = tc.linker + " " + obj_path.string() + " -o " + exe_path.string() + " " + tc.linker_flags;
 
   if (std::system(assemble_cmd.c_str()) != 0) {
     fs::remove(asm_path);
@@ -69,7 +95,8 @@ static void assemble_and_link(const std::string& asm_code, const std::string& ou
 }
 
 static bool run_pipeline(TargetStage stage, const std::string& infile,
-                         std::ostream& out, const std::string& exe_out, TargetOS target) {
+                         std::ostream& out, const std::string& exe_out,
+                         TargetOS target, TargetArch arch) {
   Logger logger;
   SourceLoader loader(&logger);
 
@@ -80,13 +107,12 @@ static bool run_pipeline(TargetStage stage, const std::string& infile,
   }
 
   ArenaAllocator arena;
-  Lexer lexer(&logger, file_id, target);
-  Preprocessor preprocessor(&logger, &loader, target);
+  Lexer lexer(&logger, file_id, target, arch);
+  Preprocessor preprocessor(&logger, &loader, target, arch);
   SymTab symtab(&arena);
   Parser parser(&logger, &arena);
   TypeChecker type_checker(&logger, &arena);
   IrVisitor ir_visitor(&symtab, &logger);
-  X86_64CodeGenerator codegen(&logger, target);
 
   // diagnostic-driven success (no abort)
   auto check_diags = [&]() {
@@ -129,13 +155,20 @@ static bool run_pipeline(TargetStage stage, const std::string& infile,
     if (stage == TargetStage::IR) { print_ir_instructions(ir_visitor.get_instructions(), out); return true; }
 
     // ASM generation
-    std::string asm_code = codegen.generate(ir_visitor.get_instructions(), ir_visitor.is_main_defined());
+    std::string asm_code;
+    if (arch == TargetArch::X86_64) {
+      X86_64CodeGenerator backend(&logger, target);
+      asm_code = backend.generate(ir_visitor.get_instructions(), ir_visitor.is_main_defined());
+    } else if (arch == TargetArch::AArch64) {
+      AArch64CodeGenerator backend(&logger, target);
+      asm_code = backend.generate(ir_visitor.get_instructions(), ir_visitor.is_main_defined());
+    }
     check_diags();
     if (stage == TargetStage::ASM) { out << asm_code; return true; }
 
     // assembly and linking
     if (stage == TargetStage::EXE) {
-      assemble_and_link(asm_code, exe_out, target);
+      assemble_and_link(asm_code, exe_out, target, arch);
       return true;
     }
 
@@ -176,8 +209,8 @@ static bool run_pipeline(TargetStage stage, const std::string& infile,
   return false;
 }
 
-bool drive(const std::string& arg, const std::string& infile, const std::string& outfile, TargetOS target) {
-  if (arg == "--repl") { run_repl(target); return true; }
+bool drive(const std::string& arg, const std::string& infile, const std::string& outfile, TargetOS target, TargetArch arch) {
+  if (arg == "--repl") { run_repl(target, arch); return true; } // <-- CHANGED
 
   TargetStage stage;
   if (arg == "--tokens") stage = TargetStage::TOKENS;
@@ -190,14 +223,14 @@ bool drive(const std::string& arg, const std::string& infile, const std::string&
   else return false;
 
   if (stage == TargetStage::EXE) {
-    return run_pipeline(stage, infile, std::cout, outfile.empty() ? "a.out": outfile, target);
+    return run_pipeline(stage, infile, std::cout, outfile.empty() ? "a.out": outfile, target, arch);
   }
 
   if (outfile.empty()) {
-    return run_pipeline(stage, infile, std::cout, "", target);
+    return run_pipeline(stage, infile, std::cout, "", target, arch);
   } else {
     std::ofstream out(outfile);
-    bool ret = run_pipeline(stage, infile, out, "", target);
+    bool ret = run_pipeline(stage, infile, out, "", target, arch);
     out.close();
     return ret;
   }
@@ -222,7 +255,7 @@ static std::string join_lines(const std::vector<std::string>& lines) {
   return ss.str();
 }
 
-void run_repl(TargetOS target) {
+void run_repl(TargetOS target, TargetArch arch) {
   std::string line;
   std::vector<std::string> lines;
   bool in_multiline = false;
@@ -263,7 +296,7 @@ void run_repl(TargetOS target) {
         continue;
       }
       std::string temp_input = make_temp(join_lines(lines));
-      drive("--" + line, temp_input, "", target);
+      drive("--" + line, temp_input, "", target, arch);
       std::remove(temp_input.c_str());
       continue;
     }
@@ -278,7 +311,7 @@ void run_repl(TargetOS target) {
       std::string temp_exe = "/tmp/repl_temp_" + pid + ".tmp.exe";
       std::string temp_input = make_temp(join_lines(lines));
 
-      if (drive("--exe", temp_input, temp_exe, target)) {
+      if (drive("--exe", temp_input, temp_exe, target, arch)) {
         int result = std::system(temp_exe.c_str());
         if (result != 0) std::cout << "Program exited with code " << result << "\n";
         std::remove(temp_exe.c_str());

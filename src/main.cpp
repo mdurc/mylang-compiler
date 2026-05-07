@@ -10,6 +10,7 @@
 static void usage() {
   std::cerr << "Usage: ./a.out        \n"
             << "       [ --target=<macos|linux>      ]\n"
+            << "       [ --arch=<x86_64|aarch64>     ]\n"
             << "       [ --tokens <infile> <outfile> ]\n"
             << "       [ --ast    <infile> <outfile> ]\n"
             << "       [ --symtab <infile> <outfile> ]\n"
@@ -24,6 +25,7 @@ int main(int argc, char** argv) {
   if (argc < 2) { usage(); return EXIT_FAILURE; }
 
   TargetOS target = DEFAULT_TARGET_OS;
+  TargetArch arch = DEFAULT_TARGET_ARCH;
   std::vector<std::string> args;
   args.push_back(argv[0]);
 
@@ -39,6 +41,15 @@ int main(int argc, char** argv) {
         std::cerr << "Unknown target: " << arg << "\n";
         return EXIT_FAILURE;
       }
+    } else if (arg.find("--arch=") == 0) {
+      if (arg == "--arch=aarch64") {
+        arch = TargetArch::AArch64;
+      } else if (arg == "--arch=x86_64") {
+        arch = TargetArch::X86_64;
+      } else {
+        std::cerr << "Unknown architecture: " << arg << "\n";
+        return EXIT_FAILURE;
+      }
     } else {
       args.push_back(arg);
     }
@@ -48,7 +59,7 @@ int main(int argc, char** argv) {
 
   std::string initial_arg = args[1];
   if (initial_arg == "--repl") {
-    drive(initial_arg, "", "", target);
+    drive(initial_arg, "", "", target, arch);
     return EXIT_SUCCESS;
   }
 
@@ -78,7 +89,7 @@ int main(int argc, char** argv) {
     }
 
     // std::cerr << "arg: " << arg << ", to " << infile << " -> " << outfile << "\n";
-    if (!drive(arg, infile, outfile, target)) {
+    if (!drive(arg, infile, outfile, target, arch)) {
       return EXIT_FAILURE;
     }
   }

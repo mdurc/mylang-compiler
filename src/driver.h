@@ -6,8 +6,8 @@
 #include <string>
 
 bool drive(const std::string& arg, const std::string& infile,
-           const std::string& outfile, TargetOS target);
+           const std::string& outfile, TargetOS target, TargetArch arch);
 
-void run_repl(TargetOS target);
+void run_repl(TargetOS target, TargetArch arch);
 
 #endif // SRC_DRIVER_H

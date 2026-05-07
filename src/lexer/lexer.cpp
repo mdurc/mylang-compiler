@@ -1,5 +1,11 @@
 #include "lexer.h"
 
+#define TARGET_CHECK(name, expr) \
+  if (text == name) { \
+    add_token((expr) ? TokenType::TRUE : TokenType::FALSE); \
+    return; \
+  }
+
 #define _report_error(msg)                                                            \
   do {                                                                                \
     m_logger->report(Diag::Error(Span(m_file_id, m_row, m_start_col, m_col), (msg))); \
@@ -244,14 +250,10 @@ void Lexer::lex_identifier_or_keyword() {
   std::string_view text = read_identifier();
 
   // handle target-specific macros
-  if (text == "__TARGET_LINUX__") {
-    add_token(m_target == TargetOS::Linux ? TokenType::TRUE : TokenType::FALSE);
-    return;
-  }
-  if (text == "__TARGET_MACOS__") {
-    add_token(m_target == TargetOS::MacOS ? TokenType::TRUE : TokenType::FALSE);
-    return;
-  }
+  TARGET_CHECK("__TARGET_LINUX__",   m_target == TargetOS::Linux)
+  TARGET_CHECK("__TARGET_MACOS__",   m_target == TargetOS::MacOS)
+  TARGET_CHECK("__TARGET_AARCH64__", m_arch == TargetArch::AArch64)
+  TARGET_CHECK("__TARGET_X86_64__",  m_arch == TargetArch::X86_64)
 
   // regular keyword or identifier
   auto i = s_keyword_map.find(text);
