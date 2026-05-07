@@ -5,19 +5,17 @@ This compiler is a complete rewrite of a previous attempt, designed from the gro
 - [Syntax](docs/syntax.md)
     - [Grammar](docs/grammar.txt)
     - The best place to see how the language works is in [sample_code/](sample_code/). This is where most testing, debugging, and experimenting occurs.
-- **Standard library** [stdlib/](stdlib/): provides a collection of data structures and utilities that demonstrate some capabilities of the language. Because the language compiles to freestanding x86-64 Mach-O binaries, the standard library minimizes reliance on standard C runtimes, favoring direct XNU kernel syscalls. See [stdlib/usage-stdlib.sn](stdlib/usage-stdlib.sn) that shows how each module can be used.
+- **Standard library** [stdlib/](stdlib/): provides a collection of data structures and utilities that demonstrate some capabilities of the language. Because the language compiles to freestanding x86-64 binaries, the standard library minimizes reliance on standard C runtimes, favoring direct XNU kernel syscalls. See [stdlib/usage-stdlib.sn](stdlib/usage-stdlib.sn) that shows how each module can be used.
 - [Compiler Architecture](docs/architecture.md)
 - [Testing](docs/testing.md)
-- [Todo](todo.txt)
 
 ### Motives
 Purely written as an exercise and to learn from the experiences I've gained since I last attempted a compiler. Goal is to eventaully be designed well enough to self-host without too much difficulty.
-- Performs a recursive descent parse, following a CFG for the language. It would be an interesting experiment to write and implement an LL(1) or LR(k) grammar, though it is not suitable for this project.
 
 **Primary focus in development:**
-- Well-deisgned error handling systems within each module
-    - With a corresponding logger system for LSP support
+- Well-deisgned error handling systems within each module and a corresponding logger system for LSP support
 - Being able to print the state of the various modules within the compilation process (for testing and debugging).
+- Minimize the amount of dependencies used.
 
 ### OS Support & Dependencies & Building
 I am developing on an Apple M1 (14.8.3). The compiler has been tested to work on **macOS (Darwin)** and **Linux (x86_64)**.
