@@ -25,7 +25,7 @@ struct CallContext {
 
 class X86_64CodeGenerator {
 public:
-  X86_64CodeGenerator(Logger* logger, TargetOS target);
+  X86_64CodeGenerator(Logger* logger, TargetOS target, bool track_memory);
 
   std::string generate(const std::vector<IRInstruction>& instructions,
                        bool is_main_defined);
@@ -33,6 +33,8 @@ public:
 private:
   Logger* m_logger;
   TargetOS m_target;
+  bool m_track_memory;
+
   std::ostringstream m_out;
 
   size_t m_global_var_alloc;

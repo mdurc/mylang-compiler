@@ -40,7 +40,43 @@ const std::string RUNTIME_ASM = R"(; --- Embedded Runtime Library ---
 ; rdi <- exit code
 ; exits program with provided `rdi` value
 exit:
+%ifdef TRACK_MEMORY
+  push rdi
+  call _check_memory_leaks
+  pop rdi
+%endif
   EXEC_SYSCALL SYS_EXIT
+%ifdef TRACK_MEMORY
+_check_memory_leaks: ; output report to stderr
+  mov rdi, 2 ; stderr
+  lea rsi, [rel leak_msg_start]
+  call print_string
+  mov rdi, 2
+  lea rsi, [rel leak_msg_usage]
+  call print_string
+  mov rdi, 2
+  mov rsi, [rel _mem_alloc_count]
+  call print_uint
+  mov rdi, 2
+  lea rsi, [rel leak_msg_allocs]
+  call print_string
+  mov rdi, 2
+  mov rsi, [rel _mem_free_count]
+  call print_uint
+  mov rdi, 2
+  lea rsi, [rel leak_msg_frees]
+  call print_string
+  mov rdi, 2
+  lea rsi, [rel leak_msg_inuse]
+  call print_string
+  mov rdi, 2
+  mov rsi, [rel _mem_active_bytes]
+  call print_uint
+  mov rdi, 2
+  lea rsi, [rel leak_msg_bytes]
+  call print_string
+  ret
+%endif
 
 ; rdi <- address of string
 ; rax -> length of string
@@ -388,6 +424,10 @@ malloc:
   mov r8, SIGNATURE
   mov QWORD[rax], r8      ; store signature for identification in 'free'
   mov QWORD[rax + 8], rsi ; store total_size at the start of the block
+%ifdef TRACK_MEMORY
+  inc QWORD[rel _mem_alloc_count]
+  add QWORD[rel _mem_active_bytes], rsi
+%endif
   add rax, 16             ; return address after header
   ret
   .invalid_size:
@@ -408,6 +448,10 @@ free:
   jne .err            ; signature mismatch: not our block from malloc
 
   mov rsi, [rdi - 8]  ; get our total size from the header from malloc
+%ifdef TRACK_MEMORY
+  inc QWORD[rel _mem_free_count]
+  sub QWORD[rel _mem_active_bytes], rsi
+%endif
   lea rdi, [rdi - 16] ; get base address
   EXEC_SYSCALL SYS_MUNMAP
   jmp .end
@@ -559,4 +603,19 @@ sys_munmap:
 section .data
   clr_scr: db 0x1B, '[', '2', 'J', 0x1B, '[', 'H'  ; "\x1B[2J\x1B[H"
   free_err: db "[ASM Error] Invalid free of memory not allocated by 'malloc' / not 16-bit aligned", 10, 0
+%ifdef TRACK_MEMORY
+  leak_msg_start:  db 10, "=== HEAP SUMMARY:", 10, 0
+  leak_msg_usage:  db "===   total heap usage: ", 0
+  leak_msg_allocs: db " allocs, ", 0
+  leak_msg_frees:  db " frees", 10, 0
+  leak_msg_inuse:  db "===   in use at exit: ", 0
+  leak_msg_bytes:  db " bytes", 10, 0
+%endif
+
+section .bss
+%ifdef TRACK_MEMORY
+  _mem_alloc_count  resq 1
+  _mem_free_count   resq 1
+  _mem_active_bytes resq 1
+%endif
 )";

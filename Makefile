@@ -74,6 +74,7 @@ TFILE = tfile.sn
 update_test: $(PROGRAM)
 	mkdir -p $(BUILD_DIR)
 	./$(PROGRAM) \
+	--track-memory \
 	--target=$(TARGET_OS) \
 	--arch=$(TARGET_ARCH) \
 	--tokens $(TFILE) $(TFILE).tokens \
@@ -95,6 +96,9 @@ test-arm:
 
 test_leaks: $(PROGRAM)
 	leaks --atExit -- compiler_build_files/mycompiler --arch=x86_64 --tokens tfile.sn tfile.sn.tokens --ast tfile.sn tfile.sn.ast --symtab tfile.sn tfile.sn.symtab --ir tfile.sn tfile.sn.ir --asm tfile.sn tfile.sn.asm --json tfile.sn tfile.sn.json --exe tfile.sn tfile.sn.exe > LEAKS.txt 2>&1
+
+test_valgrind: $(PROGRAM)
+	valgrind ./compiler_build_files/mycompiler --arch=x86_64 --tokens tfile.sn tfile.sn.tokens --ast tfile.sn tfile.sn.ast --symtab tfile.sn tfile.sn.symtab --ir tfile.sn tfile.sn.ir --asm tfile.sn tfile.sn.asm --json tfile.sn tfile.sn.json --exe tfile.sn tfile.sn.exe > LEAKS.txt 2>&1
 # -------------------------
 
 # generate tfile.sn.asm and manually assemble/link to binary

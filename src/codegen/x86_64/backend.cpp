@@ -7,9 +7,10 @@
 static size_t get_align(size_t s) { return ((s + 15) & ~15); }
 static bool is_imm(IROperand op) { return std::holds_alternative<IR_Immediate>(op); }
 
-X86_64CodeGenerator::X86_64CodeGenerator(Logger* logger, TargetOS target)
+X86_64CodeGenerator::X86_64CodeGenerator(Logger* logger, TargetOS target, bool track_memory)
     : m_logger(logger),
       m_target(target),
+      m_track_memory(track_memory),
       m_global_var_alloc(0),
       m_is_buffering_function(false),
       m_current_func_alloc_placeholder_idx(0),
@@ -481,6 +482,10 @@ void X86_64CodeGenerator::emit_program_footer() {
     m_out << "\n%define TARGET_MACOS\n";
   } else {
     m_out << "\n%define TARGET_LINUX\n";
+  }
+
+  if (m_track_memory) {
+    m_out << "\n%define TRACK_MEMORY\n";
   }
 
   /* insert asm runtime library */

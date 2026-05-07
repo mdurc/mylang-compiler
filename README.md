@@ -57,6 +57,9 @@ As described in my focuses in this project, I wanted to be able to inspect the o
 ```bash
 ./compiler_build_files/mycompiler [target] [stage] <input.sn> [output_file]
 
+--track-memory  : Output a heap summary to stderr upon exit
+* Because this compiler uses a custom, embedded runtime library instead of linking against libc, it includes a built-in memory tracker.
+
 --target=macos  : Force Mach-O/Darwin ABI (default for macOS)
 --target=linux  : Force ELF/SYSV ABI (default for Linux)
 

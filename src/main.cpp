@@ -9,6 +9,7 @@
 
 static void usage() {
   std::cerr << "Usage: ./a.out        \n"
+            << "       [ --track-memory              ]\n"
             << "       [ --target=<macos|linux>      ]\n"
             << "       [ --arch=<x86_64|aarch64>     ]\n"
             << "       [ --tokens <infile> <outfile> ]\n"
@@ -26,13 +27,17 @@ int main(int argc, char** argv) {
 
   TargetOS target = DEFAULT_TARGET_OS;
   TargetArch arch = DEFAULT_TARGET_ARCH;
+  bool track_memory = false;
+
   std::vector<std::string> args;
   args.push_back(argv[0]);
 
   // preprocess args to check for a target architecture
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
-    if (arg.find("--target=") == 0) {
+    if (arg == "--track-memory") {
+      track_memory = true;
+    } else if (arg.find("--target=") == 0) {
       if (arg == "--target=linux") {
         target = TargetOS::Linux;
       } else if (arg == "--target=macos") {
@@ -59,7 +64,7 @@ int main(int argc, char** argv) {
 
   std::string initial_arg = args[1];
   if (initial_arg == "--repl") {
-    drive(initial_arg, "", "", target, arch);
+    drive(initial_arg, "", "", target, arch, track_memory);
     return EXIT_SUCCESS;
   }
 
@@ -89,7 +94,7 @@ int main(int argc, char** argv) {
     }
 
     // std::cerr << "arg: " << arg << ", to " << infile << " -> " << outfile << "\n";
-    if (!drive(arg, infile, outfile, target, arch)) {
+    if (!drive(arg, infile, outfile, target, arch, track_memory)) {
       return EXIT_FAILURE;
     }
   }
