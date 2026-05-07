@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <span>
 #include <vector>
 
 class ArenaAllocator {
@@ -23,6 +24,15 @@ public:
   T* make(Args&&... args) {
     void* memory = allocate(sizeof(T), alignof(T));
     return new (memory) T(std::forward<Args>(args)...);
+  }
+
+  /* use a span to easily allow vector-like allocations that don't
+     need to be destructured to free any heap memory */
+  template <typename T>
+  std::span<T> allocate_array(size_t count) {
+    if (count == 0) return std::span<T>();
+    void* memory = allocate(count * sizeof(T), alignof(T));
+    return std::span<T>(static_cast<T*>(memory), count);
   }
 
   /* helper to create new strings in the arena */

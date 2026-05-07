@@ -4,7 +4,7 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <vector>
+#include <span>
 
 #include "../lexer/token.h"
 #include "types.h"
@@ -59,7 +59,7 @@ enum UnaryOperator { Negate, LogicalNot, Dereference, AddressOf, AddressOfMut };
     T value;                                 \
     Name(const Token* tok, size_t sc, T val) \
         : ExpressionNode(tok, sc),           \
-          value(std::move(val)) {}           \
+          value(val) {}                      \
     void accept(Visitor& v) override;        \
   };
 
@@ -84,7 +84,7 @@ DERIVE_ABSTRACT_NODE(StatementNode, AstNode)
 // == Literal Nodes ==
 LITERAL_NODE(IntegerLiteralNode, std::uint64_t)
 LITERAL_NODE(FloatLiteralNode, double)
-LITERAL_NODE(StringLiteralNode, std::string)
+LITERAL_NODE(StringLiteralNode, std::string_view)
 LITERAL_NODE(CharLiteralNode, std::uint64_t)
 LITERAL_NODE(BoolLiteralNode, bool)
 DERIVE_NODE(NullLiteralNode, ExpressionNode)
@@ -183,9 +183,9 @@ public:
 class FunctionCallNode : public ExpressionNode {
 public:
   ExprPtr callee;
-  std::vector<ArgPtr> arguments;
-  FunctionCallNode(const Token* tok, size_t sc, ExprPtr fn_callee, std::vector<ArgPtr> args)
-      : ExpressionNode(tok, sc), callee(fn_callee), arguments(std::move(args)) {}
+  std::span<ArgPtr> arguments;
+  FunctionCallNode(const Token* tok, size_t sc, ExprPtr fn_callee, std::span<ArgPtr> args)
+      : ExpressionNode(tok, sc), callee(fn_callee), arguments(args) {}
   void accept(Visitor& v) override;
 };
 
@@ -227,9 +227,9 @@ public:
 class StructLiteralNode : public ExpressionNode {
 public:
   StructDeclPtr struct_decl;
-  std::vector<StructFieldInitPtr> initializers;
-  StructLiteralNode(const Token* tok, size_t sc, StructDeclPtr struct_decl, std::vector<StructFieldInitPtr> inits)
-      : ExpressionNode(tok, sc), struct_decl(struct_decl), initializers(std::move(inits)) {}
+  std::span<StructFieldInitPtr> initializers;
+  StructLiteralNode(const Token* tok, size_t sc, StructDeclPtr struct_decl, std::span<StructFieldInitPtr> inits)
+      : ExpressionNode(tok, sc), struct_decl(struct_decl), initializers(inits) {}
   void accept(Visitor& v) override;
 };
 
@@ -237,9 +237,9 @@ class EnumLiteralNode : public ExpressionNode {
 public:
   EnumDeclPtr enum_decl;
   IdentPtr variant_name;
-  std::vector<StructFieldInitPtr> initializers; /* empty if no payload */
-  EnumLiteralNode(const Token* tok, size_t sc, EnumDeclPtr ed, IdentPtr vn, std::vector<StructFieldInitPtr> init)
-      : ExpressionNode(tok, sc), enum_decl(ed), variant_name(vn), initializers(std::move(init)) {}
+  std::span<StructFieldInitPtr> initializers; /* empty if no payload */
+  EnumLiteralNode(const Token* tok, size_t sc, EnumDeclPtr ed, IdentPtr vn, std::span<StructFieldInitPtr> init)
+      : ExpressionNode(tok, sc), enum_decl(ed), variant_name(vn), initializers(init) {}
   void accept(Visitor& v) override;
 };
 
@@ -270,9 +270,9 @@ public:
 
 class BlockNode : public StatementNode {
 public:
-  std::vector<StmtPtr> statements;
-  BlockNode(const Token* tok, size_t sc, std::vector<StmtPtr> stmts)
-      : StatementNode(tok, sc), statements(std::move(stmts)) {}
+  std::span<StmtPtr> statements;
+  BlockNode(const Token* tok, size_t sc, std::span<StmtPtr> stmts)
+      : StatementNode(tok, sc), statements(stmts) {}
   void accept(Visitor& v) override;
 };
 
@@ -343,10 +343,10 @@ public:
 class SwitchStmtNode : public StatementNode {
 public:
   ExprPtr expression;
-  std::vector<CasePtr> cases;
+  std::span<CasePtr> cases;
   SwitchStmtNode(const Token* tok, size_t sc, ExprPtr expr,
-                 std::vector<CasePtr> c)
-      : StatementNode(tok, sc), expression(expr), cases(std::move(c)) {}
+                 std::span<CasePtr> c)
+      : StatementNode(tok, sc), expression(expr), cases(c) {}
   void accept(Visitor& v) override;
 };
 
@@ -360,9 +360,9 @@ public:
 
 class PrintStmtNode : public StatementNode {
 public:
-  std::vector<ExprPtr> expressions;
-  PrintStmtNode(const Token* tok, size_t sc, std::vector<ExprPtr> expr)
-      : StatementNode(tok, sc), expressions(std::move(expr)) {}
+  std::span<ExprPtr> expressions;
+  PrintStmtNode(const Token* tok, size_t sc, std::span<ExprPtr> expr)
+      : StatementNode(tok, sc), expressions(expr) {}
   void accept(Visitor& v) override;
 };
 
@@ -392,9 +392,9 @@ public:
 
 class ErrorStmtNode : public StatementNode {
 public:
-  std::vector<ExprPtr> expressions;
-  ErrorStmtNode(const Token* tok, size_t sc, std::vector<ExprPtr> expr)
-      : StatementNode(tok, sc), expressions(std::move(expr)) {}
+  std::span<ExprPtr> expressions;
+  ErrorStmtNode(const Token* tok, size_t sc, std::span<ExprPtr> expr)
+      : StatementNode(tok, sc), expressions(expr) {}
   void accept(Visitor& v) override;
 };
 
@@ -409,9 +409,9 @@ public:
 
 class AsmBlockNode : public StatementNode {
 public:
-  std::string body;
-  AsmBlockNode(const Token* tok, size_t sc, std::string b)
-      : StatementNode(tok, sc), body(std::move(b)) {}
+  std::string_view body;
+  AsmBlockNode(const Token* tok, size_t sc, std::string_view b)
+      : StatementNode(tok, sc), body(b) {}
   void accept(Visitor& v) override;
 };
 
@@ -430,24 +430,24 @@ class StructDeclNode : public AstNode {
 public:
   Type* type; /* new type to be set after type creation in parser     */
               /* struct's (padded) size will be reflected in the type */
-  std::vector<StructFieldPtr> fields; /* only fields, no methods */
-  StructDeclNode(const Token* tok, size_t sc, Type* type, std::vector<StructFieldPtr> f)
-      : AstNode(tok, sc), type(type), fields(std::move(f)) {}
+  std::span<StructFieldPtr> fields; /* only fields, no methods */
+  StructDeclNode(const Token* tok, size_t sc, Type* type, std::span<StructFieldPtr> f)
+      : AstNode(tok, sc), type(type), fields(f) {}
   void accept(Visitor& v) override;
 };
 
 struct EnumVariantAST {
   IdentPtr name;
-  std::vector<StructFieldPtr> fields; /* empty if no payload */
+  std::span<StructFieldPtr> fields; /* empty if no payload */
 };
 
 class EnumDeclNode : public AstNode {
 public:
   IdentPtr name;
   Type* type; /* new type to be set after type creation in parser */
-  std::vector<EnumVariantAST> variants;
-  EnumDeclNode(const Token* tok, size_t sc, IdentPtr name, std::vector<EnumVariantAST> variants)
-      : AstNode(tok, sc), name(name), type(nullptr), variants(std::move(variants)) {}
+  std::span<EnumVariantAST> variants;
+  EnumDeclNode(const Token* tok, size_t sc, IdentPtr name, std::span<EnumVariantAST> variants)
+      : AstNode(tok, sc), name(name), type(nullptr), variants(variants) {}
   void accept(Visitor& v) override;
 };
 
@@ -465,14 +465,14 @@ class FunctionDeclNode : public AstNode {
 public:
   bool is_extern;
   IdentPtr name;
-  std::vector<ParamPtr> params;
+  std::span<ParamPtr> params;
   IdentPtr retvar_name; /* optional for u0 return type */
   Type* return_type;
   BlockPtr body; /* nullptr if this is an extern function */
   FunctionDeclNode(const Token* tok, size_t sc, bool is_ext, IdentPtr name,
-                   std::vector<ParamPtr> ps, IdentPtr rt_n,
+                   std::span<ParamPtr> ps, IdentPtr rt_n,
                    Type* rt, BlockPtr b)
-      : AstNode(tok, sc), is_extern(is_ext), name(name), params(std::move(ps)),
+      : AstNode(tok, sc), is_extern(is_ext), name(name), params(ps),
         retvar_name(rt_n), return_type(rt), body(b) {}
   void accept(Visitor& v) override;
 };

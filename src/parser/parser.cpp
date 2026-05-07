@@ -148,7 +148,7 @@ AstPtr Parser::parse_enum_decl() {
     throw ParsePanic();
   }
 
-  EnumDeclPtr enum_node = _alloc(EnumDeclNode, name_tok, scope_id, name_ident, std::vector<EnumVariantAST>{});
+  EnumDeclPtr enum_node = _alloc(EnumDeclNode, name_tok, scope_id, name_ident, std::span<EnumVariantAST>{});
   if (!m_symtab->declare_enum(enum_name, enum_node, scope_id)) {
     m_logger->report(Diag::DuplicateDeclaration(name_tok->get_span(), "enum " + std::string(enum_name)));
     throw ParsePanic();
@@ -199,7 +199,7 @@ AstPtr Parser::parse_enum_decl() {
           m_symtab->declare_struct(allocated_name, payload_struct, scope_id);
         }
 
-        ast_variants.push_back({variant_ident, payload_fields});
+        ast_variants.push_back({variant_ident, freeze(payload_fields)});
         type_variants.push_back({variant_name, payload_type, current_tag++});
 
       } while (match(TokenType::COMMA) && advance());
@@ -211,8 +211,8 @@ AstPtr Parser::parse_enum_decl() {
   }
   m_symtab->exit_scope();
 
-  sym_enum_type->as<Type::Enum>().variants = std::move(type_variants);
-  enum_node->variants = std::move(ast_variants);
+  sym_enum_type->as<Type::Enum>().variants = freeze(type_variants);
+  enum_node->variants = freeze(ast_variants);
   enum_node->type = sym_enum_type;
 
   return enum_node;
@@ -255,32 +255,33 @@ AstPtr Parser::parse_struct_decl() {
     sym_struct_type = m_symtab->declare_type(type_name, struct_type, scope_id);
 
     // now link the struct declaration node to the symbol table for the IR
-    struct_node = _alloc(StructDeclNode, name_tok, scope_id, sym_struct_type, std::vector<StructFieldPtr>{});
+    struct_node = _alloc(StructDeclNode, name_tok, scope_id, sym_struct_type, std::span<StructFieldPtr>{});
     m_symtab->declare_struct(type_name, struct_node, scope_id);
   }
 
   if (is_opaque_decl) {
     advance();
-    return _alloc(StructDeclNode, name_tok, scope_id, sym_struct_type, std::vector<StructFieldPtr>{});
+    return _alloc(StructDeclNode, name_tok, scope_id, sym_struct_type, std::span<StructFieldPtr>{});
   }
 
   sym_struct_type->set_complete(true);
 
+  std::vector<StructFieldPtr> temp_fields;
   m_symtab->enter_scope(); // new scope for the contents
   try {
     _consume(TokenType::LBRACE);
-
     if (!match(TokenType::RBRACE)) {
       do {
-        struct_node->fields.push_back(parse_struct_field());
+        temp_fields.push_back(parse_struct_field());
       } while (match(TokenType::COMMA) && advance());
     }
-
+    struct_node->fields = freeze(temp_fields);
     _consume(TokenType::RBRACE);
   } catch (const ParsePanic&) {
     m_symtab->exit_scope();
     synchronize();
     if (match(TokenType::RBRACE)) advance();
+    struct_node->fields = freeze(temp_fields);
     return struct_node; // return partially-built struct
 
   }
@@ -377,7 +378,7 @@ FuncDeclPtr Parser::parse_function_decl() {
   }
 
   // it must be at the global scope (no struct methods)
-  Type ft(Type::Function(std::move(ft_params), return_t.second), 0);
+  Type ft(Type::Function(freeze(ft_params), return_t.second), 0);
   std::string_view ft_type_str = m_arena->make_string(ft.to_string());
 
   // do not redeclare function families
@@ -402,7 +403,7 @@ FuncDeclPtr Parser::parse_function_decl() {
   }
 
   return _alloc(FunctionDeclNode, func_tok, m_symtab->current_scope(), is_ext, name_ident,
-              std::move(params_vec), return_t.first, return_t.second, body_block);
+              freeze(params_vec), return_t.first, return_t.second, body_block);
 }
 
 // <Param> ::= <TypePrefix>? Identifier ':' <Type>
@@ -584,7 +585,7 @@ StmtPtr Parser::parse_if_stmt() {
       StmtPtr else_if_stmt = parse_if_stmt();
       const Token* else_if_tok = else_if_stmt->token;
       else_branch = _alloc(BlockNode, else_if_tok, m_symtab->current_scope(),
-                         std::vector<StmtPtr>{else_if_stmt});
+                         freeze(std::vector<StmtPtr>{else_if_stmt}));
     } else {
       // else block
       else_branch = parse_block(true);
@@ -711,7 +712,7 @@ StmtPtr Parser::parse_switch_stmt() {
   }
 
   _consume(TokenType::RBRACE);
-  return _alloc(SwitchStmtNode, switch_tok, m_symtab->current_scope(), expression, std::move(cases));
+  return _alloc(SwitchStmtNode, switch_tok, m_symtab->current_scope(), expression, freeze(cases));
 }
 
 // <PrintStmt> ::= 'print'  <Expr> ( ',' <Expr> )*
@@ -724,7 +725,7 @@ StmtPtr Parser::parse_print_stmt() {
     exprs.push_back(parse_expression());
   } while (match(TokenType::COMMA) && advance());
   _consume(TokenType::SEMICOLON);
-  return _alloc(PrintStmtNode, print_tok, m_symtab->current_scope(), std::move(exprs));
+  return _alloc(PrintStmtNode, print_tok, m_symtab->current_scope(), freeze(exprs));
 }
 
 // == Expression Parsing ==
@@ -785,7 +786,7 @@ StmtPtr Parser::parse_error_stmt() {
   } while (match(TokenType::COMMA) && advance());
   _consume(TokenType::SEMICOLON);
 
-  return _alloc(ErrorStmtNode, error_tok, m_symtab->current_scope(), std::move(exprs));
+  return _alloc(ErrorStmtNode, error_tok, m_symtab->current_scope(), freeze(exprs));
 }
 
 // <ExitStmt> ::= 'exit' <Expr>?
@@ -808,7 +809,6 @@ BlockPtr Parser::parse_block(bool create_scope) {
   const Token* lbrace_tok = current();
 
   std::vector<StmtPtr> statements_vec;
-
   if (create_scope) m_symtab->enter_scope();
   try {
     _consume(TokenType::LBRACE);
@@ -820,11 +820,11 @@ BlockPtr Parser::parse_block(bool create_scope) {
     if (create_scope) m_symtab->exit_scope();
     synchronize();
     if (match(TokenType::RBRACE)) advance();
-    return _alloc(BlockNode, lbrace_tok, m_symtab->current_scope(), std::move(statements_vec)); // partially error'd block
+    return _alloc(BlockNode, lbrace_tok, m_symtab->current_scope(), freeze(statements_vec)); // partially error'd block
   }
   if (create_scope) m_symtab->exit_scope();
 
-  return _alloc(BlockNode, lbrace_tok, m_symtab->current_scope(), std::move(statements_vec));
+  return _alloc(BlockNode, lbrace_tok, m_symtab->current_scope(), freeze(statements_vec));
 }
 
 // <Stmt> ::= ... | 'asm' <Block> ';'
@@ -881,7 +881,7 @@ StmtPtr Parser::parse_asm_block() {
   _consume(TokenType::RBRACE);
   _consume(TokenType::SEMICOLON);
 
-  return _alloc(AsmBlockNode, asm_tok, m_symtab->current_scope(), asm_body_str);
+  return _alloc(AsmBlockNode, asm_tok, m_symtab->current_scope(), m_arena->make_string(asm_body_str));
 }
 
 // Expression Hierarchy
@@ -1107,8 +1107,7 @@ ExprPtr Parser::parse_postfix() {
         ExprPtr index_expr = parse_expression();
 
         _consume(TokenType::RBRACK);
-        expr = _alloc(ArrayIndexNode, op_tok, m_symtab->current_scope(), expr,
-                    index_expr);
+        expr = _alloc(ArrayIndexNode, op_tok, m_symtab->current_scope(), expr, index_expr);
         break;
       }
       case TokenType::LPAREN: {
@@ -1117,8 +1116,7 @@ ExprPtr Parser::parse_postfix() {
         std::vector<ArgPtr> args_vec = parse_args();
         _consume(TokenType::RPAREN);
 
-        expr = _alloc(FunctionCallNode, op_tok, m_symtab->current_scope(), expr,
-                    std::move(args_vec));
+        expr = _alloc(FunctionCallNode, op_tok, m_symtab->current_scope(), expr, freeze(args_vec));
         break;
       }
       case TokenType::DOT: {
@@ -1239,7 +1237,7 @@ Type* Parser::parse_type() {
     Type* ret_type = parse_type();
 
     // functions are declared at scope 0
-    Type func_type(Type::Function(std::move(param_types), ret_type), 0);
+    Type func_type(Type::Function(freeze(param_types), ret_type), 0);
     std::string_view name = m_arena->make_string(func_type.to_string());
     Type* t = m_symtab->lookup<Type>(name, 0);
     if (t == nullptr) {
@@ -1318,7 +1316,7 @@ ExprPtr Parser::parse_primitive_literal() {
                   tok->get_float_val());
     case TokenType::STRING_LITERAL:
       return _alloc(StringLiteralNode, tok, m_symtab->current_scope(),
-                  tok->get_string_val());
+          m_arena->make_string(tok->get_string_val()));
     case TokenType::CHAR_LITERAL:
       return _alloc(CharLiteralNode, tok, m_symtab->current_scope(),
                   tok->get_int_val());
@@ -1365,7 +1363,7 @@ ExprPtr Parser::parse_struct_literal(StructDeclPtr struct_decl) {
   _consume(TokenType::RBRACE);
 
   return _alloc(StructLiteralNode, type_name_tok, m_symtab->current_scope(),
-              struct_decl, std::move(initializers_vec));
+              struct_decl, freeze(initializers_vec));
 }
 
 // <EnumLiteral> ::= Identifier '::' Identifier ('{' ( Identifier '=' <Expr> ( ',' Identifier '=' <Expr> )* )? '}')?
@@ -1393,7 +1391,7 @@ ExprPtr Parser::parse_enum_literal(EnumDeclPtr enum_decl) {
     }
     _consume(TokenType::RBRACE);
   }
-  return _alloc(EnumLiteralNode, enum_tok, m_symtab->current_scope(), enum_decl, variant_ident, std::move(initializers));
+  return _alloc(EnumLiteralNode, enum_tok, m_symtab->current_scope(), enum_decl, variant_ident, freeze(initializers));
 }
 
 // <NewExpr> ::= 'new' '<'<TypePrefix>? <Type>'>' ( '['<Expr>']' | '('(<StructLiteral> | <Expr>)?')' )

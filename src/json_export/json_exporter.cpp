@@ -63,7 +63,7 @@ static void collect_hover(const AstPtr& node, json& hover, const SymTab* symtab)
   } else if (auto lit = dynamic_cast<const FloatLiteralNode*>(node)) {
     emit_hover(hover, node, std::to_string(lit->value), lit->expr_type);
   } else if (auto lit = dynamic_cast<const StringLiteralNode*>(node)) {
-    emit_hover(hover, node, lit->value, lit->expr_type);
+    emit_hover(hover, node, std::string(lit->value), lit->expr_type);
   } else if (auto lit = dynamic_cast<const BoolLiteralNode*>(node)) {
     emit_hover(hover, node, lit->value ? "true" : "false", lit->expr_type);
   } else if (auto lit = dynamic_cast<const NullLiteralNode*>(node)) {

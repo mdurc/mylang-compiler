@@ -104,7 +104,7 @@ public:
 
   void visit(StringLiteralNode& node) override {
     print_indent();
-    out << "String(\"" << escape_string(node.value) << "\")";
+    out << "String(\"" << escape_string(std::string(node.value)) << "\")";
   }
 
   void visit(CharLiteralNode& node) override {
@@ -621,7 +621,7 @@ public:
     indent++;
     print_indent();
     out << "Body: \"\"\"\n";
-    std::istringstream iss(node.body);
+    std::istringstream iss(std::string(node.body));
     std::string line;
     while (std::getline(iss, line)) {
       print_indent();

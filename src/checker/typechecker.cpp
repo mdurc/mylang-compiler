@@ -583,7 +583,8 @@ void TypeChecker::visit(FunctionDeclNode& node) {
 
   /* confirm that this function exists in the symbol table */
   size_t scope = node.scope_id;
-  Type fn_type(Type::Function(std::move(param_infos), node.return_type), scope);
+  // we don't need to freeze the param_infos because this type is only used locally here for a type lookup
+  Type fn_type(Type::Function(param_infos, node.return_type), scope);
   Type* t = m_symtab->lookup<Type>(fn_type.to_string(), scope);
   _assert(t != nullptr, "Parser should declare the func type");
 

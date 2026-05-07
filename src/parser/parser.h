@@ -29,6 +29,13 @@ private:
 
   std::vector<AstPtr> m_root;
 
+  template <typename T>
+  std::span<T> freeze(const std::vector<T>& vec) {
+    std::span<T> span = m_arena->allocate_array<T>(vec.size());
+    std::copy(vec.begin(), vec.end(), span.begin());
+    return span;
+  }
+
   const Token* current();
   const Token* advance();
   bool consume(TokenType type);

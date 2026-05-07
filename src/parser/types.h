@@ -2,6 +2,7 @@
 #define PARSER_TYPES_H
 
 #include "../lexer/token.h"
+#include <span>
 
 // == Type System ==
 
@@ -27,14 +28,18 @@ public:
   };
 
   struct Function {
-    std::vector<ParamInfo> params;
+    std::span<ParamInfo> params;
     Type* return_type;
 
-    Function(std::vector<ParamInfo> params, Type* ret_type)
-        : params(std::move(params)), return_type(ret_type) {}
+    Function(std::span<ParamInfo> params, Type* ret_type)
+        : params(params), return_type(ret_type) {}
 
     friend bool operator==(const Function& a, const Function& b) {
-      return a.return_type == b.return_type && a.params == b.params;
+      if (a.return_type != b.return_type || a.params.size() != b.params.size()) return false;
+      for (size_t i = 0; i < a.params.size(); ++i) {
+        if (!(a.params[i] == b.params[i])) return false;
+      }
+      return true;
     }
   };
 
@@ -66,7 +71,7 @@ public:
 
   struct Enum {
     std::string_view identifier;
-    std::vector<EnumVariant> variants;
+    std::span<EnumVariant> variants;
     friend bool operator==(const Enum& a, const Enum& b) {
       return a.identifier == b.identifier;
     }

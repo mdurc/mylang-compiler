@@ -130,7 +130,7 @@ void IrVisitor::visit(BoolLiteralNode& node) {
 void IrVisitor::visit(StringLiteralNode& node) {
   /* backend will interpret the string
       and assume that it is PTR_SIZE */
-  m_last_expr_operand = node.value;
+  m_last_expr_operand = std::string(node.value);
 }
 
 void IrVisitor::visit(CharLiteralNode& node) {
@@ -909,7 +909,7 @@ void IrVisitor::visit(PrintStmtNode& node) {
 }
 
 void IrVisitor::visit(AsmBlockNode& node) {
-  m_ir_gen.emit_asm_block(node.body);
+  m_ir_gen.emit_asm_block(std::string(node.body));
 }
 
 // R-value access: x = arr[i]

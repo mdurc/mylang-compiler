@@ -154,4 +154,8 @@ func main(argc: i64, argv: ptr<string>) {
   sample_hashmap();
   sample_stack_queue();
   sample_arena();
+
+  asm {
+    ; this is inserted into the assembly before returning!
+  };
 }

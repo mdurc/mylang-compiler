@@ -90,9 +90,12 @@ test: compile_test_macos
 test_linux: compile_test_linux
 	./$(TFILE).exe
 
+test_leaks: $(PROGRAM)
+	leaks --atExit -- compiler_build_files/mycompiler --tokens tfile.sn tfile.sn.tokens --ast tfile.sn tfile.sn.ast --symtab tfile.sn tfile.sn.symtab --ir tfile.sn tfile.sn.ir --asm tfile.sn tfile.sn.asm --json tfile.sn tfile.sn.json --exe tfile.sn tfile.sn.exe > LEAKS.txt 2>&1
+
 clean:
 	rm -rf $(MYLIB)
-	rm -f $(TFILE).* a.out DATA.txt .DS_Store
+	rm -f $(TFILE).* a.out DATA.txt LEAKS.txt .DS_Store
 
 .PHONY: all clean \
 	update_test  \

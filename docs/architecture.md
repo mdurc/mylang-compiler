@@ -42,6 +42,26 @@ This wasn't a part of the original design, although it makes a lot of sense in t
 - This speeds up each allocation and the full deallocation at the end of the program.
 - It also revealed an additional advantage: storing strings in the memory chunks allows for easy copying with `std::string_view` instead of copying by value in various locations.
 
+- **Zero-Allocation AST (trivially destructible nodes)**
+    - Moving the AST node allocations to the Arena was a great initial step in simplifying the codebase memory tracking system.
+    - Led to an oversight regarding memory leaks: standard library containers like `std::vector` or `std::string` perform automatic heap allocations for their buffer space.
+    - The arena allocator was reclaiming memory in bulk, thus never called individual object destructors, which results in a significant amount of leaked memory.
+    - To fix this, I decided to enforce that we will only allocate trivially-destructible data types on the arena.
+        - `std::span<T>` instead of `std::vector<T>`, where we build the necessary vector within the parser, and eventually freeze it into the arena allocator and use a span to access the data.
+        - `std::string_view` instead of `std::string` for string literal nodes and assembly block nodes
+    - The alternative to this approach was to store a destructor registry within the arena to keep a chain of memory that needs to be destructed upon clearing the arena. The refactor/implementation with this approach is certainly simpler, but I chose against it to favor O(1) arena destruction, better cache-locality, less vector resize overhead.
+
+- **Impact and Resolution**
+    - Before enforcing the trivially-destructible constraint, compiling the standard library (`usage-stdlib.sn`) resulted in massive memory fragmentation and hidden heap leaks from orphaned vectors and strings:
+    ```text
+    Physical footprint:         6657K
+    Physical footprint (peak):  12.6M
+    Idle exit:                  untracked
+    ----
+    leaks Report Version: 4.0, multi-line stacks
+    Process 53461: 2105 nodes malloced for 76 KB
+    Process 53461: 1920 leaks for 68160 total leaked bytes.
+    ```
 
 ### Target OS Support
 
