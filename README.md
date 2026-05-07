@@ -40,6 +40,9 @@ I am developing on an Apple M1 (14.8.3). The compiler has been tested to work on
     ```bash
     sudo apt update
     sudo apt install -y build-essential clang nasm binutils make
+
+    sudo pacman -Syu
+    sudo pacman -S base-devel clang nasm binutils
     ```
 
 **Building the Compiler:**

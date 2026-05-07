@@ -93,7 +93,7 @@ static void collect_hover(const AstPtr& node, json& hover, const SymTab* symtab)
     collect_hover(imp_cast->expression, hover, symtab);
   } else if (auto exp_cast = dynamic_cast<const ExplicitCastNode*>(node)) {
     collect_hover(exp_cast->expression, hover, symtab);
-  } else if (auto sizeof_op = dynamic_cast<const SizeOfNode*>(node)) {
+  } else if (dynamic_cast<const SizeOfNode*>(node)) {
     // no sub-nodes
   } else if (auto bin = dynamic_cast<const BinaryOpExprNode*>(node)) {
     collect_hover(bin->left, hover, symtab);
@@ -189,7 +189,7 @@ static void collect_hover(const AstPtr& node, json& hover, const SymTab* symtab)
     if (exit->exit_code) {
       collect_hover(exit->exit_code, hover, symtab);
     }
-  } else if (auto asmblk = dynamic_cast<const AsmBlockNode*>(node)) {
+  } else if (dynamic_cast<const AsmBlockNode*>(node)) {
     // no sub-nodes
   } else if (auto struct_field = dynamic_cast<const StructFieldNode*>(node)) {
     if (struct_field->name) {
