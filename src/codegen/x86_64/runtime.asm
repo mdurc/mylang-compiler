@@ -40,6 +40,15 @@
 exit:
 %ifdef TRACK_MEMORY
   push rdi
+
+  ; print exit code
+  mov rdi, 2
+  lea rsi, [rel leak_msg_exit]
+  call print_string
+  mov rdi, 2
+  mov rsi, [rsp]
+  call print_uint
+
   call _check_memory_leaks
   pop rdi
 %endif
@@ -385,7 +394,7 @@ string_copy:
   jz .err       ; if malloc failed, return 0
 
   mov rdi, rax  ; rdi is the dst buffer from malloc
-  pop rcx       ; get src length
+  pop rdx       ; get src length
   pop rsi       ; get src buffer
   call memcpy
 
@@ -430,7 +439,7 @@ string_concat:
   ; copy first string
   mov rdi, rbx       ; dest
   mov rsi, r12       ; src
-  mov rcx, r14       ; size of string 1
+  mov rdx, r14       ; size of string 1
   call memcpy
 
   ; copy second string
@@ -599,7 +608,7 @@ sys_munmap:
 
 section .data
   clr_scr: db 0x1B, '[', '2', 'J', 0x1B, '[', 'H'  ; "\x1B[2J\x1B[H"
-  free_err: db "[ASM Error] Invalid free of memory not allocated by 'malloc' / not 16-bit aligned", 10, 0
+  free_err: db "[ASM Error] Invalid free of memory not allocated by 'malloc' / not 16-byte aligned", 10, 0
 %ifdef TRACK_MEMORY
   leak_msg_start:  db 10, "=== HEAP SUMMARY:", 10, 0
   leak_msg_usage:  db "===   total heap usage: ", 0
@@ -607,6 +616,7 @@ section .data
   leak_msg_frees:  db " frees", 10, 0
   leak_msg_inuse:  db "===   in use at exit: ", 0
   leak_msg_bytes:  db " bytes", 10, 0
+  leak_msg_exit:   db "=== exit status: ", 0
 %endif
 
 section .bss
