@@ -199,9 +199,10 @@ free a;
 - `exit <int_literal>;`: Exits the program with the given integer code.
 - `#include "..."`: Preprocessor file import
 - `#define <identifier> ...`: Preprocessor definition
+- `__TARGET_LINUX__`, `__TARGET_MACOS__`, `__TARGET_AARCH64__`, `__TARGET_X86_64__`: see [architecture/target-os-support](architecture.md#target-os-support)
 
-### Native File I/O (macOS syscalls)
-The language runtime provides direct, access to the macOS kernel for file operations. You do not need to link against a C standard library to read or write files. See [sample_code/file-io.sn](../sample_code/file-io.sn) for example file io operations.
+### Native File I/O
+The language runtime provides access to the kernel for file operations. See [sample_code/file-io.sn](../sample_code/file-io.sn) for example file io operations.
 
 - **Exposed Syscall Externs**:
   You can declare the raw system calls as `extern` functions and interact with the kernel directly using standard UNIX flags and permissions.

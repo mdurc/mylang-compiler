@@ -69,6 +69,8 @@ This wasn't a part of the original design, although it makes a lot of sense in t
 - The compiler performs native OS recognition during its own initialization. This state is injected into the code the lexing phase, where the OS macros are converted into boolean literals. This is the simplest approach and incurs very minimal overhead.
     - **`__TARGET_LINUX__`**: Lexed as true on Linux/WSL, false otherwise.
     - **`__TARGET_MACOS__`**: Lexed as true on macOS, false otherwise.
+    - **`__TARGET_AARCH64__`**: Lexed as true on Aarch64, false otherwise.
+    - **`__TARGET_X86_64__`**: Lexed as true on x86-64, false otherwise.
 
 **Unified Runtime Assembly Library**
 - The assembly runtime library is no longer platform-exclusive. It uses NASM preprocessor directives to select architecture-specific syscall numbers and ABI behaviors.
