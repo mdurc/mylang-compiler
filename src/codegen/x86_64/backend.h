@@ -14,35 +14,12 @@
 #include "../../util.h"
 #include "../../logging/logger.h"
 #include "../ir/ir_instruction.h"
+#include "../defs.h"
 
 struct X86Operand {
   std::string str;
   bool is_mem;
   bool is_imm;
-};
-
-/* current function that is being executed */
-struct X86FunctionContext {
-  bool is_buffering = false;
-  std::vector<std::string> asm_buffer;
-  size_t alloc_placeholder_idx = 0;
-  size_t stack_offset = 0;
-  bool has_hidden_arg = false;
-
-  std::unordered_map<std::string, std::string> var_locations;
-  std::unordered_map<std::string, std::pair<int, std::uint64_t>> x86_reg_to_ir_reg;
-  std::unordered_map<int, std::string> ir_reg_to_x86_reg;
-  std::unordered_map<int, std::pair<std::string, std::uint64_t>> spilled_ir_reg_locations;
-  size_t reg_count = 0;
-};
-
-/* tracking state used in a procedure call within a function */
-struct X86CallContext {
-  size_t stack_args_size = 0;
-  size_t current_args_passed = 0;
-  bool has_hidden_arg = false;
-  std::vector<std::string> arg_instrs;
-  std::vector<std::string> used_caller_saved;
 };
 
 class X86_64CodeGenerator {
@@ -59,28 +36,27 @@ private:
 
   /* global state (.data, .bss) */
   size_t m_global_var_alloc;
-  std::unordered_map<std::string, std::string> m_glob_var_locations;
+  std::unordered_map<std::string, size_t> m_glob_var_locations;
   size_t m_string_count;
   std::vector<std::string> m_string_literals_data;
   std::unordered_map<std::string, std::string> m_string_literal_to_label;
 
   /* current procedure state */
-  X86FunctionContext m_ctx;
+  FunctionContext m_ctx;
   void clear_func_data();
 
   /* register allocation and spilling */
   std::vector<std::string> m_temp_regs;
   std::vector<std::string> m_callee_saved_regs;
   std::vector<std::string> m_caller_saved_regs;
+  std::vector<std::string> m_arg_regs; // register argument order
+  std::stack<CallContext> m_call_stack;
 
-  std::string get_temp_x86_reg(std::uint64_t size);
-  std::string get_x86_reg(const IR_Register& ir_reg);
+  std::string get_temp_phys_reg(std::uint64_t size);
+  std::string get_phys_reg(const IR_Register& ir_reg);
   void spill_register(const std::string& reg, int ir_reg, std::uint64_t old_reg_size);
 
   /* proceduring calling */
-  std::vector<std::string> m_arg_regs; // register argument order
-  std::stack<X86CallContext> m_call_stack;
-
   void emit_runtime_call(const std::string& func_name, const std::vector<std::string>& arg_setup_instrs);
   void save_caller_saved_regs();
   void restore_caller_saved_regs(const std::vector<std::string>& used_caller_saved);
