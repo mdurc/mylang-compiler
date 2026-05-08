@@ -485,8 +485,21 @@ std::string X86_64CodeGenerator::generate_assembly(const std::vector<IRInstructi
 
 void X86_64CodeGenerator::emit_program_header() {
   m_out << "default rel\n";
-  m_out << "global _start\n";
+  m_out << "global _start\n\n";
+
+  /* insert asm runtime library */
+  if (m_target == TargetOS::MacOS) {
+    m_out << "%define TARGET_MACOS\n";
+  } else if (m_target == TargetOS::Linux) {
+    m_out << "%define TARGET_LINUX\n";
+  }
+  if (m_track_memory) {
+    m_out << "%define TRACK_MEMORY\n\n";
+  }
+  m_out << RUNTIME_ASM << "\n";
+
   m_out << "section .text\n";
+  // _start can now begin emitting here
 }
 
 void X86_64CodeGenerator::emit_program_footer() {
@@ -522,19 +535,6 @@ void X86_64CodeGenerator::emit_program_footer() {
     m_out << "section .bss\n";
     m_out << "\tglobal_vars resb " << std::to_string(get_align(m_global_var_alloc)) << "\n";
   }
-
-  if (m_target == TargetOS::MacOS) {
-    m_out << "\n%define TARGET_MACOS\n";
-  } else {
-    m_out << "\n%define TARGET_LINUX\n";
-  }
-
-  if (m_track_memory) {
-    m_out << "\n%define TRACK_MEMORY\n";
-  }
-
-  /* insert asm runtime library */
-  m_out << RUNTIME_ASM << "\n";
 }
 
 void X86_64CodeGenerator::emit_debug_stack_align() {
