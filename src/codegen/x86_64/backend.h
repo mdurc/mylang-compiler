@@ -15,7 +15,29 @@
 #include "../../logging/logger.h"
 #include "../ir/ir_instruction.h"
 
-struct X86_64CallContext {
+struct X86Operand {
+  std::string str;
+  bool is_mem;
+  bool is_imm;
+};
+
+/* current function that is being executed */
+struct X86FunctionContext {
+  bool is_buffering = false;
+  std::vector<std::string> asm_buffer;
+  size_t alloc_placeholder_idx = 0;
+  size_t stack_offset = 0;
+  bool has_hidden_arg = false;
+
+  std::unordered_map<std::string, std::string> var_locations;
+  std::unordered_map<std::string, std::pair<int, std::uint64_t>> x86_reg_to_ir_reg;
+  std::unordered_map<int, std::string> ir_reg_to_x86_reg;
+  std::unordered_map<int, std::pair<std::string, std::uint64_t>> spilled_ir_reg_locations;
+  size_t reg_count = 0;
+};
+
+/* tracking state used in a procedure call within a function */
+struct X86CallContext {
   size_t stack_args_size = 0;
   size_t current_args_passed = 0;
   bool has_hidden_arg = false;
@@ -27,83 +49,65 @@ class X86_64CodeGenerator {
 public:
   X86_64CodeGenerator(Logger* logger, TargetOS target, bool track_memory);
 
-  std::string generate(const std::vector<IRInstruction>& instructions,
-                       bool is_main_defined);
+  std::string generate(const std::vector<IRInstruction>& instructions, bool is_main_defined);
 
 private:
   Logger* m_logger;
   TargetOS m_target;
   bool m_track_memory;
-
   std::ostringstream m_out;
 
+  /* global state (.data, .bss) */
   size_t m_global_var_alloc;
-  std::unordered_map<std::string, std::string> m_var_locations; // in stack
   std::unordered_map<std::string, std::string> m_glob_var_locations;
-
-  bool m_is_buffering_function;
-  std::vector<std::string> m_current_func_asm_buffer;
-  size_t m_current_func_alloc_placeholder_idx;
-  size_t m_current_func_stack_offset;
-  bool m_current_func_has_hidden_arg;
-
-  // argument handling
-  std::vector<std::string> m_arg_regs;           // register argument order
-
+  size_t m_string_count;
   std::vector<std::string> m_string_literals_data;
   std::unordered_map<std::string, std::string> m_string_literal_to_label;
-  size_t m_string_count;
 
-  // register allocation
-  // {x86_reg_str, <IR_reg_id, reg_size>}
-  std::unordered_map<std::string, std::pair<int, std::uint64_t>> m_x86_reg_to_ir_reg;
-  std::unordered_map<int, std::string> m_ir_reg_to_x86_reg;
-  std::unordered_map<int, std::pair<std::string, std::uint64_t>> m_spilled_ir_reg_locations;
-  size_t m_reg_count;
+  /* current procedure state */
+  X86FunctionContext m_ctx;
+  void clear_func_data();
 
+  /* register allocation and spilling */
   std::vector<std::string> m_temp_regs;
   std::vector<std::string> m_callee_saved_regs;
   std::vector<std::string> m_caller_saved_regs;
 
-  std::stack<X86_64CallContext> m_call_stack;
-  void emit_runtime_call(const std::string& func_name, const std::vector<std::string>& arg_setup_instrs);
+  std::string get_temp_x86_reg(std::uint64_t size);
+  std::string get_x86_reg(const IR_Register& ir_reg);
+  void spill_register(const std::string& reg, int ir_reg, std::uint64_t old_reg_size);
 
+  /* proceduring calling */
+  std::vector<std::string> m_arg_regs; // register argument order
+  std::stack<X86CallContext> m_call_stack;
+
+  void emit_runtime_call(const std::string& func_name, const std::vector<std::string>& arg_setup_instrs);
   void save_caller_saved_regs();
   void restore_caller_saved_regs(const std::vector<std::string>& used_caller_saved);
   std::vector<std::string> get_used_callee_regs();
 
-  void clear_func_data();
-
+  /* operand resolution and formatting */
   std::string resolve_source_operand(const IROperand& src, std::uint64_t size);
-
-  std::string get_size_prefix(std::uint64_t size);
-  std::string get_sized_register_name(const std::string& reg64_name,
-                                      std::uint64_t size);
   std::string operand_to_string(const IROperand& operand);
   std::string get_sized_component(const IROperand& operand, std::uint64_t size);
+  std::string get_sized_register_name(const std::string& reg64_name, std::uint64_t size);
+  std::string get_size_prefix(std::uint64_t size);
+  X86Operand get_x86_operand(const IROperand& operand, std::uint64_t size);
 
-  void spill_register(const std::string& reg, int ir_reg,
-                      std::uint64_t old_reg_size);
-  std::string get_temp_x86_reg(std::uint64_t size);
-  std::string get_x86_reg(const IR_Register& ir_reg);
-  std::string get_mov_instr(const std::string& reg_64, const std::string& src,
-                            bool is_src_immediate, std::uint64_t src_size);
-  void emit_one_operand_memory_operation(const IROperand& s1,
-                                         const IROperand& s2,
-                                         const std::string& operation,
-                                         std::uint64_t size);
-  void emit_one_operand_memory_operation(const std::string& s1_str,
-                                         const std::string& s2_str,
-                                         const std::string& operation,
-                                         std::uint64_t size);
+  /* assembly emission */
   void emit(const std::string& instruction);
   void emit_label(const std::string& label_name);
+  std::string get_mov_instr(const std::string& reg_64, const std::string& src,
+                            bool is_src_immediate, std::uint64_t src_size);
+  void emit_mem_safe_op(const std::string& opcode, const X86Operand& dst,
+                        const X86Operand& src, std::uint64_t size);
 
-  void emit_program_header();
   std::string generate_assembly(const std::vector<IRInstruction>& instructions, bool is_main_defined);
+  void emit_program_header();
   void emit_program_footer();
   void emit_debug_stack_align();
 
+  /* instruction handlers */
   void handle_instruction(const IRInstruction& instr);
 
   void handle_begin_func(const IRInstruction& instr);
