@@ -15,7 +15,7 @@
 #include "../../logging/logger.h"
 #include "../ir/ir_instruction.h"
 
-struct CallContext {
+struct X86_64CallContext {
   size_t stack_args_size = 0;
   size_t current_args_passed = 0;
   bool has_hidden_arg = false;
@@ -65,7 +65,7 @@ private:
   std::vector<std::string> m_callee_saved_regs;
   std::vector<std::string> m_caller_saved_regs;
 
-  std::stack<CallContext> m_call_stack;
+  std::stack<X86_64CallContext> m_call_stack;
   void emit_runtime_call(const std::string& func_name, const std::vector<std::string>& arg_setup_instrs);
 
   void save_caller_saved_regs();

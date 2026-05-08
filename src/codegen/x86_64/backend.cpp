@@ -19,6 +19,7 @@ X86_64CodeGenerator::X86_64CodeGenerator(Logger* logger, TargetOS target, bool t
       m_string_count(0),
       m_reg_count(0) {
   _assert(Type::PTR_SIZE == 8, "ptr size is expected to be 8 bytes for x86_64");
+
   // Conventions:
   // - callee-saved: rsp, rbp, rbx, r12, r13, r14, r15
   // - caller-saved: rax, rcx, rdx, rsi, rdi, r8-11
@@ -34,9 +35,9 @@ X86_64CodeGenerator::X86_64CodeGenerator(Logger* logger, TargetOS target, bool t
 }
 
 void X86_64CodeGenerator::emit_runtime_call(const std::string& func_name, const std::vector<std::string>& arg_setup_instrs) {
-  m_call_stack.push(CallContext{});
+  m_call_stack.push(X86_64CallContext{});
   save_caller_saved_regs();
-  CallContext ctx = m_call_stack.top();
+  X86_64CallContext ctx = m_call_stack.top();
   m_call_stack.pop();
 
   // internal calls only push registers, no stack arguments
@@ -541,7 +542,7 @@ void X86_64CodeGenerator::handle_instruction(const IRInstruction& instr) {
     case IROpCode::LABEL: handle_label(instr); break;
     case IROpCode::GOTO: handle_goto(instr); break;
     case IROpCode::IF_Z: handle_if_z(instr); break;
-    case IROpCode::BEGIN_LCALL_PREP: m_call_stack.push(CallContext{}); break;
+    case IROpCode::BEGIN_LCALL_PREP: m_call_stack.push(X86_64CallContext{}); break;
     case IROpCode::SET_HIDDEN_ARG: handle_set_hidden_arg(instr); break;
     case IROpCode::PUSH_ARG: handle_push_arg(instr); break;
     case IROpCode::LCALL: handle_lcall(instr); break;
@@ -569,7 +570,7 @@ void X86_64CodeGenerator::clear_func_data() {
   m_reg_count = 0;
   m_spilled_ir_reg_locations.clear();
 
-  m_call_stack = std::stack<CallContext>();
+  m_call_stack = std::stack<X86_64CallContext>();
 }
 
 void X86_64CodeGenerator::handle_begin_func(const IRInstruction& instr) {
@@ -976,7 +977,7 @@ void X86_64CodeGenerator::handle_if_z(const IRInstruction& instr) {
 
 void X86_64CodeGenerator::handle_set_hidden_arg(const IRInstruction& instr) {
   IROperand src = instr.operands[0];
-  CallContext& ctx = m_call_stack.top();
+  X86_64CallContext& ctx = m_call_stack.top();
 
   // the hidden struct address is always PTR_SIZE
   std::string src_str = resolve_source_operand(src, Type::PTR_SIZE);
@@ -991,7 +992,7 @@ void X86_64CodeGenerator::handle_set_hidden_arg(const IRInstruction& instr) {
 void X86_64CodeGenerator::handle_push_arg(const IRInstruction& instr) {
   IROperand src = instr.operands[0];
   std::uint64_t arg_size = instr.size;
-  CallContext& ctx = m_call_stack.top();
+  X86_64CallContext& ctx = m_call_stack.top();
 
   std::string src_str = resolve_source_operand(src, arg_size);
 
@@ -1018,7 +1019,7 @@ void X86_64CodeGenerator::handle_push_arg(const IRInstruction& instr) {
 
 void X86_64CodeGenerator::save_caller_saved_regs() {
   if (m_call_stack.empty()) return;
-  CallContext& ctx = m_call_stack.top();
+  X86_64CallContext& ctx = m_call_stack.top();
 
   std::vector<std::string> regs_to_save;
   for (const std::string& reg : m_caller_saved_regs) {
@@ -1066,7 +1067,7 @@ void X86_64CodeGenerator::handle_lcall(const IRInstruction& instr) {
                                 : get_sized_component(label, Type::PTR_SIZE);
 
   save_caller_saved_regs();
-  CallContext ctx = m_call_stack.top();
+  X86_64CallContext ctx = m_call_stack.top();
   m_call_stack.pop();
 
   size_t pushed_bytes = (ctx.used_caller_saved.size() * 8) + ctx.stack_args_size;

@@ -1,36 +1,36 @@
-; --- Embedded Runtime Library ---
+; --- Embedded Runtime Library (X86_64) ---
 	section .text
 
 ; architecture-specific syscall numbers
 %ifdef TARGET_MACOS
-    %define SYS_READ   0x2000003
-    %define SYS_WRITE  0x2000004
-    %define SYS_OPEN   0x2000005
-    %define SYS_CLOSE  0x2000006
-    %define SYS_EXIT   0x2000001
-    %define SYS_MMAP   0x20000C5
-    %define SYS_MUNMAP 0x2000049
-    %define SYS_LSEEK  0x20000C7
-    %define MAP_FLAGS  0x1002 ; MAP_PRIVATE | MAP_ANON
+  %define SYS_READ   0x2000003
+  %define SYS_WRITE  0x2000004
+  %define SYS_OPEN   0x2000005
+  %define SYS_CLOSE  0x2000006
+  %define SYS_EXIT   0x2000001
+  %define SYS_MMAP   0x20000C5
+  %define SYS_MUNMAP 0x2000049
+  %define SYS_LSEEK  0x20000C7
+  %define MAP_FLAGS  0x1002 ; MAP_PRIVATE | MAP_ANON
 %elifdef TARGET_LINUX
-    %define SYS_READ   0
-    %define SYS_WRITE  1
-    %define SYS_OPEN   2
-    %define SYS_CLOSE  3
-    %define SYS_EXIT   60
-    %define SYS_MMAP   9
-    %define SYS_MUNMAP 11
-    %define SYS_LSEEK  8
-    %define MAP_FLAGS  0x22 ; MAP_PRIVATE | MAP_ANONYMOUS
+  %define SYS_READ   0
+  %define SYS_WRITE  1
+  %define SYS_OPEN   2
+  %define SYS_CLOSE  3
+  %define SYS_EXIT   60
+  %define SYS_MMAP   9
+  %define SYS_MUNMAP 11
+  %define SYS_LSEEK  8
+  %define MAP_FLAGS  0x22 ; MAP_PRIVATE | MAP_ANONYMOUS
 %endif
 
 ; architecture-specific macro to check syscall success
 %macro EXEC_SYSCALL 1
-    mov rax, %1
-    syscall
+  mov rax, %1
+  syscall
 %ifdef TARGET_MACOS
-    jnc %%success ; macOS carry bit is set if an error occurred
-    neg rax       ; macOS errno -> negate to match linux negative errno
+  jnc %%success ; macOS carry bit is set if an error occurred
+  neg rax       ; macOS errno -> negate to match linux negative errno
 %%success:
 %endif
 %endmacro
@@ -45,8 +45,8 @@ exit:
 %endif
   EXEC_SYSCALL SYS_EXIT
 %ifdef TRACK_MEMORY
-_check_memory_leaks: ; output report to stderr
-  mov rdi, 2 ; stderr
+_check_memory_leaks:
+  mov rdi, 2 ; output all prints to stderr
   lea rsi, [rel leak_msg_start]
   call print_string
   mov rdi, 2
@@ -125,6 +125,22 @@ print_newline:
   EXEC_SYSCALL SYS_WRITE
 	add rsp, 8	; undo the 0x0A push
 	ret
+
+; clears the screen via ANSI escape codes
+clrscr:
+  push rdi
+  push rsi
+  push rdx
+  push rax
+  mov rdi, 1        ; fd hardcoded for stdout
+  mov rsi, clr_scr  ; load address to rsi
+  mov rdx, 7
+  EXEC_SYSCALL SYS_WRITE
+  pop rax
+  pop rdx
+  pop rsi
+  pop rdi
+  ret
 
 ; rdi <- file descriptor
 ; rsi <- unsigned 64-bit integer
@@ -272,7 +288,6 @@ read_word:
 	xor rax, rax	; zero on overflow
 	ret
 
-
 ; rdi <- address of null-terminated string
 ; rax -> parsed unsigned number
 ; rdx -> character count
@@ -380,6 +395,67 @@ string_copy:
 	xor rax, rax
 	ret
 
+; rdi <- addr of first null-terminated str
+; rsi <- addr of second null-terminated str
+; rax -> addr of new null-terminated str (heap-allocated; caller must free)
+string_concat:
+  push rbx
+  push rcx
+  push rdx
+  push r12
+  push r13
+  push r14
+  push r15
+
+  mov r12, rdi        ; save first string pointer
+  mov r13, rsi        ; save second string pointer
+
+  mov rdi, r12        ; arg1: first string
+  call string_length
+  mov r14, rax        ; r10 = len1
+
+  mov rdi, r13        ; arg1: second string
+  call string_length
+  mov r15, rax       ; r11 = len2
+
+  mov rax, r14
+  add rax, r15
+  add rax, 1         ; total length = len1 + len2 + 1 (for null)
+  mov rdi, rax       ; arg1: malloc size
+  call malloc
+  test rax, rax
+  jz .err            ; malloc failed
+  mov rbx, rax       ; rbx = dest buffer
+
+  ; copy first string
+  mov rdi, rbx       ; dest
+  mov rsi, r12       ; src
+  mov rcx, r14       ; size of string 1
+  call memcpy
+
+  ; copy second string
+  lea rdi, [rbx + r14] ; dest = buffer + len1
+  mov rsi, r13         ; src = second string
+  mov rcx, r15         ; size of string 2
+  call memcpy
+
+  ; null-terminate
+  lea rax, [r14 + r15]
+  mov byte [rbx + rax], 0
+  mov rax, rbx         ; return pointer
+  jmp .epilogue
+  .err:
+  xor rax, rax
+  .epilogue:
+  pop r15
+  pop r14
+  pop r13
+  pop r12
+  pop rdx
+  pop rcx
+  pop rbx
+  ret
+
 ; rdi <- dst
 ; rsi <- src
 ; rdx <- size
@@ -458,83 +534,6 @@ free:
   mov rsi, free_err ; arg for src string
   call print_string
   .end:
-  ret
-
-; clears the screen via ANSI escape codes
-clrscr:
-  push rdi
-  push rsi
-  push rdx
-  push rax
-  mov rdi, 1        ; fd hardcoded for stdout
-  mov rsi, clr_scr  ; load address to rsi
-  mov rdx, 7
-  EXEC_SYSCALL SYS_WRITE
-  pop rax
-  pop rdx
-  pop rsi
-  pop rdi
-  ret
-
-; rdi <- addr of first null-terminated str
-; rsi <- addr of second null-terminated str
-; rax -> addr of new null-terminated str (heap-allocated; caller must free)
-string_concat:
-  push rbx
-  push rcx
-  push rdx
-  push r12
-  push r13
-  push r14
-  push r15
-
-  mov r12, rdi        ; save first string pointer
-  mov r13, rsi        ; save second string pointer
-
-  mov rdi, r12        ; arg1: first string
-  call string_length
-  mov r14, rax        ; r10 = len1
-
-  mov rdi, r13        ; arg1: second string
-  call string_length
-  mov r15, rax       ; r11 = len2
-
-  mov rax, r14
-  add rax, r15
-  add rax, 1         ; total length = len1 + len2 + 1 (for null)
-  mov rdi, rax       ; arg1: malloc size
-  call malloc
-  test rax, rax
-  jz .err            ; malloc failed
-  mov rbx, rax       ; rbx = dest buffer
-
-  ; copy first string
-  mov rdi, rbx       ; dest
-  mov rsi, r12       ; src
-  mov rcx, r14       ; size of string 1
-  call memcpy
-
-  ; copy second string
-  lea rdi, [rbx + r14] ; dest = buffer + len1
-  mov rsi, r13         ; src = second string
-  mov rcx, r15         ; size of string 2
-  call memcpy
-
-  ; null-terminate
-  lea rax, [r14 + r15]
-  mov byte [rbx + rax], 0
-  mov rax, rbx         ; return pointer
-  jmp .epilogue
-  .err:
-  xor rax, rax
-  .epilogue:
-  pop r15
-  pop r14
-  pop r13
-  pop r12
-  pop rdx
-  pop rcx
-  pop rbx
   ret
 
 ; --- File I/O --- macro handles setting negative errno on failure

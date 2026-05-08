@@ -12,8 +12,13 @@ TARGET_OS ?= $(HOST_OS)
 TARGET_ARCH ?= $(HOST_ARCH)
 
 # generating the ASM string literal that is pasted as the runtime lib
+ifeq ($(TARGET_ARCH),aarch64)
+RUNTIME_ASM = src/codegen/aarch64/runtime.s
+RUNTIME_RAW = src/codegen/aarch64/runtime_raw.h
+else
 RUNTIME_ASM = src/codegen/x86_64/runtime.asm
 RUNTIME_RAW = src/codegen/x86_64/runtime_raw.h
+endif
 
 # sources
 LEXER_SRCS = src/lexer/lexer.cpp \
@@ -48,7 +53,7 @@ PROGRAM_OBJS = $(patsubst src/%.cpp,$(BUILD_DIR)/%.o,$(PROGRAM_SRCS))
 all: $(PROGRAM)
 
 $(RUNTIME_RAW): $(RUNTIME_ASM)
-	@echo "Generating runtime_raw.h from runtime.asm..."
+	@echo "Generating $(RUNTIME_RAW) from $(RUNTIME_ASM)..."
 	@printf '#pragma once\n#include <string>\nconst std::string RUNTIME_ASM = R"(' > $@
 	@cat $< >> $@
 	@printf ')";\n' >> $@
