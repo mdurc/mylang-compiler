@@ -80,7 +80,6 @@ private:
   std::string generate_assembly(const std::vector<IRInstruction>& instructions, bool is_main_defined);
   void emit_program_header();
   void emit_program_footer();
-  void emit_debug_stack_align();
 
   /* instruction handlers */
   void handle_instruction(const IRInstruction& instr);

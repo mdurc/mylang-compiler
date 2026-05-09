@@ -512,23 +512,6 @@ void X86_64CodeGenerator::emit_program_footer() {
   }
 }
 
-void X86_64CodeGenerator::emit_debug_stack_align() {
-  emit("; --- STACK ALIGNMENT DIAGNOSTIC ---");
-  emit("mov r11, rsp");
-  emit("and r11, 15");
-  emit("push rax"); emit("push rcx"); emit("push rdx");
-  emit("push rsi"); emit("push rdi"); emit("push r8");
-  emit("push r9"); emit("push r10");
-  emit("mov rdi, 1 ; stdout (fd 1)");
-  emit("mov rsi, r11 ; remainder to print");
-  emit("call print_uint");
-  emit("call print_newline");
-  emit("pop r10"); emit("pop r9"); emit("pop r8");
-  emit("pop rdi"); emit("pop rsi"); emit("pop rdx");
-  emit("pop rcx"); emit("pop rax");
-  emit("; ----------------------------------");
-}
-
 void X86_64CodeGenerator::handle_instruction(const IRInstruction& instr) {
   switch (instr.opcode) {
     case IROpCode::BEGIN_FUNC: handle_begin_func(instr); break;
@@ -587,7 +570,6 @@ void X86_64CodeGenerator::handle_begin_func(const IRInstruction& instr) {
 
   if (func_name == "_start") {
     // macOS LC_MAIN loads _start directly without a return address pushed on the stack
-    // emit_debug_stack_align();
     emit("sub rsp, 8 ; emulate return address for 16-byte alignment math");
   }
 
