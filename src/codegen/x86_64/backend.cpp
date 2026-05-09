@@ -442,6 +442,7 @@ std::string X86_64CodeGenerator::generate_assembly(const std::vector<IRInstructi
     emit("mov rsi, [rbp-16] ; restore argv -> 2nd arg for main");
     emit("call main");
     emit("mov rdi, rax ; main's return value as exit code");
+    emit("and rdi, 255 ; enforce 8-bit POSIX exit code truncation");
   } else {
     emit("mov rdi, 0 ; default exit code");
   }
@@ -671,6 +672,7 @@ void X86_64CodeGenerator::handle_exit(const IRInstruction& instr) {
   IROperand op = instr.operands[0];
   std::string exit_code = get_sized_component(op, instr.size);
   emit(get_mov_instr("rdi", exit_code, is_imm(op), instr.size) + " ; set exit code");
+  emit("and rdi, 255 ; enforce 8-bit POSIX exit code truncation");
   emit("call exit");
 }
 

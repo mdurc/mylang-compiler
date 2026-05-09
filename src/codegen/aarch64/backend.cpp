@@ -351,6 +351,7 @@ std::string AArch64CodeGenerator::generate_assembly(const std::vector<IRInstruct
     emit("ldr x0, [x29, #-8]  // restore argc");
     emit("ldr x1, [x29, #-16] // restore argv");
     emit("bl main");
+    emit("and x0, x0, #0xFF // enforce 8-bit POSIX exit code truncation");
   } else {
     emit("mov x0, #0 // default exit code");
   }
@@ -514,7 +515,8 @@ void AArch64CodeGenerator::handle_end_func(bool is_exit) {
 
 void AArch64CodeGenerator::handle_exit(const IRInstruction& instr) {
   std::string exit_code = load_to_reg(instr.operands[0], instr.size);
-  emit("mov x0, " + get_sized_reg(exit_code, 8));
+  emit("mov " + get_sized_reg("x0", instr.size) + ", " + get_sized_reg(exit_code, instr.size));
+  emit("and x0, x0, #0xFF // enforce 8-bit POSIX exit code truncation");
   emit("bl exit");
 }
 
