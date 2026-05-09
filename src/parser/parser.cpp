@@ -170,6 +170,7 @@ AstPtr Parser::parse_enum_decl() {
 
         std::vector<StructFieldPtr> payload_fields;
         Type* payload_type = nullptr;
+        StructDeclPtr payload_struct = nullptr;
 
         if (match(TokenType::LBRACE)) {
           _consume(TokenType::LBRACE);
@@ -195,11 +196,12 @@ AstPtr Parser::parse_enum_decl() {
 
           // register anonymous struct in symbol table
           m_symtab->declare_type(allocated_name, payload_type, scope_id);
-          StructDeclPtr payload_struct = _alloc(StructDeclNode, variant_tok, scope_id, payload_type, payload_fields);
+          payload_struct = _alloc(StructDeclNode, variant_tok, scope_id, payload_type, freeze(payload_fields));
           m_symtab->declare_struct(allocated_name, payload_struct, scope_id);
         }
 
-        ast_variants.push_back({variant_ident, freeze(payload_fields)});
+        // ast_variants.push_back({variant_ident, freeze(payload_fields)});
+        ast_variants.push_back({variant_ident, payload_struct ? payload_struct->fields : freeze(payload_fields)});
         type_variants.push_back({variant_name, payload_type, current_tag++});
 
       } while (match(TokenType::COMMA) && advance());
