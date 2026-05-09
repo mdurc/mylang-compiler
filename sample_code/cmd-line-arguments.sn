@@ -1,4 +1,10 @@
 /*
+Expected Output:
+  argc = 1
+  argv[0] = ./tfile.sn.exe
+*/
+
+/*
 ./a.out hello world!
 argc = 3
 argv[0] = ./a.out

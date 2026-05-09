@@ -1,3 +1,9 @@
+/*
+Expected Output:
+  24
+  100 200
+*/
+
 enum Shape {
   Circle { radius: i32 },         // Payload: 4 bytes
   Rectangle { w: i64, h: i64 },   // Payload: 16 bytes

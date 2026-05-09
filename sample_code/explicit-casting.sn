@@ -1,3 +1,13 @@
+/*
+Expected Output:
+  --- Integer Truncation ---
+  300 as i8 = 44
+
+  --- Raw Pointer Manipulation ---
+  Original string: Hello
+  Offset string (+1): ello
+*/
+
 extern func print_string(fd: i64, s: ptr<imm u8>);
 
 func main() returns (code: u8) {
@@ -15,13 +25,11 @@ func main() returns (code: u8) {
   raw_addr = raw_addr + 1;
   mut offset_text : string = cast<string>(raw_addr);
 
-  print "Original string: ";
-  print_string(1, text);
-  print "\n";
+  print "Original string: ", text, "\n";
+  // print_string(1, text);
 
-  print "Offset string (+1): ";
-  print_string(1, offset_text); // expected: "ello"
-  print "\n";
+  print "Offset string (+1): ", offset_text, "\n"; // expected "ello"
+  // print_string(1, offset_text);
 
   return 0;
 }

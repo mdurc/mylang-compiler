@@ -1,3 +1,8 @@
+/*
+Expected Output:
+  10 30
+*/
+
 struct Vector3 {
   x: i64,
   y: i64,

@@ -1,5 +1,7 @@
 /* ./a.out < sample_code/conways/conway-input.txt */
 
+extern func clrscr();
+
 mut WIDTH: i64 = 0;
 mut HEIGHT: i64 = 0;
 mut SIZE: i64 = 0;
@@ -100,7 +102,8 @@ func main() {
   mut next: ptr<mut i64> = grid_b;
 
   for (mut gen: i64 = 0; gen < 100; gen = gen + 1) {
-    asm { call clrscr };
+    // asm { call clrscr };
+    clrscr();
     print "Generation ", gen, "\n";
     print_grid(current);
 

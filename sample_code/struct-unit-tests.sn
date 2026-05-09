@@ -1,3 +1,29 @@
+/*
+Expected output:
+  24 4 6 8 12
+  6 9
+  3 1
+  0 0
+  0 0
+  received: 10 20 modified to 99 20
+  original: 10 20
+  {1, 2, 3}
+  {4, 5, 6}
+  {4, 5, 6}
+  (50 1) vs (60 2)
+  x=1, y=2
+  x=0, y=13
+  x=0, y=13
+  (75, 50)
+   vs
+  (25, 50)
+  (4 6)
+  === exit status: 0
+  === HEAP SUMMARY:
+  ===   total heap usage: 1 allocs, 1 frees
+  ===   in use at exit: 0 bytes
+*/
+
 /* This file demonstrates the sizing functionality of structs
  *  and how they are passed by value, copied, etc.
  *
@@ -72,16 +98,16 @@ func test_return_struct() {
 
 // ====
 
-func shift_outer(o: Outer) returns (copy: Outer) {
-    copy = o;
-    copy.p.a = copy.p.a + 10;
-    copy.flag = 2;
-    return copy;
+func shift_outer(mut o: Outer) returns (copy: Outer) {
+  copy = o;
+  copy.p.a = copy.p.a + 10;
+  copy.flag = 2;
+  return copy;
 }
 func test_copy() {
   mut a := Outer{ p = Pair{ a = 50 }, flag = 1 };
   mut b := shift_outer(a);
-  print a.p.a, " ", b.p.a, " ", b.flag, "\n";
+  print "(", a.p.a, " ", a.flag, ") vs (", b.p.a, " ", b.flag, ")\n";
 }
 
 // ====
@@ -102,7 +128,8 @@ func test_with_pointers() {
   mut p : ptr<mut Pair> = &mut v;
   mut b := *p;
   b.a = 25;
-  print_pair(*p); print " vs \n"; print_pair(b);
+  p.a = 75;
+  print_pair(*p); print " vs\n"; print_pair(b);
 }
 
 func set_midpoint(out: ptr<mut Point>, p1: Point, p2: Point) {

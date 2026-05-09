@@ -1,3 +1,5 @@
+extern func clrscr();
+
 func delay(ticks: i64) {
   mut i: i64 = 0;
   while (i < ticks) {
@@ -16,7 +18,8 @@ func max_value(arr: ptr<mut i64>, size: i64) returns (max: i64) {
 }
 
 func print_bar_chart(arr: ptr<mut i64>, size: i64) {
-  asm { call clrscr };
+  // asm { call clrscr };
+  clrscr();
   max_val := max_value(arr, size);
   for (mut level := max_val; level >= 1; level = level - 1) {
     for (mut i := 0; i < size; i = i + 1) {

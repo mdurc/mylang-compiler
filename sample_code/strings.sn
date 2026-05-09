@@ -1,20 +1,5 @@
-extern func print_char(fd: i64, c: u8);
-extern func string_length(s: string) returns (len: i64);
-
 /*
-// this the old-way of utilizing the builtin runtime asm procedures
-//  that aren't implemented as keywords of the compiler
-func print_char(c: u8) {
-  asm {
-    mov BYTE[rbp - 1], dil
-    movzx rdi, BYTE[rbp - 1]
-    call print_char
-    call print_newline
-  };
-}
-*/
-
-/* Output:
+Expected Output:
   Chars of string: hellobye (len: 8)
     z[0] -> h -> 104
     z[1] -> e -> 101
@@ -29,6 +14,22 @@ func print_char(c: u8) {
   108: l --> 12th character in the alphabet
   111: o --> 15th character in the alphabet
   Two: 2
+*/
+
+extern func print_char(fd: i64, c: u8);
+extern func string_length(s: string) returns (len: i64);
+
+/*
+// this the old-way of utilizing the builtin runtime asm procedures
+//  that aren't implemented as keywords of the compiler
+func print_char(c: u8) {
+  asm {
+    mov BYTE[rbp - 1], dil
+    movzx rdi, BYTE[rbp - 1]
+    call print_char
+    call print_newline
+  };
+}
 */
 
 /* ********************** */
@@ -59,6 +60,8 @@ for (mut i := 0; i < string_length(z); i = i + 1) {
   print_char(1, z[i]);
   print " -> ", z[i], "\n";
 }
+
+free z;
 
 a : string = "hello";
 h : u8 = a[0];

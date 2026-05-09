@@ -1,5 +1,5 @@
 /*
-Output:
+Expected Output:
   Distance^2 between a and b: 25
   Midpoint: Point(4, 6)
   Moved point a: Point(13, 1)
@@ -7,6 +7,10 @@ Output:
   Point(1, 1) --> Point(1, 1)
   Point(2, 2) --> Point(2, 2)
   Point(3, 3) --> Point(3, 3)
+  === exit status: 0
+  === HEAP SUMMARY:
+  ===   total heap usage: 1 allocs, 1 frees
+  ===   in use at exit: 0 bytes
 */
 
 struct Point { x: i64, y: i64 }

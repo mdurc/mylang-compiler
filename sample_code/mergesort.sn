@@ -1,3 +1,13 @@
+/*
+Expected Output:
+  Original a: 3, 25, 0, 13, 17, 4, 21, 5, 22, 7, 14, 9
+  Sorted arr: 0, 3, 4, 5, 7, 9, 13, 14, 17, 21, 22, 25
+  === exit status: 0
+  === HEAP SUMMARY:
+  ===   total heap usage: 23 allocs, 23 frees
+  ===   in use at exit: 0 bytes
+*/
+
 func merge_sort(arr: ptr<mut i64>, left: i64, right: i64) {
   if (left < right) {
     mid := left + (right - left) / 2;

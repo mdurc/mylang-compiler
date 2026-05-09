@@ -91,7 +91,7 @@ update_test: $(PROGRAM)
 	--exe $(TFILE) $(TFILE).exe
 
 test: update_test
-	./$(TFILE).exe
+	- ./$(TFILE).exe
 
 test-x86:
 	$(MAKE) test TARGET_ARCH=x86_64
@@ -129,7 +129,7 @@ compile_arm_linux: update_test
 
 clean:
 	rm -rf $(MYLIB)
-	rm -f $(TFILE).* a.out DATA.txt LEAKS.txt .DS_Store
+	rm -f $(TFILE).* a.out .DS_Store DATA.txt LEAKS.txt arm_out.txt x86_out.txt
 
 .PHONY: all clean \
 	update_test \

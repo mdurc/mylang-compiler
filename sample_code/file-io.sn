@@ -1,3 +1,13 @@
+/*
+Expected Output:
+  File written successfully
+  File contents from read: this is sample text!!!
+  === exit status: 0
+  === HEAP SUMMARY:
+  ===   total heap usage: 1 allocs, 1 frees
+  ===   in use at exit: 0 bytes
+*/
+
 extern func string_length(s: string) returns (len: i64);
 
 extern func sys_open(filename: string, flags: i64, mode: i64) returns (fd: i64);
@@ -16,8 +26,7 @@ func read_file(path: string) returns (content: ptr<mut u8>) {
   sys_lseek(fd, 0, 0 /* SEEK_SET */);
 
   // +1 for null byte
-  mut raw_mem := malloc(size + 1);
-  mut buffer := cast<ptr<mut u8> >(raw_mem);
+  mut buffer := cast<ptr<mut u8> >(malloc(size + 1));
 
   sys_read(fd, buffer, size);
   sys_close(fd);
@@ -40,14 +49,15 @@ func write_file(path: string, content: string, length: i64) returns (success: bo
 
 func main() {
   mut s := "this is sample text!!!";
-  mut success := write_file("SAMPLE.txt", s, string_length(s));
+  mut success := write_file("DATA.txt", s, string_length(s));
 
   if (success) {
     print "File written successfully\n";
   }
 
-  mut content := read_file("SAMPLE.txt");
+  mut content := read_file("DATA.txt");
   if (content != null) {
     print "File contents from read: ", cast<string>(content), "\n";
   }
+  free content;
 }

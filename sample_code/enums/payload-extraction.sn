@@ -1,3 +1,8 @@
+/*
+Expected Output:
+  42
+*/
+
 enum Result {
   Ok { val: i64 },
   Err { code: i64 }

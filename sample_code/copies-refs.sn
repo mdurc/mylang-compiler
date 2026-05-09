@@ -1,13 +1,13 @@
 /*
-Output:
+Expected Output:
   foo(ptr point):
     created new point and put in *ptr: (*p).x: 2, (*p).y: 15
     modified (*p).x: 3
   foo(&mut a) yields -> a.x: 3, a.y: 15
 
-  bar(ref point):
+  bar(copy point):
     set p.x to 36 and p.y to 19
-  bar(b) where b is a Point{0,0} yields -> b.x: 36, b.y: 19
+  after bar(b) b is a Point{0,0} yields -> b.x: 0, b.y: 0
 */
 
 struct Point {
@@ -32,9 +32,9 @@ print "foo(&mut a) yields -> a.x: ", a.x, ", a.y: ", a.y, "\n\n";
 func bar(mut p: Point) {
   p.x = 36;
   p.y = 19;
-  print "bar(ref point):\n  set p.x to ", p.x, " and p.y to ", p.y, "\n";
+  print "bar(copy point):\n  set p.x to ", p.x, " and p.y to ", p.y, "\n";
 }
 
 mut b : Point = Point{x=0, y=0};
 bar(b);
-print "bar(b) where b is a Point{0,0} yields -> b.x: ", b.x, ", b.y: ", b.y, "\n\n";
+print "after bar(b) b is a Point{0,0} yields -> b.x: ", b.x, ", b.y: ", b.y, "\n";

@@ -1,5 +1,36 @@
+/*
+Expected Output:
+  --- Arithmetic and Conditioning/Short-circuiting ---
+  10 + 3 = 13
+  10 - 3 = 7
+  10 * 3 = 30
+  10 / 3 = 3
+  10 % 3 = 1
+  (10 > 3 and 10 != 0) evaluated to true
+
+  --- Bitwise Operations ---
+  5 | 3 = 7
+  5 & 3 = 1
+  5 ^ 3 = 6
+  1 << 3 = 8
+  8 >> 2 = 2
+
+  --- Precedence Test ---
+  1 << 1 + 2 = 8
+  3 & 1 | 2 = 3
+  3 ^ 1 & 1 = 2
+
+  --- Pointer Address-Of ; Bitwise AND ---
+  Value from dereferenced pointer: 42
+  42 & 15 = 10
+*/
+
+func side_effect() returns (r: bool) {
+  print "short circuiting FAILED -- side effect executed";
+  return true;
+}
 func test_old_ops() {
-  print "--- Old Operations ---\n";
+  print "--- Arithmetic and Conditioning/Short-circuiting ---\n";
   mut a := 10;
   mut b := 3;
 
@@ -10,12 +41,17 @@ func test_old_ops() {
   print "10 % 3 = ", a % b, "\n";
 
   if (a > b and a != 0) {
-    print "Logical AND and Relational ops working!\n";
+    print "(", a, " > ", b , " and ", a, " != 0) evaluated to true\n";
+  }
+
+  // test short-circuiting
+  if (b > a and side_effect()) {
+    print "incorrectly evaluated (", b, " > ", a, " and true) to true\n";
   }
 }
 
 func test_bitwise_ops() {
-  print "\n--- New Bitwise Operations ---\n";
+  print "\n--- Bitwise Operations ---\n";
   // 5 = 0101 in binary
   // 3 = 0011 in binary
   mut x := 5;
@@ -44,7 +80,7 @@ func test_precedence() {
 }
 
 func test_pointers_vs_bitwise() {
-  print "\n--- Pointer Address-Of vs Bitwise AND ---\n";
+  print "\n--- Pointer Address-Of ; Bitwise AND ---\n";
 
   mut val := 42; // 42 = 101010 in binary
   mut mask := 15; // 15 = 001111 in binary

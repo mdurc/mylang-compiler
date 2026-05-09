@@ -1,5 +1,24 @@
+/*
+Expected Output:
+  1
+  2
+  Fizz
+  4
+  Buzz
+  Fizz
+  7
+  8
+  Fizz
+  Buzz
+  11
+  Fizz
+  13
+  14
+  FizzBuzz
+*/
+
 func main() {
-  n : i32 = 30;
+  n : i32 = 15;
   mut i : i32 = 1;
   while (i <= n) {
     if (i % 15 == 0) {
