@@ -59,7 +59,6 @@ private:
   /* proceduring calling */
   void emit_runtime_call(const std::string& func_name, const std::vector<std::string>& arg_setup_instrs);
   void save_caller_saved_regs();
-  void restore_caller_saved_regs(const std::vector<std::string>& used_caller_saved);
   std::vector<std::string> get_used_callee_regs();
 
   /* operand resolution and formatting */

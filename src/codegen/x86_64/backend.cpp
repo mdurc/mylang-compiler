@@ -106,33 +106,17 @@ void X86_64CodeGenerator::spill_register(const std::string& reg, int ir_reg,
 }
 
 void X86_64CodeGenerator::emit_runtime_call(const std::string& func_name, const std::vector<std::string>& arg_setup_instrs) {
-  m_call_stack.push(CallContext{});
+  // no need to create a context because all runtime calls expect <= 3 arguments
   save_caller_saved_regs();
-  CallContext ctx = m_call_stack.top();
-  m_call_stack.pop();
-
-  // internal calls only push registers, no stack arguments
-  size_t pushed_bytes = ctx.used_caller_saved.size() * 8;
-  size_t padding = (pushed_bytes % 16 != 0) ? 8 : 0;
-
-  // pad stack before pushing
-  if (padding > 0) emit("sub rsp, " + std::to_string(padding) + " ; align stack");
-
-  // push caller-saved registers
-  for (const std::string& instr : ctx.arg_instrs) emit(instr);
 
   // load argument registers (rdi, rsi, rdx)
   for (const std::string& instr : arg_setup_instrs) emit(instr);
 
   emit("call " + func_name);
-  restore_caller_saved_regs(ctx.used_caller_saved);
-  if (padding > 0) emit("add rsp, " + std::to_string(padding) + " ; remove alignment padding");
 }
 
 void X86_64CodeGenerator::save_caller_saved_regs() {
-  if (m_call_stack.empty()) return;
-  CallContext& ctx = m_call_stack.top();
-
+  emit("; spilling all caller-saved registers that we're using");
   std::vector<std::string> regs_to_save;
   for (const std::string& reg : m_caller_saved_regs) {
     auto it = m_ctx.phys_reg_to_ir_reg.find(reg);
@@ -141,20 +125,12 @@ void X86_64CodeGenerator::save_caller_saved_regs() {
     }
   }
 
-  std::vector<std::string> pushes;
+  // spill them natively to local variables
   for (const std::string& reg : regs_to_save) {
-    pushes.push_back("push " + reg + " ; saving caller-saved register " + reg);
-    ctx.used_caller_saved.push_back(reg);
-  }
-  // insert at beginning so caller-saved registers don't offset stack args
-  ctx.arg_instrs.insert(ctx.arg_instrs.begin(), pushes.begin(), pushes.end());
-
-}
-
-void X86_64CodeGenerator::restore_caller_saved_regs(const std::vector<std::string>& used_caller_saved) {
-  for (int i = used_caller_saved.size() - 1; i >= 0; --i) {
-    const std::string& arg = used_caller_saved[i];
-    emit("pop " + arg + " ; restoring caller-saved register");
+    auto it = m_ctx.phys_reg_to_ir_reg.find(reg);
+    if (it != m_ctx.phys_reg_to_ir_reg.end() && it->second.first != -1) {
+      spill_register(reg, it->second.first, it->second.second);
+    }
   }
 }
 
@@ -1058,8 +1034,7 @@ void X86_64CodeGenerator::handle_lcall(const IRInstruction& instr) {
   CallContext ctx = m_call_stack.top();
   m_call_stack.pop();
 
-  size_t pushed_bytes = (ctx.used_caller_saved.size() * 8) + ctx.stack_args_size;
-  size_t padding = (pushed_bytes % 16 != 0) ? 8 : 0;
+  size_t padding = (ctx.stack_args_size % 16 != 0) ? 8 : 0;
   if (padding > 0) emit("sub rsp, " + std::to_string(padding) + " ; align stack");
 
   for (const std::string& arg_instr : ctx.arg_instrs) {
@@ -1072,8 +1047,6 @@ void X86_64CodeGenerator::handle_lcall(const IRInstruction& instr) {
   if (ctx.stack_args_size > 0) {
     emit("add rsp, " + std::to_string(ctx.stack_args_size) + " ; remove stack args");
   }
-
-  restore_caller_saved_regs(ctx.used_caller_saved);
 
   if (padding > 0) {
     emit("add rsp, " + std::to_string(padding) + " ; remove alignment padding");

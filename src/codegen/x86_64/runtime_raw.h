@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
 const std::string RUNTIME_ASM = R"(; --- Embedded Runtime Library (X86_64) ---
-	section .text
+section .text
 
 ; architecture-specific syscall numbers
 %ifdef TARGET_MACOS
