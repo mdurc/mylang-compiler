@@ -39,6 +39,7 @@ private:
   const Token* current();
   const Token* advance();
   bool consume(TokenType type);
+  bool consume_rangle();
   bool match(TokenType type) const;
   bool peek_next(TokenType type) const;
 

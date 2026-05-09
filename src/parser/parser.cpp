@@ -13,6 +13,13 @@ struct ParsePanic : public std::runtime_error {
     }                      \
   } while (0)
 
+#define _consume_rangle()      \
+  do {                         \
+    if (!consume_rangle()) {   \
+      throw ParsePanic();      \
+    }                          \
+  } while (0)
+
 #define _alloc(_type, ...) m_arena->make<_type>(__VA_ARGS__)
 
 // == Movement Operations through Tokens ==
@@ -41,6 +48,29 @@ bool Parser::consume(TokenType type) {
   }
   advance();
   return true;
+}
+
+/* consume an RANGLE token.. if it is currently >> (GREATER_GREATER), we will treat it as two single RANGLE's */
+bool Parser::consume_rangle() {
+  if (match(TokenType::RANGLE)) {
+    advance();
+    return true;
+  }
+
+  // handle cast<ptr<i32>>
+  if (match(TokenType::GREATER_GREATER)) {
+    m_tokens[m_pos] = Token(TokenType::RANGLE, ">", current()->get_span());
+    // don't advance, we essentially consumed the first RANGLE
+    return true;
+  }
+
+  // handle p: ptr<i32>= ...
+  if (match(TokenType::GREATER_EQUAL)) {
+    m_tokens[m_pos] = Token(TokenType::EQUAL, "=", current()->get_span());
+    return true;
+  }
+
+  return consume(TokenType::RANGLE); // returns false with an error
 }
 
 /* check if the type of the Token at m_pos of the parser equals type */
@@ -1202,7 +1232,7 @@ Type* Parser::parse_type() {
     }
 
     Type* pointee = parse_type();
-    _consume(TokenType::RANGLE);
+    _consume_rangle();
 
     // we do not check the symbol table for this because ptrs of any valid
     // pointee types are allowed. We will add it to the symbol table though.
@@ -1411,8 +1441,7 @@ ExprPtr Parser::parse_new_expr() {
   }
 
   Type* allocated_type = parse_type();
-
-  _consume(TokenType::RANGLE);
+  _consume_rangle();
 
   bool is_array = false;
   ExprPtr specifier = nullptr;
@@ -1455,7 +1484,7 @@ ExprPtr Parser::parse_explicit_cast() {
 
   _consume(TokenType::LANGLE);
   Type* target_type = parse_type();
-  _consume(TokenType::RANGLE);
+  _consume_rangle();
 
   _consume(TokenType::LPAREN);
   ExprPtr expr = parse_expression();
@@ -1469,6 +1498,6 @@ ExprPtr Parser::parse_sizeof() {
   _consume(TokenType::SIZEOF);
   _consume(TokenType::LANGLE);
   Type* target_type = parse_type();
-  _consume(TokenType::RANGLE);
+  _consume_rangle();
   return _alloc(SizeOfNode, sizeof_tok, m_symtab->current_scope(), target_type);
 }
