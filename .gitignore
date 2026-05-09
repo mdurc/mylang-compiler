@@ -8,3 +8,5 @@ tfile.sn
 tfile.sn.*
 DATA.txt
 LEAKS.txt
+x86_out.txt
+arm_out.txt

@@ -54,6 +54,9 @@ else
   files=(sample_code/**/*.sn(N) ${INCLUDE[@]})
 fi
 
+PASSED_COUNT=0
+FAILED_COUNT=0
+
 for file in $files; do
   [[ -f "$file" ]] || continue
   if [[ $file == ${~IGNORE_PATTERN} || ${file:t} == ${~IGNORE_PATTERN} ]]; then
@@ -68,6 +71,7 @@ for file in $files; do
     ./tfile.sn.exe > x86_out.txt 2>&1
   else
     echo "==> [x86_64] Build Failed"
+    ((FAILED_COUNT++))
     continue
   fi
 
@@ -75,6 +79,7 @@ for file in $files; do
     ./tfile.sn.exe > arm_out.txt 2>&1
   else
     echo "==> [Aarch64] Build Failed"
+    ((FAILED_COUNT++))
     continue
   fi
 
@@ -88,9 +93,11 @@ for file in $files; do
   if cmp -s x86_out.txt arm_out.txt; then
     echo "==> MATCHING OUTPUT"
     REVIEW_MSG="+echohl MoreMsg | echo ' MATCHING OUTPUT ' | echohl None"
+    ((PASSED_COUNT++))
   else
     echo "==> DIVERGING OUTPUT **FAIL**"
     REVIEW_MSG="+echohl ErrorMsg | echo ' DIVERGING OUTPUT **FAIL** ' | echohl None"
+    ((FAILED_COUNT++))
   fi
 
   if [[ $REVIEW_MODE -eq 1 ]]; then
@@ -100,6 +107,10 @@ for file in $files; do
       echo ""
       [[ $REPLY =~ ^[Yy]$ ]] || break
     fi
-  else
   fi
 done
+
+rm -f x86_out.txt arm_out.txt
+
+echo ""
+echo "$PASSED_COUNT/$((PASSED_COUNT + FAILED_COUNT)) Passed"
