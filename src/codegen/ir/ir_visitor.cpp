@@ -153,22 +153,29 @@ void IrVisitor::visit(IdentifierNode& node) {
 void IrVisitor::visit(BinaryOpExprNode& node) {
   /* short-circuiting operators first */
   if (node.op_type == BinOperator::LogicalAnd || node.op_type == BinOperator::LogicalOr) {
-    IR_Register dest_reg = m_ir_gen.new_temp_reg();
     IR_Label end_label = m_ir_gen.new_label();
-
-    node.left->accept(*this);
-    IROperand left_op = m_last_expr_operand;
     std::uint64_t bool_size = node.expr_type->get_byte_size();
     _assert(bool_size == 1, "LHS of binop should be 1 byte boolean");
 
+    // Hidden variable to avoid storing a partial result in a register before a possible jump.
+    // If the short-circuited portion ends up spilling that register, once we short-circuit,
+    //  the backend will try to retrieve the result from the spilled stack space, not the register.
+    static int s_sc_id = 0;
+    std::string sc_var_name = ".sc_result_" + std::to_string(s_sc_id++);
+    IR_Variable dest_var(sc_var_name, bool_size, 1, false, false, false);
+    m_vars.insert(dest_var);
+
+    node.left->accept(*this);
+    IROperand left_op = m_last_expr_operand;
+
     if (node.op_type == BinOperator::LogicalAnd) {
       // if !left, jump to end return false
-      m_ir_gen.emit_assign(dest_reg, IR_Immediate(0, bool_size), bool_size);
+      m_ir_gen.emit_assign(dest_var, IR_Immediate(0, bool_size), bool_size);
       m_ir_gen.emit_if_z(left_op, end_label, bool_size);
     } else {
       // if left, jump to end and return true
       IR_Label eval_right_label = m_ir_gen.new_label();
-      m_ir_gen.emit_assign(dest_reg, IR_Immediate(1, bool_size), bool_size);
+      m_ir_gen.emit_assign(dest_var, IR_Immediate(1, bool_size), bool_size);
       m_ir_gen.emit_if_z(left_op, eval_right_label, bool_size); // if left is 0, we must evaluate right
       m_ir_gen.emit_goto(end_label); // left was true, skip to end
       m_ir_gen.emit_label(eval_right_label);
@@ -177,10 +184,14 @@ void IrVisitor::visit(BinaryOpExprNode& node) {
     // evaluate the right side (only reached if left didn't short-circuit)
     node.right->accept(*this);
     IROperand right_op = m_last_expr_operand;
-    m_ir_gen.emit_assign(dest_reg, right_op, bool_size);
+    m_ir_gen.emit_assign(dest_var, right_op, bool_size);
 
     m_ir_gen.emit_label(end_label);
-    m_last_expr_operand = dest_reg;
+
+    IR_Register final_reg = m_ir_gen.new_temp_reg();
+    m_ir_gen.emit_assign(final_reg, dest_var, bool_size);
+
+    m_last_expr_operand = final_reg;
     return;
   }
 

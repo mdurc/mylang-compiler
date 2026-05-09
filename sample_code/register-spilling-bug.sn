@@ -1,0 +1,29 @@
+/*
+Expected Output:
+  Expected result: 0
+  Actual result:   0
+  [+] SUCCESS: Registers are correctly synchronized!
+*/
+
+/* bug regarding register allocation in relation to jumps:
+   - round-robin allocator will wrap around registers and spill if necessary. If we compute a result in a register, then have a conditional jump to asm that spills that result register.. at runtime if we skip over the instructions that move the register into the spilled location on the stack, when we try to read the final result from the stack we get garbage.. when the actual value is still in the original register.
+*/
+
+func main() {
+  mut tmp1: i64 = 999999;
+  mut tmp2: i64 = 888888;
+  mut tmp3: i64 = 777777;
+
+  mut trigger: i64 = 0;
+  mut a: i64 = 1;
+
+  mut result: bool = (trigger == 1 and (a + a + a + a + a + a + a + a + a + a > 5));
+
+  print "Expected result: 0\n";
+  print "Actual result:   ", result, "\n";
+  if (result) {
+    print "[!] BUG: Read uninitialized stack garbage!\n";
+  } else {
+    print "[+] SUCCESS: Registers are correctly synchronized!\n";
+  }
+}
