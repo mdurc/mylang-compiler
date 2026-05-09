@@ -1,7 +1,7 @@
 ## Architecture
 
 The compiler is organized into a single pass pipeline:
-`Source` -> `Preprocessor` -> `Lexer` -> `Parser` -> `Type Checker` -> `IR Generator` -> `x86_64 Code Generator`
+`Source` -> `Preprocessor` -> `Lexer` -> `Parser` -> `Type Checker` -> `IR Generator` -> `Code Generator (x86_64 or AArch64)`
 
 I'll first try to cover some of the approaches that I was thinking about while developing. A lot of these ideas are new to me, and were added to this project recently in a large refactor of the codebase (after ~8 month break).
 
@@ -74,22 +74,34 @@ This wasn't a part of the original design, although it makes a lot of sense in t
 
 **Unified Runtime Assembly Library**
 - The assembly runtime library is no longer platform-exclusive. It uses NASM preprocessor directives to select architecture-specific syscall numbers and ABI behaviors.
+    - A similar approach was taken for the ARM runtime library. Since the x86_64 backend was developed first, most of the ARM backend was simply a means of translation.
 - This is particularly relevent for how command-line arguments are handled (stored directly in `rdi` and `rsi` registers on Darwin, but stored on the `_start` stack frame on Linux), and for syscall error handling.
+
+**Target Code Generation (x86-64 & AArch64)**
+-   **Register Allocation**:
+    -   Greedy selection of registers, spilling to the stack if necessary. A pool of general-purpose registers is reserved for mapping to IR temporary registers depending on the active architecture (`r10`, `r11`, etc., for x86-64; `x9`, `x10`, etc., for AArch64).
+    -   **Spilling**: If all physical registers are in use, the code generator "spills" an existing register's value to the stack to free it up. It tracks spilled locations and reloads them when needed.
+-   **Stack Frame Management**:
+    -   Standard stack frames are established using the architecture's respective frame pointer (`rbp` or `x29`).
+    -   The function prologue saves the previous frame pointer, sets the new one, and adjusts the stack pointer to allocate space for all local variables, stack-passed parameters, and spilled registers.
+-   **Calling Convention**:
+    -   Adheres to target-specific ABIs (System V AMD64 ABI for Linux/macOS x86-64, and AAPCS64 for AArch64). 
+    -   The generator saves and restores caller-saved registers live across a `call`, and manages callee-saved registers in the prologue/epilogue.
 
 ## Pipeline
 
 Follows a standard flow of passes until producing the assembly:
 1. **Source loader**: this is in charge of loading source files and tracking them with a `file_id` so that we don't perform redundant loads.
-2. **Lexer**: converts the source text that we loadded into a stream of tokens.
+2. **Lexer**: converts the source text that we loaded into a stream of tokens.
 3. **Preprocessor**: this walks through the tokens and performs macro substitution on tokens for `#define` directives, and re-runs the lexer for any other `#include`d files, to insert the tokens into the final token stream.
-    - File paths are relative for inclusion, see [sample_code/modules](../sample_code/modules)
+    - File paths are relative for inclusion, see [sample_code/includes](../sample_code/includes)
     - Idempotent preprocessor will only include a given file once, without the need for guards.
     - Single-pass preprocessing will require the user to favor forward-declarations for any cyclic type/function dependencies.
 4. **Parser**: Builds an Abstract Syntax Tree (AST) from the token stream and populates the symbol table with initial declarations of types and variables.
 5. **Type checker**: Traverses the AST to enforce type rules, resolve expression types, and check for semantic errors such as VariableNotFound.
 6. **IR Generation**: Translates the annotated AST into a three-address code IR format for the code generator.
-7. **Code Generation**: Converts the IR into target-specific assembly code. Utilizes a custom runtime asm library for more complex/lengthy operations such as `string_copy` or `parse_int`. This runtime library is embedded at the bottom of each assembly file that is generated (note that this is not efficient because we may not utilize all of the procedures).
-8. **Assembler**: Uses external tools to assemble the generated code.
+7. **Code Generation**: Translates the IR directly into target-specific assembly code. The codebase supports multiple architectural backends (`x86_64` and `aarch64`). Utilizes a custom runtime asm library for more complex/lengthy operations such as `string_copy` or `parse_int`. This runtime library is embedded at the top of each assembly file that is generated (note that this is not efficient because we may not utilize all of the procedures).
+8. **Assembler**: Uses external tools to assemble and natively link the generated code.
 
 ## Type Casting
 - This is implemented but not tested extensively. It is an area that can undergo a lot of improvement in the future.
@@ -113,9 +125,10 @@ Follows a standard flow of passes until producing the assembly:
 -   **Entry Point**: The final executable's entry point is `_start`. This label marks the beginning of the top-level code. If a `main` function is defined, `_start` will execute all top-level statements and then `call main`. The return value of `main` is used as the program's exit code. If no `main` exists, the program exits after the top-level code.
 
 ## Runtime ASM Library
+A runtime library exists for both the x86_64 and Aarch64 backend.
 -   **Output to file-descriptor**: `print_string`, `print_char`, `print_int`, `print_uint`, `print_newline`.
 -   **Input from stdin**: `read_char`, `read_word`, `parse_uint`, `parse_int`.
 -   **Memory Management**: `malloc`, `free`, `memcpy`, `memset`
-    - Note that memory allocated with `malloc` is signed so that during `free` we know that we are deallocated our own memory.
+    - Note that memory allocated with `malloc` is signed so that during `free` we know that we are deallocating our own memory. The built-in memory tracker hooks into these routines when the `--track-memory` flag is passed.
 -   **String Utilities**: `string_length`, `string_equals`, `string_copy`, `string_concat`.
 -   **Other**: `exit`, `clrscr`.

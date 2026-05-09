@@ -1,24 +1,26 @@
-**Statically-typed, compiled language targeting x86-64. Compiles to a standalone Mach-O or ELF binary.**
+**Statically-typed, compiled language targeting x86-64 and AArch64. Compiles to a standalone Mach-O or ELF binary.**
 
-This compiler is a complete rewrite of a previous attempt, designed from the ground up to prioritize a well-designed and easily extenisible architecture.
+This compiler is a complete rewrite of a previous attempt, designed from the ground up to prioritize a well-designed and easily extensible architecture.
 
 - [Syntax](docs/syntax.md)
     - [Grammar](docs/grammar.txt)
     - The best place to see how the language works is in [sample_code/](sample_code/). This is where most testing, debugging, and experimenting occurs.
-- **Standard library** [stdlib/](stdlib/): provides a collection of data structures and utilities that demonstrate some capabilities of the language. Because the language compiles to freestanding x86-64 binaries, the standard library minimizes reliance on standard C runtimes, favoring direct XNU kernel syscalls. See [stdlib/usage-stdlib.sn](stdlib/usage-stdlib.sn) that shows how each module can be used.
+- **Standard library** [stdlib/](stdlib/): provides a collection of data structures and utilities that demonstrate some capabilities of the language. The language compiles to freestanding x86-64 and AArch64 binaries, favoring direct XNU/Linux kernel syscalls. See [stdlib/usage-stdlib.sn](stdlib/usage-stdlib.sn) that shows how each module can be used.
 - [Compiler Architecture](docs/architecture.md)
 - [Testing](docs/testing.md)
 
 ### Motives
-Purely written as an exercise and to learn from the experiences I've gained since I last attempted a compiler. Goal is to eventaully be designed well enough to self-host without too much difficulty.
+Purely written as an exercise and to learn from the experiences I've gained since I last attempted a compiler. Goal is to eventually be designed well enough to self-host without too much difficulty.
 
 **Primary focus in development:**
-- Well-deisgned error handling systems within each module and a corresponding logger system for LSP support
+- Well-designed error handling systems within each module and a corresponding logger system to integrate LSP support.
+- Cleanly supporting multiple target ISAs natively (x86_64 and AArch64).
 - Being able to print the state of the various modules within the compilation process (for testing and debugging).
 - Minimize the amount of dependencies used.
 
 ### OS Support & Dependencies & Building
-I am developing on an Apple M1 (14.8.3). The compiler has been tested to work on **macOS (Darwin)** and **Linux (x86_64)**.
+I am developing on an Apple M1 (14.8.3). The compiler has been tested to work natively on **macOS (Darwin)** and **Linux (x86_64 & AArch64)**.
+
 
 **MacOS (Apple Silicon) Toolchain**
 1. Requires `clang++` (C++20), `make`, `nasm`, native macOS `ld`
@@ -29,8 +31,8 @@ I am developing on an Apple M1 (14.8.3). The compiler has been tested to work on
    # only required for test suite compilation
    brew install cmake googletest
    ```
-2. Requires *Rosetta 2*.
-    - Running your compiled Mach-O binaries on an M-series Mac natively will result in a `Bad CPU type in executable` error. You must install Rosetta 2, a background translation process that allows Apple Silicon to run x86_64 software:
+2. *Rosetta 2* (only required if targeting x86_64)
+    - Running compiled x86_64 Mach-O binaries on an M-series Mac natively will result in a `Bad CPU type in executable` error. You must install Rosetta 2, a background translation process, to test x86_64 output:
    ```bash
    softwareupdate --install-rosetta --agree-to-license
    ```
@@ -62,6 +64,8 @@ As described in my focuses in this project, I wanted to be able to inspect the o
 
 --target=macos  : Force Mach-O/Darwin ABI (default for macOS)
 --target=linux  : Force ELF/SYSV ABI (default for Linux)
+--target=aarch64  : Target ARM64 architecture (default for Apple Silicon)
+--target=x86_64   : Target x86-64 architecture
 
 --tokens: Output lexer tokens.
 --ast: Output the Abstract Syntax Tree.

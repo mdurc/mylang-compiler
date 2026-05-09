@@ -87,7 +87,7 @@ Functions are top-level declarations.
 - **Return Values**: Functions can return a single value. The return variable (`sum`) must be declared in the signature and is implicitly available within the function body. A `return` statement can be used for an early exit. If no `return` is used, the final value of the named return variable is returned. Functions without a `returns` clause implicitly return `u0`.
 
 - **External Functions**:
-    - Use the `extern` keyword to declare a function signature without a body. This allows the compiler to type-check calls to functions that will be provided by the linker (e.g., from the x86_64 runtime library).
+    - Use the `extern` keyword to declare a function signature without a body. This allows the compiler to type-check calls to functions that will be provided by the linker (e.g., from the ASM runtime library).
     - See [sample_code/strings.sn](../sample_code/strings.sn) for an example
 
     ```mylang
@@ -194,7 +194,7 @@ free a;
 
 - `read <lvalue>;`: Reads from stdin into a mutable integer or string variable.
 - `print <expr>, ...;`: Prints one or more expressions to stdout.
-- `asm { ... };`: Inlines raw x86-64 assembly code.
+- `asm { ... };`: Inlines raw assembly code.
 - `error "message";`: Prints a string to stdout and exits with code 1.
 - `exit <int_literal>;`: Exits the program with the given integer code.
 - `#include "..."`: Preprocessor file import
