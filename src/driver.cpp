@@ -160,7 +160,7 @@ static bool run_pipeline(TargetStage stage, const std::string& infile,
       X86_64CodeGenerator backend(&logger, target, track_memory);
       asm_code = backend.generate(ir_visitor.get_instructions(), ir_visitor.is_main_defined());
     } else if (arch == TargetArch::AArch64) {
-      AArch64CodeGenerator backend(&logger, target);
+      AArch64CodeGenerator backend(&logger, target, track_memory);
       asm_code = backend.generate(ir_visitor.get_instructions(), ir_visitor.is_main_defined());
     }
     check_diags();
@@ -210,7 +210,7 @@ static bool run_pipeline(TargetStage stage, const std::string& infile,
 }
 
 bool drive(const std::string& arg, const std::string& infile, const std::string& outfile, TargetOS target, TargetArch arch, bool track_memory) {
-  if (arg == "--repl") { run_repl(target, arch, track_memory); return true; } // <-- CHANGED
+  if (arg == "--repl") { run_repl(target, arch, track_memory); return true; }
 
   TargetStage stage;
   if (arg == "--tokens") stage = TargetStage::TOKENS;
