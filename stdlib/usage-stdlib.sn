@@ -45,8 +45,8 @@ func sample_file_io() {
     }
 
     print "  -> Substring (0,14): ", sub, "\n";
-    free cast<ptr<mut u0> >(sub);
-    free cast<ptr<mut u0> >(read_content);
+    free cast<ptr<mut u0>>(sub);
+    free cast<ptr<mut u0>>(read_content);
   } else {
     error "ERROR: file_read() failed\n";
   }
@@ -56,17 +56,17 @@ func sample_vector() {
   print "\n[2] vector_t...\n";
   mut vec := vector_init(2);
 
-  vector_push(&mut vec, cast<ptr<mut u0> >(new<mut i64>(100)));
-  vector_push(&mut vec, cast<ptr<mut u0> >(new<mut i64>(200)));
-  vector_push(&mut vec, cast<ptr<mut u0> >(new<mut i64>(300))); // triggers resize
+  vector_push(&mut vec, cast<ptr<mut u0>>(new<mut i64>(100)));
+  vector_push(&mut vec, cast<ptr<mut u0>>(new<mut i64>(200)));
+  vector_push(&mut vec, cast<ptr<mut u0>>(new<mut i64>(300))); // triggers resize
 
   a : i64 = 400; b : i64 = 500;
-  vector_push(&mut vec, cast<ptr<mut u0> >(&a));
-  vector_push(&mut vec, cast<ptr<mut u0> >(&b));
+  vector_push(&mut vec, cast<ptr<mut u0>>(&a));
+  vector_push(&mut vec, cast<ptr<mut u0>>(&b));
 
-  mut v_val := cast<ptr<mut i64> >(vector_get(&vec, 2));
+  mut v_val := cast<ptr<mut i64>>(vector_get(&vec, 2));
   for (mut i := 0; i < vec.len; i = i + 1) {
-    mut addr := cast<ptr<mut i64> >(vector_get(&vec, i));
+    mut addr := cast<ptr<mut i64>>(vector_get(&vec, i));
     print "  [", i, "] -> ", *addr, "\n";
     if (i < 3) { free addr; }
   }
@@ -78,15 +78,15 @@ func sample_hashmap() {
   print "\n[3] hashmap...\n";
   mut m := map_init(4);
 
-  map_put(&mut m, "status", cast<ptr<mut u0> >(new<mut i64>(200)));
-  map_put(&mut m, "error_code", cast<ptr<mut u0> >(new<mut i64>(404)));
-  map_put(&mut m, "timeout", cast<ptr<mut u0> >(new<mut i64>(30)));
+  map_put(&mut m, "status", cast<ptr<mut u0>>(new<mut i64>(200)));
+  map_put(&mut m, "error_code", cast<ptr<mut u0>>(new<mut i64>(404)));
+  map_put(&mut m, "timeout", cast<ptr<mut u0>>(new<mut i64>(30)));
 
   mut keys := map_keys(&m);
   if (keys != null) {
     for (mut i := 0; i < m.len; i = i + 1) {
       mut current_key := keys[i];
-      mut val_ptr := cast<ptr<mut i64> >(map_get(&m, current_key));
+      mut val_ptr := cast<ptr<mut i64>>(map_get(&m, current_key));
       print "  ", current_key, " -> ", *val_ptr, "\n";
       free val_ptr;
     }
@@ -100,11 +100,11 @@ func sample_stack_queue() {
   print "\n[4] stack + queue...\n";
 
   mut s := stack_init(4);
-  stack_push(&mut s, cast<ptr<mut u0> >(new<mut i64>(1)));
-  stack_push(&mut s, cast<ptr<mut u0> >(new<mut i64>(2)));
+  stack_push(&mut s, cast<ptr<mut u0>>(new<mut i64>(1)));
+  stack_push(&mut s, cast<ptr<mut u0>>(new<mut i64>(2)));
   print "  stack (size = ", s.len, "; cap = ", s.cap, "): [";
   while (s.len > 0) {
-    mut top := cast<ptr<mut i64> >(stack_pop(&mut s));
+    mut top := cast<ptr<mut i64>>(stack_pop(&mut s));
     print " ", *top;
     free top;
   }
@@ -112,11 +112,11 @@ func sample_stack_queue() {
   stack_destroy(&mut s);
 
   mut q := queue_init();
-  queue_push(&mut q, cast<ptr<mut u0> >(new<mut i64>(1)));
-  queue_push(&mut q, cast<ptr<mut u0> >(new<mut i64>(2)));
+  queue_push(&mut q, cast<ptr<mut u0>>(new<mut i64>(1)));
+  queue_push(&mut q, cast<ptr<mut u0>>(new<mut i64>(2)));
   print "  queue (size = ", q.len, "): [";
   while (q.len > 0) {
-    mut front := cast<ptr<mut i64> >(queue_pop(&mut q));
+    mut front := cast<ptr<mut i64>>(queue_pop(&mut q));
     print " ", *front;
     free front;
   }
@@ -133,7 +133,7 @@ func sample_arena() {
   print "\n[5] arena allocator...\n";
   mut a := arena_init(1000000);
 
-  mut node := cast<ptr<mut node_t> >(arena_alloc(&mut a, sizeof<node_t>));
+  mut node := cast<ptr<mut node_t>>(arena_alloc(&mut a, sizeof<node_t>));
 
   node.type = 7;
   node.value = "foo";

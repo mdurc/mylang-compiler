@@ -1,9 +1,7 @@
 #include "string.sn"
-#include "memory.sn"
 
 extern func sys_open(filename: string, flags: i64, mode: i64) returns (fd: i64);
 extern func sys_read(fd: i64, buf: ptr<mut u8>, count: i64) returns (bytes: i64);
-extern func sys_write(fd: i64, buf: ptr<imm u8>, count: i64) returns (bytes: i64);
 extern func sys_lseek(fd: i64, offset: i64, whence: i64) returns (pos: i64);
 extern func sys_close(fd: i64) returns (res: i64);
 
@@ -16,7 +14,7 @@ func file_read(path: string) returns (content: ptr<mut u8>) {
 
   // +1 for null byte
   mut raw_mem := malloc(size + 1);
-  mut buffer := cast<ptr<mut u8> >(raw_mem);
+  mut buffer := cast<ptr<mut u8>>(raw_mem);
 
   sys_read(fd, buffer, size);
   sys_close(fd);
@@ -40,7 +38,7 @@ func file_write(path: string, content: string, length: i64) returns (success: bo
   mut fd := sys_open(path, flags, perms);
   if (fd < 0) { return false; }
 
-  mut written := sys_write(fd, cast<ptr<imm u8> >(content), length);
+  mut written := sys_write(fd, cast<ptr<imm u8>>(content), length);
   sys_close(fd);
 
   return written == length;

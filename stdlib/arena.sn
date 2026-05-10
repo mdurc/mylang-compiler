@@ -1,4 +1,4 @@
-#include "memory.sn"
+#include "runtime.sn"
 
 struct arena_t {
   base: ptr<mut u8>,
@@ -14,7 +14,7 @@ func arena_init(mut size: i64) returns (a: arena_t) {
 
   mut raw := sys_mmap(size);
   return arena_t {
-    base = cast<ptr<mut u8> >(raw),
+    base = cast<ptr<mut u8>>(raw),
     offset = 0,
     cap = size
   };
@@ -36,7 +36,7 @@ func arena_alloc(a: ptr<mut arena_t>, mut size: i64) returns (p: ptr<mut u0>) {
 
   mut alloc_ptr := a.base + a.offset;
   a.offset = a.offset + size;
-  return cast<ptr<mut u0> >(alloc_ptr);
+  return cast<ptr<mut u0>>(alloc_ptr);
 }
 
 /* reset arena offset without freeing any memory */
@@ -49,7 +49,7 @@ func arena_reset(a: ptr<mut arena_t>) {
 /* frees the memory page block */
 func arena_destroy(a: ptr<mut arena_t>) {
   if (a == null or a.base == null) { return; }
-  sys_munmap(cast<ptr<mut u0> >(a.base), a.cap);
+  sys_munmap(cast<ptr<mut u0>>(a.base), a.cap);
   a.base = null;
   a.offset = 0;
   a.cap = 0;

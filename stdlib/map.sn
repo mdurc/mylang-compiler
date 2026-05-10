@@ -1,4 +1,4 @@
-#include "memory.sn"
+#include "runtime.sn"
 #include "string.sn"
 
 struct map_entry_t {
@@ -30,7 +30,7 @@ func map_init(mut initial_capacity: i64) returns (m: map_t) {
   if (initial_capacity <= 0) { initial_capacity = 16; }
 
   // ensure all 'occupied' booleans start as false
-  mut entries := cast<ptr<mut map_entry_t> >(malloc(initial_capacity * sizeof<map_entry_t>));
+  mut entries := cast<ptr<mut map_entry_t>>(malloc(initial_capacity * sizeof<map_entry_t>));
   for (mut i := 0; i < initial_capacity; i = i + 1) {
     entries[i].occupied = false;
   }
@@ -67,7 +67,7 @@ func map_put(m: ptr<mut map_t>, key: string, value: ptr<mut u0>) {
   // resize if load factor exceeds 50%
   if (m.len * 2 >= m.cap) {
     new_cap := m.cap * 2;
-    mut new_entries := cast<ptr<mut map_entry_t> >(malloc(new_cap * sizeof<map_entry_t>));
+    mut new_entries := cast<ptr<mut map_entry_t>>(malloc(new_cap * sizeof<map_entry_t>));
 
     // initialize new array
     for (mut i := 0; i < new_cap; i = i + 1) {
@@ -114,7 +114,7 @@ func map_keys(m: ptr<imm map_t>) returns (keys: ptr<mut string>) {
 
   // 8 bytes per string pointer
   mut raw := malloc(m.len * 8);
-  mut key_array := cast<ptr<mut string> >(raw);
+  mut key_array := cast<ptr<mut string>>(raw);
   mut current_idx := 0;
   for (mut i := 0; i < m.cap; i = i + 1) {
     if (m.entries[i].occupied) {

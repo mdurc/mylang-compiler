@@ -26,7 +26,7 @@ func read_file(path: string) returns (content: ptr<mut u8>) {
   sys_lseek(fd, 0, 0 /* SEEK_SET */);
 
   // +1 for null byte
-  mut buffer := cast<ptr<mut u8> >(malloc(size + 1));
+  mut buffer := cast<ptr<mut u8>>(malloc(size + 1));
 
   sys_read(fd, buffer, size);
   sys_close(fd);
@@ -41,7 +41,7 @@ func write_file(path: string, content: string, length: i64) returns (success: bo
   mut fd := sys_open(path, 1537, 420);
   if (fd < 0) { return false; }
 
-  mut written := sys_write(fd, cast<ptr<imm u8> >(content), length);
+  mut written := sys_write(fd, cast<ptr<imm u8>>(content), length);
   sys_close(fd);
 
   return written == length;

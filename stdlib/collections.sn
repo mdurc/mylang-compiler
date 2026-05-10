@@ -1,7 +1,7 @@
-#include "memory.sn"
+#include "runtime.sn"
 
 struct stack_t {
-  data: ptr<mut ptr<mut u0> >,
+  data: ptr<mut ptr<mut u0>>,
   len: i64,
   cap: i64
 }
@@ -10,7 +10,7 @@ func stack_init(mut initial_capacity: i64) returns (s: stack_t) {
   if (initial_capacity <= 0) { initial_capacity = 16; }
   mut raw := malloc(initial_capacity * 8);
   return stack_t {
-    data = cast<ptr<mut ptr<mut u0> > >(raw),
+    data = cast<ptr<mut ptr<mut u0>>>(raw),
     len = 0,
     cap = initial_capacity
   };
@@ -21,9 +21,9 @@ func stack_push(s: ptr<mut stack_t>, item: ptr<mut u0>) {
   if (s.len >= s.cap) {
     s.cap = s.cap * 2;
     mut raw := malloc(s.cap * 8);
-    memcpy(raw, cast<ptr<imm u0> >(s.data), s.len * 8);
-    free cast<ptr<mut u0> >(s.data);
-    s.data = cast<ptr<mut ptr<mut u0> > >(raw);
+    memcpy(raw, cast<ptr<imm u0>>(s.data), s.len * 8);
+    free cast<ptr<mut u0>>(s.data);
+    s.data = cast<ptr<mut ptr<mut u0>>>(raw);
   }
   s.data[s.len] = item;
   s.len = s.len + 1;
@@ -43,7 +43,7 @@ func stack_peek(s: ptr<imm stack_t>) returns (item: ptr<mut u0>) {
 func stack_destroy(s: ptr<mut stack_t>) {
   if (s == null) { return; }
   if (s.data != null) {
-    free cast<ptr<mut u0> >(s.data);
+    free cast<ptr<mut u0>>(s.data);
     s.data = null;
   }
   s.len = 0;
@@ -71,7 +71,7 @@ func queue_init() returns (q: queue_t) {
 
 func queue_push(q: ptr<mut queue_t>, item: ptr<mut u0>) {
   if (q == null) { return; }
-  mut new_node := cast<ptr<mut queue_node_t> >(malloc(sizeof<queue_node_t>));
+  mut new_node := cast<ptr<mut queue_node_t>>(malloc(sizeof<queue_node_t>));
   new_node.item = item;
   new_node.next = null;
 
@@ -95,7 +95,7 @@ func queue_pop(q: ptr<mut queue_t>) returns (item: ptr<mut u0>) {
     q.tail = null;
   }
 
-  free cast<ptr<mut u0> >(old_head);
+  free cast<ptr<mut u0>>(old_head);
   q.len = q.len - 1;
   return extracted_item;
 }
@@ -111,7 +111,7 @@ func queue_destroy(q: ptr<mut queue_t>) {
   mut current := q.head;
   while (current != null) {
     mut next_node := current.next;
-    free cast<ptr<mut u0> >(current);
+    free cast<ptr<mut u0>>(current);
     current = next_node;
   }
 

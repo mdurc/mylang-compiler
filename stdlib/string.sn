@@ -1,10 +1,5 @@
-#include "memory.sn"
+#include "runtime.sn"
 
-extern func print_char(fd: i64, c: u8);
-extern func string_length(s: string) returns (len: i64);
-extern func string_equals(a: string, b: string) returns (is_eq: bool);
-extern func string_copy(src: string) returns (copy: string);
-extern func string_concat(a: string, b: string) returns (new_str: string);
 extern func clrscr();
 
 func substring(str: string, mut start: i64, mut length: i64) returns (sub: string) {
@@ -16,8 +11,8 @@ func substring(str: string, mut start: i64, mut length: i64) returns (sub: strin
 
   if (start + length > sz) { length = sz - start; }
 
-  mut dst := cast<ptr<mut u8> >(malloc(length + 1));
-  memcpy(cast<ptr<mut u0> >(dst), cast<ptr<imm u0> >(str + start), length);
+  mut dst := cast<ptr<mut u8>>(malloc(length + 1));
+  memcpy(cast<ptr<mut u0>>(dst), cast<ptr<imm u0>>(str + start), length);
   *(dst + length) = 0;
 
   return cast<string>(dst);

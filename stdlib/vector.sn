@@ -1,8 +1,8 @@
-#include "memory.sn"
+#include "runtime.sn"
 
 /* dynamic array that stores void pointers (ptr<mut u0>) */
 struct vector_t {
-  data: ptr<mut ptr<mut u0> >,
+  data: ptr<mut ptr<mut u0>>,
   len: i64,
   cap: i64
 }
@@ -13,7 +13,7 @@ func vector_init(mut initial_capacity: i64) returns (vec: vector_t) {
   // array of ptrs
   mut raw := malloc(initial_capacity * 8);
   return vector_t {
-    data = cast<ptr<mut ptr<mut u0> > >(raw),
+    data = cast<ptr<mut ptr<mut u0>>>(raw),
     len = 0,
     cap = initial_capacity
   };
@@ -26,10 +26,10 @@ func vector_push(vec: ptr<mut vector_t>, item: ptr<mut u0>) {
     vec.cap = vec.cap * 2;
 
     raw := malloc(vec.cap * 8);
-    memcpy(raw, cast<ptr<imm u0> >(vec.data), vec.len * 8);
+    memcpy(raw, cast<ptr<imm u0>>(vec.data), vec.len * 8);
     free vec.data;
 
-    vec.data = cast<ptr<mut ptr<mut u0> > >(raw);
+    vec.data = cast<ptr<mut ptr<mut u0>>>(raw);
   }
   vec.data[vec.len] = item;
   vec.len = vec.len + 1;
