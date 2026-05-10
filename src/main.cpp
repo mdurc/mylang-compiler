@@ -10,6 +10,7 @@
 static void usage() {
   std::cerr << "Usage: ./a.out        \n"
             << "       [ --track-memory              ]\n"
+            << "       [ --freestanding              ]\n"
             << "       [ --target=<macos|linux>      ]\n"
             << "       [ --arch=<x86_64|aarch64>     ]\n"
             << "       [ --tokens <infile> <outfile> ]\n"
@@ -28,6 +29,7 @@ int main(int argc, char** argv) {
   TargetOS target = DEFAULT_TARGET_OS;
   TargetArch arch = DEFAULT_TARGET_ARCH;
   bool track_memory = false;
+  bool freestanding = false;
 
   std::vector<std::string> args;
   args.push_back(argv[0]);
@@ -37,6 +39,8 @@ int main(int argc, char** argv) {
     std::string arg = argv[i];
     if (arg == "--track-memory") {
       track_memory = true;
+    } else if (arg == "--freestanding") {
+      freestanding = true;
     } else if (arg.find("--target=") == 0) {
       if (arg == "--target=linux") {
         target = TargetOS::Linux;
@@ -64,7 +68,7 @@ int main(int argc, char** argv) {
 
   std::string initial_arg = args[1];
   if (initial_arg == "--repl") {
-    drive(initial_arg, "", "", target, arch, track_memory);
+    drive(initial_arg, "", "", target, arch, track_memory, freestanding);
     return EXIT_SUCCESS;
   }
 
@@ -94,7 +98,7 @@ int main(int argc, char** argv) {
     }
 
     // std::cerr << "arg: " << arg << ", to " << infile << " -> " << outfile << "\n";
-    if (!drive(arg, infile, outfile, target, arch, track_memory)) {
+    if (!drive(arg, infile, outfile, target, arch, track_memory, freestanding)) {
       return EXIT_FAILURE;
     }
   }

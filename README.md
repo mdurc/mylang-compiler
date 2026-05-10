@@ -62,6 +62,8 @@ As described in my focuses in this project, I wanted to be able to inspect the o
 --track-memory  : Output a heap summary to stderr upon exit
 * Because this compiler uses a custom, embedded runtime library instead of linking against libc, it includes a built-in memory tracker.
 
+--freestanding  : Doesn't inject RUNTIME_ASM library that contains macOS/Linux syscalls, and doesn't include _start procedure
+
 --target=macos  : Force Mach-O/Darwin ABI (default for macOS)
 --target=linux  : Force ELF/SYSV ABI (default for Linux)
 --target=aarch64  : Target ARM64 architecture (default for Apple Silicon)

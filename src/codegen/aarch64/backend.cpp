@@ -7,10 +7,11 @@
 static size_t get_align(size_t s) { return ((s + 15) & ~15); }
 // static bool is_imm(const IROperand& op) { return std::holds_alternative<IR_Immediate>(op); }
 
-AArch64CodeGenerator::AArch64CodeGenerator(Logger* logger, TargetOS target, bool track_memory)
+AArch64CodeGenerator::AArch64CodeGenerator(Logger* logger, TargetOS target, bool track_memory, bool freestanding)
     : m_logger(logger),
       m_target(target),
       m_track_memory(track_memory),
+      m_freestanding(freestanding),
       m_global_var_alloc(0),
       m_string_count(0) {
   _assert(Type::PTR_SIZE == 8, "ptr size is expected to be 8 bytes for aarch64");
@@ -329,34 +330,38 @@ std::string AArch64CodeGenerator::generate_assembly(const std::vector<IRInstruct
   }
 
   emit_program_header();
-  handle_begin_func(IRInstruction(IROpCode::BEGIN_FUNC, IR_Label("_start"), {}));
 
-  if (m_target == TargetOS::MacOS) {
-    emit("str x0, [x29, #-8]  // save argc");
-    emit("str x1, [x29, #-16] // save argv");
-  } else {
-    emit("ldr x0, [x29, #16]  // grab argc");
-    emit("str x0, [x29, #-8]  // save argc");
-    emit("add x1, x29, #24    // grab address of argv");
-    emit("str x1, [x29, #-16] // save argv");
+  // only process start function if we are not freestanding
+  if (!m_freestanding) {
+    handle_begin_func(IRInstruction(IROpCode::BEGIN_FUNC, IR_Label("_start"), {}));
+
+    if (m_target == TargetOS::MacOS) {
+      emit("str x0, [x29, #-8]  // save argc");
+      emit("str x1, [x29, #-16] // save argv");
+    } else {
+      emit("ldr x0, [x29, #16]  // grab argc");
+      emit("str x0, [x29, #-8]  // save argc");
+      emit("add x1, x29, #24    // grab address of argv");
+      emit("str x1, [x29, #-16] // save argv");
+    }
+
+    m_ctx.stack_offset += 16;
+    // emit the top level instructions only, within _start procedure
+    for (const IRInstruction& instr : top_level) {
+      handle_instruction(instr);
+    }
+
+    if (is_main_defined) {
+      emit("ldr x0, [x29, #-8]  // restore argc");
+      emit("ldr x1, [x29, #-16] // restore argv");
+      emit("bl main");
+      emit("and x0, x0, #0xFF // enforce 8-bit POSIX exit code truncation");
+    } else {
+      emit("mov x0, #0 // default exit code");
+    }
+
+    handle_end_func(true);
   }
-
-  // emit the top level instructions only, within _start procedure
-  m_ctx.stack_offset += 16;
-  for (const IRInstruction& instr : top_level) {
-    handle_instruction(instr);
-  }
-
-  if (is_main_defined) {
-    emit("ldr x0, [x29, #-8]  // restore argc");
-    emit("ldr x1, [x29, #-16] // restore argv");
-    emit("bl main");
-    emit("and x0, x0, #0xFF // enforce 8-bit POSIX exit code truncation");
-  } else {
-    emit("mov x0, #0 // default exit code");
-  }
-
-  handle_end_func(true);
 
   // process all functions underneath the top level instructions
   for (const auto& instr : functions) {
@@ -368,19 +373,22 @@ std::string AArch64CodeGenerator::generate_assembly(const std::vector<IRInstruct
 }
 
 void AArch64CodeGenerator::emit_program_header() {
-  m_out << "  .global _start\n";
   m_out << "  .align 2\n\n";
 
-  /* insert asm runtime library */
-  if (m_target == TargetOS::MacOS) {
-    m_out << ".set TARGET_MACOS, 1\n";
-  } else if (m_target == TargetOS::Linux) {
-    m_out << ".set TARGET_LINUX, 1\n";
+  if (!m_freestanding) {
+    m_out << "  .global _start\n";
+
+    /* insert asm runtime library */
+    if (m_target == TargetOS::MacOS) {
+      m_out << ".set TARGET_MACOS, 1\n";
+    } else if (m_target == TargetOS::Linux) {
+      m_out << ".set TARGET_LINUX, 1\n";
+    }
+    if (m_track_memory) {
+      m_out << ".set TRACK_MEMORY, 1\n\n";
+    }
+    m_out << RUNTIME_ASM << "\n";
   }
-  if (m_track_memory) {
-    m_out << ".set TRACK_MEMORY, 1\n\n";
-  }
-  m_out << RUNTIME_ASM << "\n";
 
   m_out << "  .text\n";
   // _start can now begin emitting here

@@ -710,9 +710,46 @@ sys_munmap:
   EXEC_SYSCALL SYS_MUNMAP
   ret
 
+// for runtime implementation in mylang
+.global track_alloc
+track_alloc:
+.ifdef TRACK_MEMORY
+  LOAD_ADDR x8, _mem_alloc_count
+  ldr x9, [x8]
+  add x9, x9, #1
+  str x9, [x8]
+
+  LOAD_ADDR x8, _mem_active_bytes
+  ldr x9, [x8]
+  add x9, x9, x0
+  str x9, [x8]
+.endif
+  ret
+
+.global track_free
+track_free:
+.ifdef TRACK_MEMORY
+  LOAD_ADDR x8, _mem_free_count
+  ldr x9, [x8]
+  add x9, x9, #1
+  str x9, [x8]
+
+  LOAD_ADDR x8, _mem_active_bytes
+  ldr x9, [x8]
+  sub x9, x9, x0
+  str x9, [x8]
+.endif
+  ret
+
+.global get_print_buffer
+get_print_buffer:
+  LOAD_ADDR x0, print_buffer
+  ret
+
 // data section
 .data
 .align 3
+print_buffer: .space 32
 clr_scr_str: .ascii "\033[2J\033[H"
 free_err_msg: .asciz "[ASM Error] Invalid free of memory not allocated by 'malloc' / not 16-byte aligned\n"
 

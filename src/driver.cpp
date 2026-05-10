@@ -96,7 +96,7 @@ static void assemble_and_link(const std::string& asm_code, const std::string& ou
 
 static bool run_pipeline(TargetStage stage, const std::string& infile,
                          std::ostream& out, const std::string& exe_out,
-                         TargetOS target, TargetArch arch, bool track_memory) {
+                         TargetOS target, TargetArch arch, bool track_memory, bool freestanding) {
   Logger logger;
   SourceLoader loader(&logger);
 
@@ -157,10 +157,10 @@ static bool run_pipeline(TargetStage stage, const std::string& infile,
     // ASM generation
     std::string asm_code;
     if (arch == TargetArch::X86_64) {
-      X86_64CodeGenerator backend(&logger, target, track_memory);
+      X86_64CodeGenerator backend(&logger, target, track_memory, freestanding);
       asm_code = backend.generate(ir_visitor.get_instructions(), ir_visitor.is_main_defined());
     } else if (arch == TargetArch::AArch64) {
-      AArch64CodeGenerator backend(&logger, target, track_memory);
+      AArch64CodeGenerator backend(&logger, target, track_memory, freestanding);
       asm_code = backend.generate(ir_visitor.get_instructions(), ir_visitor.is_main_defined());
     }
     check_diags();
@@ -209,8 +209,8 @@ static bool run_pipeline(TargetStage stage, const std::string& infile,
   return false;
 }
 
-bool drive(const std::string& arg, const std::string& infile, const std::string& outfile, TargetOS target, TargetArch arch, bool track_memory) {
-  if (arg == "--repl") { run_repl(target, arch, track_memory); return true; }
+bool drive(const std::string& arg, const std::string& infile, const std::string& outfile, TargetOS target, TargetArch arch, bool track_memory, bool freestanding) {
+  if (arg == "--repl") { run_repl(target, arch, track_memory, freestanding); return true; }
 
   TargetStage stage;
   if (arg == "--tokens") stage = TargetStage::TOKENS;
@@ -223,14 +223,14 @@ bool drive(const std::string& arg, const std::string& infile, const std::string&
   else return false;
 
   if (stage == TargetStage::EXE) {
-    return run_pipeline(stage, infile, std::cout, outfile.empty() ? "a.out": outfile, target, arch, track_memory);
+    return run_pipeline(stage, infile, std::cout, outfile.empty() ? "a.out": outfile, target, arch, track_memory, freestanding);
   }
 
   if (outfile.empty()) {
-    return run_pipeline(stage, infile, std::cout, "", target, arch, track_memory);
+    return run_pipeline(stage, infile, std::cout, "", target, arch, track_memory, freestanding);
   } else {
     std::ofstream out(outfile);
-    bool ret = run_pipeline(stage, infile, out, "", target, arch, track_memory);
+    bool ret = run_pipeline(stage, infile, out, "", target, arch, track_memory, freestanding);
     out.close();
     return ret;
   }
@@ -255,7 +255,7 @@ static std::string join_lines(const std::vector<std::string>& lines) {
   return ss.str();
 }
 
-void run_repl(TargetOS target, TargetArch arch, bool track_memory) {
+void run_repl(TargetOS target, TargetArch arch, bool track_memory, bool freestanding) {
   std::string line;
   std::vector<std::string> lines;
   bool in_multiline = false;
@@ -296,7 +296,7 @@ void run_repl(TargetOS target, TargetArch arch, bool track_memory) {
         continue;
       }
       std::string temp_input = make_temp(join_lines(lines));
-      drive("--" + line, temp_input, "", target, arch, track_memory);
+      drive("--" + line, temp_input, "", target, arch, track_memory, freestanding);
       std::remove(temp_input.c_str());
       continue;
     }
@@ -311,7 +311,7 @@ void run_repl(TargetOS target, TargetArch arch, bool track_memory) {
       std::string temp_exe = "/tmp/repl_temp_" + pid + ".tmp.exe";
       std::string temp_input = make_temp(join_lines(lines));
 
-      if (drive("--exe", temp_input, temp_exe, target, arch, track_memory)) {
+      if (drive("--exe", temp_input, temp_exe, target, arch, track_memory, freestanding)) {
         int result = std::system(temp_exe.c_str());
         if (result != 0) std::cout << "Program exited with code " << result << "\n";
         std::remove(temp_exe.c_str());

@@ -608,7 +608,27 @@ sys_munmap:
   EXEC_SYSCALL SYS_MUNMAP
   ret
 
+; for runtime implementation in mylang
+track_alloc:
+%ifdef TRACK_MEMORY
+  inc QWORD[rel _mem_alloc_count]
+  add QWORD[rel _mem_active_bytes], rdi
+%endif
+  ret
+
+track_free:
+%ifdef TRACK_MEMORY
+  inc QWORD[rel _mem_free_count]
+  sub QWORD[rel _mem_active_bytes], rdi
+%endif
+  ret
+
+get_print_buffer:
+  lea rax, [rel print_buffer]
+  ret
+
 section .data
+  print_buffer: times 32 db 0
   clr_scr: db 0x1B, '[', '2', 'J', 0x1B, '[', 'H'  ; "\x1B[2J\x1B[H"
   free_err: db "[ASM Error] Invalid free of memory not allocated by 'malloc' / not 16-byte aligned", 10, 0
 %ifdef TRACK_MEMORY

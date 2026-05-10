@@ -24,7 +24,7 @@ struct X86Operand {
 
 class X86_64CodeGenerator {
 public:
-  X86_64CodeGenerator(Logger* logger, TargetOS target, bool track_memory);
+  X86_64CodeGenerator(Logger* logger, TargetOS target, bool track_memory, bool freestanding);
 
   std::string generate(const std::vector<IRInstruction>& instructions, bool is_main_defined);
 
@@ -32,6 +32,7 @@ private:
   Logger* m_logger;
   TargetOS m_target;
   bool m_track_memory;
+  bool m_freestanding;
   std::ostringstream m_out;
 
   /* global state (.data, .bss) */

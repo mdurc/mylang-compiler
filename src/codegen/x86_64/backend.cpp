@@ -10,10 +10,11 @@
 static size_t get_align(size_t s) { return ((s + 15) & ~15); }
 static bool is_imm(IROperand op) { return std::holds_alternative<IR_Immediate>(op); }
 
-X86_64CodeGenerator::X86_64CodeGenerator(Logger* logger, TargetOS target, bool track_memory)
+X86_64CodeGenerator::X86_64CodeGenerator(Logger* logger, TargetOS target, bool track_memory, bool freestanding)
     : m_logger(logger),
       m_target(target),
       m_track_memory(track_memory),
+      m_freestanding(freestanding),
       m_global_var_alloc(0),
       m_string_count(0) {
   _assert(Type::PTR_SIZE == 8, "ptr size is expected to be 8 bytes for x86_64");
@@ -415,39 +416,42 @@ std::string X86_64CodeGenerator::generate_assembly(const std::vector<IRInstructi
   }
 
   emit_program_header();
-  handle_begin_func(IRInstruction(IROpCode::BEGIN_FUNC, IR_Label("_start"), {}));
 
-  m_ctx.stack_offset += 16;
+  // only process start function if we are not freestanding
+  if (!m_freestanding) {
+    handle_begin_func(IRInstruction(IROpCode::BEGIN_FUNC, IR_Label("_start"), {}));
 
-  // OS-Specific entrypoint for command-line arguments
-  if (m_target == TargetOS::MacOS) {
-    emit("mov [rbp-8], rdi ; save argc (provided by MacOS CRT)");
-    emit("mov [rbp-16], rsi ; save argv (provided by MacOS CRT)");
-  } else {
-    // linux kernel places argc at [rsp] before _start.
-    // after our `sub rsp, 8` and `push rbp`, argc is at [rbp+16]
-    emit("mov rdi, [rbp+16] ; grab argc (provided by linux kernal on stack)");
-    emit("mov [rbp-8], rdi ; save argc");
-    emit("lea rsi, [rbp+24] ; grab address of argv array");
-    emit("mov [rbp-16], rsi ; save argv");
+    // OS-Specific entrypoint for command-line arguments
+    if (m_target == TargetOS::MacOS) {
+      emit("mov [rbp-8], rdi ; save argc (provided by MacOS CRT)");
+      emit("mov [rbp-16], rsi ; save argv (provided by MacOS CRT)");
+    } else {
+      // linux kernel places argc at [rsp] before _start.
+      // after our `sub rsp, 8` and `push rbp`, argc is at [rbp+16]
+      emit("mov rdi, [rbp+16] ; grab argc (provided by linux kernal on stack)");
+      emit("mov [rbp-8], rdi ; save argc");
+      emit("lea rsi, [rbp+24] ; grab address of argv array");
+      emit("mov [rbp-16], rsi ; save argv");
+    }
+
+    m_ctx.stack_offset += 16;
+    // emit the top level instructions only, within _start procedure
+    for (const IRInstruction& instr : top_level) {
+      handle_instruction(instr);
+    }
+
+    if (is_main_defined) {
+      emit("mov rdi, [rbp-8] ; restore argc -> 1st arg for main");
+      emit("mov rsi, [rbp-16] ; restore argv -> 2nd arg for main");
+      emit("call main");
+      emit("mov rdi, rax ; main's return value as exit code");
+      emit("and rdi, 255 ; enforce 8-bit POSIX exit code truncation");
+    } else {
+      emit("mov rdi, 0 ; default exit code");
+    }
+
+    handle_end_func(true);
   }
-
-  // emit the top level instructions only, within _start procedure
-  for (const IRInstruction& instr : top_level) {
-    handle_instruction(instr);
-  }
-
-  if (is_main_defined) {
-    emit("mov rdi, [rbp-8] ; restore argc -> 1st arg for main");
-    emit("mov rsi, [rbp-16] ; restore argv -> 2nd arg for main");
-    emit("call main");
-    emit("mov rdi, rax ; main's return value as exit code");
-    emit("and rdi, 255 ; enforce 8-bit POSIX exit code truncation");
-  } else {
-    emit("mov rdi, 0 ; default exit code");
-  }
-
-  handle_end_func(true);
 
   // process all functions underneath the top level instructions
   for (const auto& instr : functions) {
@@ -460,18 +464,21 @@ std::string X86_64CodeGenerator::generate_assembly(const std::vector<IRInstructi
 
 void X86_64CodeGenerator::emit_program_header() {
   m_out << "default rel\n";
-  m_out << "global _start\n\n";
 
-  /* insert asm runtime library */
-  if (m_target == TargetOS::MacOS) {
-    m_out << "%define TARGET_MACOS\n";
-  } else if (m_target == TargetOS::Linux) {
-    m_out << "%define TARGET_LINUX\n";
+  if (!m_freestanding) {
+    m_out << "global _start\n\n";
+
+    /* insert asm runtime library */
+    if (m_target == TargetOS::MacOS) {
+      m_out << "%define TARGET_MACOS\n";
+    } else if (m_target == TargetOS::Linux) {
+      m_out << "%define TARGET_LINUX\n";
+    }
+    if (m_track_memory) {
+      m_out << "%define TRACK_MEMORY\n\n";
+    }
+    m_out << RUNTIME_ASM << "\n";
   }
-  if (m_track_memory) {
-    m_out << "%define TRACK_MEMORY\n\n";
-  }
-  m_out << RUNTIME_ASM << "\n";
 
   m_out << "section .text\n";
   // _start can now begin emitting here
