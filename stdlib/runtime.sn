@@ -216,7 +216,7 @@ func malloc(mut size: i64) returns (p: ptr<mut u0>) {
 
   // write signature (0xDEADC0DEDEADC0DE) at offset 0
   mut header := cast<ptr<mut u64>>(raw);
-  mut sig1 : u64 = 3735928542; // 0xDEADC0DE
+  mut sig1 : u64 = 3735929054; // 0xDEADC0DE
   mut sig := (sig1 << cast<u64>(32)) | sig1;
 
   header[0] = sig;
@@ -233,7 +233,7 @@ func memory_free(p: ptr<mut u0>) {
   mut raw := cast<ptr<mut u8>>(p) - 16;
   mut header := cast<ptr<mut u64>>(raw);
 
-  mut sig1 : u64 = 3735928542; // 0xDEADC0DE
+  mut sig1 : u64 = 3735929054; // 0xDEADC0DE
   mut expected_sig := (sig1 << cast<u64>(32)) | sig1;
 
   if (header[0] != expected_sig) {
