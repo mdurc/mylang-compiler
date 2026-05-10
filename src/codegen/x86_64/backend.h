@@ -69,6 +69,7 @@ private:
   std::string get_sized_register_name(const std::string& reg64_name, std::uint64_t size);
   std::string get_size_prefix(std::uint64_t size);
   X86Operand get_x86_operand(const IROperand& operand, std::uint64_t size);
+  std::string safeguard_64bit_imm(bool is_imm_val, const std::string& op_str, std::uint64_t size);
 
   /* assembly emission */
   void emit(const std::string& instruction);

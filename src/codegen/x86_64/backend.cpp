@@ -347,6 +347,16 @@ X86Operand X86_64CodeGenerator::get_x86_operand(const IROperand& operand, std::u
   return op;
 }
 
+std::string X86_64CodeGenerator::safeguard_64bit_imm(bool is_imm_val, const std::string& op_str, std::uint64_t size) {
+  // x86-64 cannot use 64-bit immediates directly in memory moves or ALU ops.
+  if (is_imm_val && size == 8) {
+    std::string temp = get_temp_phys_reg(Type::PTR_SIZE);
+    emit("mov " + temp + ", " + op_str);
+    return temp;
+  }
+  return op_str;
+}
+
 void X86_64CodeGenerator::emit(const std::string& instruction) {
   if (!m_call_stack.empty()) {
     m_call_stack.top().arg_instrs.push_back(instruction);
@@ -389,7 +399,11 @@ void X86_64CodeGenerator::emit_mem_safe_op(const std::string& opcode, const X86O
     emit(get_mov_instr(temp, src.str, false, size));     // safely handles movzx for < 4 bytes
     emit(opcode + " " + dst.str + ", " + get_sized_register_name(temp, size));
   } else {
-    emit(opcode + " " + dst.str + ", " + src.str);
+    std::string safe_src = src.str;
+    if (opcode != "mov" || dst.is_mem) {
+      safe_src = safeguard_64bit_imm(src.is_imm, src.str, size);
+    }
+    emit(opcode + " " + dst.str + ", " + safe_src);
   }
 }
 
@@ -707,7 +721,8 @@ void X86_64CodeGenerator::handle_assign(const IRInstruction& instr) {
       emit(get_mov_instr(temp, src_op.str, false, src_size));
       emit("mov " + dst_op.str + ", " + get_sized_register_name(temp, dst_size));
     } else {
-      emit("mov " + dst_op.str + ", " + src_op.str);
+      std::string safe_src = safeguard_64bit_imm(src_op.is_imm, src_op.str, dst_size);
+      emit("mov " + dst_op.str + ", " + safe_src);
     }
   }
 }
@@ -727,6 +742,7 @@ void X86_64CodeGenerator::handle_prim_binop(const std::string& x86_instr,
 
   if (x86_instr != "imul" || instr.size == Type::PTR_SIZE) {
     src2_str = get_sized_component(instr.operands[1], instr.size);
+    src2_str = safeguard_64bit_imm(is_imm(instr.operands[1]), src2_str, instr.size);
     emit(x86_instr + " " + dst_str + ", " + src2_str);
   } else {
     // imul of non-8 byte instruction
@@ -866,6 +882,8 @@ void X86_64CodeGenerator::handle_logical_and_or(
   std::string src2_str = get_sized_component(instr.operands[1], instr.size);
 
   emit(get_mov_instr(dst_reg, src1_str, is_imm(instr.operands[0]), instr.size));
+
+  src2_str = safeguard_64bit_imm(is_imm(instr.operands[1]), src2_str, instr.size);
   emit(op_mnemonic + " " + dst_str + ", " + src2_str);
 }
 
@@ -1114,6 +1132,8 @@ void X86_64CodeGenerator::handle_store(const IRInstruction& instr) {
     std::string temp_val = get_temp_phys_reg(Type::PTR_SIZE);
     emit(get_mov_instr(temp_val, src_val_str, false, instr.size));
     src_val_str = get_sized_register_name(temp_val, instr.size);
+  } else {
+    src_val_str = safeguard_64bit_imm(src_val_op.is_imm, src_val_str, instr.size);
   }
 
   emit("mov " + get_size_prefix(instr.size) + " [" + dst_addr_str + "], " +
