@@ -331,7 +331,8 @@ std::string AArch64CodeGenerator::generate_assembly(const std::vector<IRInstruct
 
   emit_program_header();
 
-  // only process start function if we are not freestanding
+  // only process start function if we are not freestanding.
+  // note that we also won't process global instructions in freestanding mode.
   if (!m_freestanding) {
     handle_begin_func(IRInstruction(IROpCode::BEGIN_FUNC, IR_Label("_start"), {}));
 
@@ -375,42 +376,50 @@ std::string AArch64CodeGenerator::generate_assembly(const std::vector<IRInstruct
 void AArch64CodeGenerator::emit_program_header() {
   m_out << "  .align 2\n\n";
 
-  if (!m_freestanding) {
-    m_out << "  .global _start\n";
+  // if we are freestanding, we don't want to inject the
+  //  runtime ASM, or specify any sections
+  if (m_freestanding) return;
 
-    /* insert asm runtime library */
-    if (m_target == TargetOS::MacOS) {
-      m_out << ".set TARGET_MACOS, 1\n";
-    } else if (m_target == TargetOS::Linux) {
-      m_out << ".set TARGET_LINUX, 1\n";
-    }
-    if (m_track_memory) {
-      m_out << ".set TRACK_MEMORY, 1\n\n";
-    }
-    m_out << RUNTIME_ASM << "\n";
+  m_out << "  .global _start\n";
+
+  /* insert asm runtime library */
+  if (m_target == TargetOS::MacOS) {
+    m_out << ".set TARGET_MACOS, 1\n";
+  } else if (m_target == TargetOS::Linux) {
+    m_out << ".set TARGET_LINUX, 1\n";
   }
+  if (m_track_memory) {
+    m_out << ".set TRACK_MEMORY, 1\n\n";
+  }
+  m_out << RUNTIME_ASM << "\n";
 
   m_out << "  .text\n";
   // _start can now begin emitting here
 }
 
 void AArch64CodeGenerator::emit_program_footer() {
-  m_out << "\n  .data\n";
-  for (const std::string& str : m_string_literals_data) {
-    m_out << m_string_literal_to_label.at(str) << ":\n";
-    m_out << "  .asciz \"";
-    for (char c : str) {
-      if (c == '"') m_out << "\\\"";
-      else if (c == '\n') m_out << "\\n";
-      else if (c == '\t') m_out << "\\t";
-      else if (c == '\\') m_out << "\\\\";
-      else m_out << c;
+  if (!m_string_literals_data.empty()) {
+    if (!m_freestanding) {
+      m_out << "\n  .data\n";
     }
-    m_out << "\"\n";
+    for (const std::string& str : m_string_literals_data) {
+      m_out << m_string_literal_to_label.at(str) << ":\n";
+      m_out << "  .asciz \"";
+      for (char c : str) {
+        if (c == '"') m_out << "\\\"";
+        else if (c == '\n') m_out << "\\n";
+        else if (c == '\t') m_out << "\\t";
+        else if (c == '\\') m_out << "\\\\";
+        else m_out << c;
+      }
+      m_out << "\"\n";
+    }
   }
 
   if (m_global_var_alloc > 0) {
-    m_out << "  .bss\n";
+    if (!m_freestanding) {
+      m_out << "  .bss\n";
+    }
     m_out << "  .align 3\n";
     m_out << "global_vars: .space " << std::to_string(get_align(m_global_var_alloc)) << "\n";
   }

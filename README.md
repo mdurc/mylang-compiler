@@ -60,23 +60,26 @@ As described in my focuses in this project, I wanted to be able to inspect the o
 ./compiler_build_files/mycompiler [target] [stage] <input.sn> [output_file]
 
 --track-memory  : Output a heap summary to stderr upon exit
-* Because this compiler uses a custom, embedded runtime library instead of linking against libc, it includes a built-in memory tracker.
+    * Because this compiler uses a custom, embedded runtime library instead of linking against libc, it includes a built-in memory tracker.
 
---freestanding  : Doesn't inject RUNTIME_ASM library that contains macOS/Linux syscalls, and doesn't include _start procedure
+--freestanding  : Doesn't inject RUNTIME_ASM library that contains macOS/Linux syscalls, doesn't include _start procedure, doesn't include sections for memory protection
+    * ./compiler_build_files/mycompiler --freestanding --asm tfile.sn tfile.sn.asm
 
 --target=macos  : Force Mach-O/Darwin ABI (default for macOS)
 --target=linux  : Force ELF/SYSV ABI (default for Linux)
---target=aarch64  : Target ARM64 architecture (default for Apple Silicon)
---target=x86_64   : Target x86-64 architecture
+--arch=aarch64  : Target ARM64 architecture (default for Apple Silicon)
+--arch=x86_64   : Target x86-64 architecture
 
 --tokens: Output lexer tokens.
 --ast: Output the Abstract Syntax Tree.
 --symtab: Output the Symbol Table.
 --ir: Output the 3-Address Code Intermediate Representation.
 --asm: Output the generated NASM assembly.
+
 --exe: Compile, assemble, and link into an executable.
-       * a.out: Mach-O 64-bit executable x86_64
-       * a.out: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), statically linked not, stripped
+    * a.out: Mach-O 64-bit executable x86_64
+    * a.out: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), statically linked not, stripped
+
 --json: Export compiler data for the LSP.
 --repl: Start an interactive REPL. (MacOS only)
 ```

@@ -431,7 +431,8 @@ std::string X86_64CodeGenerator::generate_assembly(const std::vector<IRInstructi
 
   emit_program_header();
 
-  // only process start function if we are not freestanding
+  // only process start function if we are not freestanding.
+  // note that we also won't process global instructions in freestanding mode.
   if (!m_freestanding) {
     handle_begin_func(IRInstruction(IROpCode::BEGIN_FUNC, IR_Label("_start"), {}));
 
@@ -479,20 +480,22 @@ std::string X86_64CodeGenerator::generate_assembly(const std::vector<IRInstructi
 void X86_64CodeGenerator::emit_program_header() {
   m_out << "default rel\n";
 
-  if (!m_freestanding) {
-    m_out << "global _start\n\n";
+  // if we are freestanding, we don't want to inject the
+  //  runtime ASM, or specify any sections
+  if (m_freestanding) return;
 
-    /* insert asm runtime library */
-    if (m_target == TargetOS::MacOS) {
-      m_out << "%define TARGET_MACOS\n";
-    } else if (m_target == TargetOS::Linux) {
-      m_out << "%define TARGET_LINUX\n";
-    }
-    if (m_track_memory) {
-      m_out << "%define TRACK_MEMORY\n\n";
-    }
-    m_out << RUNTIME_ASM << "\n";
+  m_out << "global _start\n\n";
+
+  /* insert asm runtime library */
+  if (m_target == TargetOS::MacOS) {
+    m_out << "%define TARGET_MACOS\n";
+  } else if (m_target == TargetOS::Linux) {
+    m_out << "%define TARGET_LINUX\n";
   }
+  if (m_track_memory) {
+    m_out << "%define TRACK_MEMORY\n\n";
+  }
+  m_out << RUNTIME_ASM << "\n";
 
   m_out << "section .text\n";
   // _start can now begin emitting here
@@ -500,36 +503,44 @@ void X86_64CodeGenerator::emit_program_header() {
 
 void X86_64CodeGenerator::emit_program_footer() {
   // output the gathered string labels in the data section
-  m_out << "\nsection .data\n";
-  for (const std::string& str : m_string_literals_data) {
-    m_out << m_string_literal_to_label.at(str) << ":\n";
-    if (str.size() == 1 && str[0] == '\n') {
-      m_out << "\tdb 10, 0\n";
-      continue;
+  if (!m_string_literals_data.empty()) {
+    if (!m_freestanding) {
+      m_out << "\nsection .data\n";
     }
-    m_out << "\tdb \"";
-    for (char c : str) {
-      if (c == '"')
-        m_out << "\", `\"`, \""; // NASM escape for quote
-      else if (c == '\n')
-        m_out << "\", 10, \""; // Newline
-      else if (c == '\t')
-        m_out << "\", 9, \""; // Tab
-      else if (c == 0)
-        m_out << "\", 0, \""; // Explicit null
-      else if (c < 32 || c > 126) {
-        m_out << "\", " << static_cast<int>(c) << ", \"";
-      } else {
-        m_out << c;
+    for (const std::string& str : m_string_literals_data) {
+      m_out << m_string_literal_to_label.at(str) << ":\n";
+      if (str.size() == 1 && str[0] == '\n') {
+        m_out << "\tdb 10, 0\n";
+        continue;
       }
+      m_out << "\tdb \"";
+      for (char c : str) {
+        if (c == '"')
+          m_out << "\", `\"`, \""; // NASM escape for quote
+        else if (c == '\n')
+          m_out << "\", 10, \""; // Newline
+        else if (c == '\t')
+          m_out << "\", 9, \""; // Tab
+        else if (c == 0)
+          m_out << "\", 0, \""; // Explicit null
+        else if (c < 32 || c > 126) {
+          m_out << "\", " << static_cast<int>(c) << ", \"";
+        } else {
+          m_out << c;
+        }
+      }
+      // always end with a null byte just in case
+      m_out << "\", 0\n";
     }
-    // always end with a null byte just in case
-    m_out << "\", 0\n";
   }
 
   if (m_global_var_alloc > 0) {
-    m_out << "section .bss\n";
-    m_out << "\tglobal_vars resb " << std::to_string(get_align(m_global_var_alloc)) << "\n";
+    if (!m_freestanding) {
+      m_out << "\nsection .bss\n";
+      m_out << "\tglobal_vars resb " << std::to_string(get_align(m_global_var_alloc)) << "\n";
+    } else {
+      m_out << "\nglobal_vars: times " << std::to_string(get_align(m_global_var_alloc)) << " db 0\n";
+    }
   }
 }
 
