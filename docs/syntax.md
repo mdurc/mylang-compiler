@@ -87,7 +87,8 @@ Functions are top-level declarations.
 - **Return Values**: Functions can return a single value. The return variable (`sum`) must be declared in the signature and is implicitly available within the function body. A `return` statement can be used for an early exit. If no `return` is used, the final value of the named return variable is returned. Functions without a `returns` clause implicitly return `u0`.
 
 - **External Functions**:
-    - Use the `extern` keyword to declare a function signature without a body. This allows the compiler to type-check calls to functions that will be provided by the linker (e.g., from the ASM runtime library).
+    - Use the `extern` keyword to declare a function signature without a body. This allows the compiler to type-check calls to functions that will be provided by the linker (e.g., from the _handwritten_ ASM runtime library).
+    - Note that you could define a label with an ASM block and perform a standard function call if we use `extern` on that label name.
     - See [sample_code/strings.sn](../sample_code/strings.sn) for an example
 
     ```mylang
