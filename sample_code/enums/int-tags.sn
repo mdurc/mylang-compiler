@@ -1,0 +1,35 @@
+enum VgaColor {
+  Black = 0x00,
+  Blue = 0x01,
+  Green = 0x02,
+  Cyan, // implicitly 0x03
+  Red, // implicitly 0x04
+  Magenta = 0xFF
+}
+
+func test_switch(c: VgaColor) {
+  switch (c) {
+    case VgaColor::Black: { print "Color is Black (0x00): tag = ", c.tag, " ; ", VgaColor::Black.tag, "\n"; }
+    case VgaColor::Blue: { print "Color is Blue (0x01): tag = ", c.tag, " ; ", VgaColor::Blue.tag, "\n"; }
+    case VgaColor::Green: { print "Color is Green (0x02): tag = ", c.tag, " ; ", VgaColor::Green.tag, "\n"; }
+    case VgaColor::Cyan: { print "Color is Cyan (0x03): tag = ", c.tag, " ; ", VgaColor::Cyan.tag, "\n"; }
+    case VgaColor::Red: { print "Color is Red (0x04): tag = ", c.tag, " ; ", VgaColor::Red.tag, "\n"; }
+    case VgaColor::Magenta: { print "Color is Magenta (0xFF): tag = ", c.tag, " ; ", VgaColor::Magenta.tag, "\n"; }
+    default: { print "Unknown color tag: ", c.tag, "\n"; }
+  }
+}
+
+func main() {
+  test_switch(VgaColor::Black);
+  test_switch(VgaColor::Blue);
+  test_switch(VgaColor::Green);
+  test_switch(VgaColor::Cyan);
+  test_switch(VgaColor::Red);
+  test_switch(VgaColor::Magenta);
+
+  print "\ntag access:\n";
+  print VgaColor::Magenta.tag, "\n";
+  if (VgaColor::Magenta.tag == 0xFF) {
+    print "(VgaColor::Magenta.tag == 0xFF) comparison passed\n";
+  } else { print "failed comparison\n"; }
+}

@@ -644,9 +644,20 @@ void TypeChecker::visit(EnumDeclNode& node) {
   std::uint64_t max_payload_size = 0;
   std::uint64_t max_payload_align = 1;
 
+  std::unordered_map<std::uint32_t, std::string_view> seen_tags;
+
   for (size_t i = 0; i < node.variants.size(); ++i) {
     EnumVariantAST& ast_variant = node.variants[i];
     Type::EnumVariant& type_variant = node.type->as<Type::Enum>().variants[i];
+
+    if (seen_tags.find(type_variant.tag_value) != seen_tags.end()) {
+      m_logger->report(Diag::Error(ast_variant.name->token->get_span(),
+            "Enum variant '" + std::string(ast_variant.name->name_str) +
+            "' has duplicate tag value " + std::to_string(type_variant.tag_value) +
+            " (previously used by '" + std::string(seen_tags[type_variant.tag_value]) + "')."));
+    } else {
+      seen_tags[type_variant.tag_value] = ast_variant.name->name_str;
+    }
 
     std::uint64_t current_offset = 0;
     std::uint64_t current_align = 1;
@@ -972,6 +983,18 @@ void TypeChecker::visit(FieldAccessNode& node) {
       node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
       return;
     }
+  }
+
+  if (base_object_type->is<Type::Enum>()) {
+    if (node.field->name_str == "tag") {
+      Type* u32_type = m_symtab->lookup<Type>("u32", 0);
+      _assert(u32_type, "u32 type must exist in symbol table");
+      node.expr_type = u32_type;
+      return;
+    }
+    m_logger->report(Diag::Error(node.field->token->get_span(), "Enums only support the '.tag' field. Use a switch statement to extract payloads."));
+    node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
+    return;
   }
 
   if (!base_object_type->is<Type::Named>()) {

@@ -198,6 +198,16 @@ AstPtr Parser::parse_enum_decl() {
         std::string_view variant_name = variant_tok->get_lexeme();
         IdentPtr variant_ident = _alloc(IdentifierNode, variant_tok, m_symtab->current_scope(), variant_name);
 
+        std::optional<std::uint64_t> explicit_tag = std::nullopt;
+        if (match(TokenType::EQUAL)) {
+          advance(); // consume '='
+          const Token* int_tok = current();
+          _consume(TokenType::INT_LITERAL);
+          explicit_tag = int_tok->get_int_val();
+          // update the running tag counter so subsequent implicit tags count up from here
+          current_tag = static_cast<std::uint32_t>(explicit_tag.value());
+        }
+
         std::vector<StructFieldPtr> payload_fields;
         Type* payload_type = nullptr;
         StructDeclPtr payload_struct = nullptr;
@@ -231,7 +241,7 @@ AstPtr Parser::parse_enum_decl() {
         }
 
         // ast_variants.push_back({variant_ident, freeze(payload_fields)});
-        ast_variants.push_back({variant_ident, payload_struct ? payload_struct->fields : freeze(payload_fields)});
+        ast_variants.push_back({variant_ident, explicit_tag, payload_struct ? payload_struct->fields : freeze(payload_fields)});
         type_variants.push_back({variant_name, payload_type, current_tag++});
 
       } while (match(TokenType::COMMA) && advance());

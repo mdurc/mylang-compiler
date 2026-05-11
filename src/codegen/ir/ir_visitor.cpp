@@ -398,7 +398,21 @@ IR_Register IrVisitor::compute_struct_field_addr(const ExprPtr& object, std::str
 }
 
 void IrVisitor::visit(FieldAccessNode& node) {
-  // compute the memory address of the field
+  // intercept enum .tag access
+  Type* obj_type = node.object->expr_type;
+  Type* base_type = obj_type->is<Type::Pointer>() ? obj_type->as<Type::Pointer>().pointee : obj_type;
+  if (base_type->is<Type::Enum>()) {
+    _assert(node.field->name_str == "tag", "Only .tag is supported on enums");
+    node.object->accept(*this);
+    IROperand enum_base_addr = m_last_expr_operand;
+    // the tag is always a 4-byte integer at offset 0
+    IR_Register result_reg = m_ir_gen.new_temp_reg();
+    m_ir_gen.emit_load(result_reg, enum_base_addr, 4);
+    m_last_expr_operand = result_reg;
+    return;
+  }
+
+  // Standard struct field access: compute the memory address of the field
   IR_Register field_addr = compute_struct_field_addr(node.object, node.field->name_str);
 
   _assert(node.expr_type, "FieldAccessNode must have its type resolved by typechecker");

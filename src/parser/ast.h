@@ -438,6 +438,7 @@ public:
 
 struct EnumVariantAST {
   IdentPtr name;
+  std::optional<std::uint64_t> explicit_tag;
   std::span<StructFieldPtr> fields; /* empty if no payload */
 };
 

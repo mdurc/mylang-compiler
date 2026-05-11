@@ -41,7 +41,7 @@
 <ContinueStmt>          ::= 'continue'
 
 <EnumDecl>              ::= 'enum' <Identifier> '{' <EnumVariant> (',' <EnumVariant>)* '}'
-<EnumVariant>           ::= <Identifier> ('{' <StructField>* '}')?
+<EnumVariant>           ::= <Identifier> ( '=' <Integer> )? ('{' <StructField>* '}')?
 
 <SwitchStmt>            ::= 'switch' '(' <Expr> ')' '{' <Case>* '}'
 <Case>                  ::= 'case' <CasePattern> ':' <Block> | 'default' ':' <Block>
@@ -101,10 +101,10 @@
 
 <TypePrefix>            ::= 'mut' | 'imm'
 
-Integer     ::= HexInteger | DecInteger
-DecInteger  ::= [0-9]+
-HexInteger  ::= "0" ("x" | "X") HexDigit+
-HexDigit    ::= [0-9a-fA-F]
+Integer                 ::= HexInteger | DecInteger
+DecInteger              ::= [0-9]+
+HexInteger              ::= "0" ("x" | "X") HexDigit+
+HexDigit                ::= [0-9a-fA-F]
 
 Float                   ::= [0-9]+ '.' [0-9]+
 String                  ::= '"' ( Escape | [^"] )* '"'
