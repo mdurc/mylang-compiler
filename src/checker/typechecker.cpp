@@ -48,6 +48,7 @@ void TypeChecker::check_program(SymTab* symtab, const std::vector<AstPtr>& progr
   m_symtab = symtab;
   m_current_function_return_type = nullptr;
   m_in_loop = false;
+  m_defined_functions.clear();
 
   for (const AstPtr& node : program_nodes) {
     _assert(node, "AstPtr should never be nullptr");
@@ -563,6 +564,14 @@ void TypeChecker::visit(ReturnStmtNode& node) {
 
 // Function Declaration
 void TypeChecker::visit(FunctionDeclNode& node) {
+  if (node.body) {
+    if (m_defined_functions.count(node.name->name_str)) {
+      m_logger->report(Diag::Error(node.name->token->get_span(), "Function '" + std::string(node.name->name_str) + "' is already defined."));
+    } else {
+      m_defined_functions.insert(node.name->name_str);
+    }
+  }
+
   Type* prev_return_type = m_current_function_return_type;
   m_current_function_return_type = node.return_type;
   _assert(m_current_function_return_type, "Parser should set func return_t");

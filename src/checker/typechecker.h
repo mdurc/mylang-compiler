@@ -7,6 +7,8 @@
 #include "../parser/symtab.h"
 #include "../parser/visitor.h"
 
+#include <unordered_set>
+
 class TypeChecker : public Visitor {
 public:
   TypeChecker(Logger* logger, ArenaAllocator* arena);
@@ -79,6 +81,9 @@ private:
 
   /* to check case stmt compatibility */
   Type* m_current_switch_expr_type;
+
+  /* to track duplicate function definitions */
+  std::unordered_set<std::string_view> m_defined_functions;
 
   /* calls expr->accept(*this) which will return a resolved type */
   Type* get_expr_type(const ExprPtr& expr);
