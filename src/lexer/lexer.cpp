@@ -206,16 +206,27 @@ void Lexer::lex_char() {
 
 void Lexer::lex_number() {
   bool is_float = false;
+  int base = 10;
 
-  while (isdigit(peek())) {
+  if (peek() == '0' && (peek_next() == 'x' || peek_next() == 'X')) {
     advance();
-  }
-
-  if (peek() == '.' && isdigit(peek_next())) {
-    is_float = true;
     advance();
+    base = 16;
+    while (isxdigit(peek())) {
+      advance();
+    }
+  } else {
     while (isdigit(peek())) {
       advance();
+    }
+
+    // floating point check
+    if (peek() == '.' && isdigit(peek_next())) {
+      is_float = true;
+      advance();
+      while (isdigit(peek())) {
+        advance();
+      }
     }
   }
 
@@ -230,7 +241,7 @@ void Lexer::lex_number() {
     }
   } else {
     try {
-      add_token(TokenType::INT_LITERAL, std::stoull(std::string(num_str)));
+      add_token(TokenType::INT_LITERAL, std::stoull(std::string(num_str), nullptr, base));
     } catch (const std::out_of_range&) {
       _report_error("Integer literal out of range: " + std::string(num_str));
       add_token(TokenType::UNKNOWN);

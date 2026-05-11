@@ -1,0 +1,10 @@
+// int
+i : i64 = 97;
+h : u64 = 0xDEADC0DE; // 3735929054
+
+// char
+c : u8 = 'a'; // 97
+
+print "expected 97         got: ", i, "\n";
+print "expected 97         got: ", c, "\n";
+print "expected 3735929054 got: ", h, "\n";
