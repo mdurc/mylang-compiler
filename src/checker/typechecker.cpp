@@ -747,10 +747,13 @@ void TypeChecker::visit(BinaryOpExprNode& node) {
       if (numeric_resolved)
         result_type = numeric_resolved;
       // Pointer arithmetic: ptr<T> + i64 -> ptr<T> or i64 + ptr<T> -> ptr<T>
-      else if (left_type->is<Type::Pointer>() && is_integer_type(right_type))
+      else if (left_type->is<Type::Pointer>() && is_integer_type(right_type)) {
+        try_apply_implicit_cast(node.right, i64_type);
         result_type = left_type;
-      else if (is_integer_type(left_type) && right_type->is<Type::Pointer>())
+      } else if (is_integer_type(left_type) && right_type->is<Type::Pointer>()) {
+        try_apply_implicit_cast(node.left, i64_type);
         result_type = right_type;
+      }
       break;
 
     case BinOperator::Minus:
@@ -762,8 +765,10 @@ void TypeChecker::visit(BinaryOpExprNode& node) {
                right_type->is<Type::Pointer>() && *left_type == *right_type)
         result_type = i64_type;
       // Pointer subtraction: ptr<T> - i64 -> ptr<T>
-      else if (left_type->is<Type::Pointer>() && is_integer_type(right_type))
+      else if (left_type->is<Type::Pointer>() && is_integer_type(right_type)) {
+        try_apply_implicit_cast(node.right, i64_type);
         result_type = left_type;
+      }
       break;
 
     case BinOperator::Multiply:
@@ -1056,6 +1061,10 @@ void TypeChecker::visit(ArrayIndexNode& node) {
     node.expr_type = m_arena->make<Type>(Type::ErrorType{}, node.scope_id);
     return;
   }
+
+  // implicitly upcast the index to a 64-bit integer for accurate pointer arithmetic
+  Type* i64_type = m_symtab->lookup<Type>("i64", 0);
+  try_apply_implicit_cast(node.index, i64_type);
 
   node.expr_type = object_type->as<Type::Pointer>().pointee;
 }

@@ -1,0 +1,7 @@
+func main() {
+  mut str := "Hello world!"; // Type: ptr<imm u8> (8 bytes)
+  mut offset: u32 = 7;
+
+  mut target_ptr := str + offset; // ptr arithmetic with 32-bit integer
+  mut c := target_ptr[0];
+}
